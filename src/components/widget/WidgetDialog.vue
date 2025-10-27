@@ -5,7 +5,7 @@
       <Dialog.Content as-child>
         <div class="content">
           <VisuallyHidden as-child>
-            <Dialog.Title>Deposti</Dialog.Title>
+            <Dialog.Title>Deposit</Dialog.Title>
           </VisuallyHidden>
           <VisuallyHidden as-child>
             <Dialog.Description>
