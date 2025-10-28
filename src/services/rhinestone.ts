@@ -1,3 +1,4 @@
+import type { SupportedChain } from "@rhinestone/shared-configs";
 import type { Address, Chain, Hex } from "viem";
 import type { IntentOp } from "../components/widget/permit2";
 
@@ -12,6 +13,30 @@ interface IntentOptions {
 	settlementLayers?: string[];
 }
 
+type SupportedTokenSymbol = "ETH" | "WETH" | "USDC" | "USDT";
+type SupportedToken = SupportedTokenSymbol | Address;
+
+type AccountAccessListLegacy = {
+	chainId: number;
+	tokenAddress: Address;
+}[];
+
+type MappedChainTokenAccessList = {
+	chainTokens?: {
+		[chainId in SupportedChain]?: SupportedToken[];
+	};
+};
+
+type UnmappedChainTokenAccessList = {
+	chainIds?: SupportedChain[];
+	tokens?: SupportedToken[];
+};
+
+type AccountAccessList =
+	| AccountAccessListLegacy
+	| MappedChainTokenAccessList
+	| UnmappedChainTokenAccessList;
+
 interface IntentInput {
 	account: Account;
 	destinationChainId: number;
@@ -22,7 +47,7 @@ interface IntentInput {
 		amount?: bigint;
 	}[];
 	// recipient?: Account;
-	// accountAccessList?: AccountAccessList;
+	accountAccessList?: AccountAccessList;
 	options: IntentOptions;
 }
 
@@ -122,6 +147,40 @@ type SignedIntentOp = IntentOp & {
 	destinationSignature: Hex;
 };
 
+interface PortfolioResponse {
+	tokenName: string;
+	tokenDecimals: number;
+	balance: {
+		locked: string;
+		unlocked: string;
+	};
+	tokenChainBalance: {
+		isAccountDeployed: boolean;
+		chainId: number;
+		tokenAddress: Address;
+		balance: {
+			locked: string;
+			unlocked: string;
+		};
+	}[];
+}
+
+interface Portfolio {
+	symbol: string;
+	decimals: number;
+	balances: {
+		locked: bigint;
+		unlocked: bigint;
+	};
+	chains: {
+		isAccountDeployed: boolean;
+		chain: number;
+		address: Address;
+		locked: bigint;
+		unlocked: bigint;
+	}[];
+}
+
 class Service {
 	private readonly baseUrl = "https://dev.v1.orchestrator.rhinestone.dev";
 	private readonly apiKey;
@@ -135,6 +194,8 @@ class Service {
 		chain: Chain,
 		token: Address,
 		amount: bigint,
+		inputChain?: Chain,
+		inputToken?: Address,
 	): Promise<Intent> {
 		const intentInput: IntentInput = {
 			account: {
@@ -149,6 +210,16 @@ class Service {
 				topupCompact: false,
 			},
 		};
+
+		// If custom input chain and token are provided, add them to accountAccessList
+		if (inputChain && inputToken) {
+			intentInput.accountAccessList = {
+				chainTokens: {
+					[inputChain.id as SupportedChain]: [inputToken],
+				},
+			};
+		}
+
 		const response = await fetch(`${this.baseUrl}/intents/route`, {
 			method: "POST",
 			headers: {
@@ -203,6 +274,59 @@ class Service {
 		);
 		return response.json();
 	}
+
+	async getPortfolio(
+		userAddress: Address,
+		filter?: {
+			chainIds?: number[];
+			tokens?: {
+				[chainId: number]: Address[];
+			};
+		},
+	): Promise<Portfolio[]> {
+		const params = new URLSearchParams();
+		if (filter?.chainIds) {
+			params.set("chainIds", filter.chainIds.join(","));
+		}
+		if (filter?.tokens) {
+			params.set(
+				"tokens",
+				Object.entries(filter.tokens)
+					.flatMap(([chainId, tokens]) =>
+						tokens.map((token) => `${chainId}:${token}`),
+					)
+					.join(","),
+			);
+		}
+		const url = new URL(`${this.baseUrl}/accounts/${userAddress}/portfolio`);
+		url.search = params.toString();
+		const response = await fetch(url.toString(), {
+			method: "GET",
+			headers: {
+				"Content-Type": "application/json",
+				"x-api-key": this.apiKey,
+			},
+		});
+		const json = await response.json();
+		const portfolioResponse = json.portfolio as PortfolioResponse[];
+		const portfolio: Portfolio[] = portfolioResponse.map((tokenResponse) => ({
+			symbol: tokenResponse.tokenName,
+			decimals: tokenResponse.tokenDecimals,
+			balances: {
+				locked: BigInt(tokenResponse.balance.locked),
+				unlocked: BigInt(tokenResponse.balance.unlocked),
+			},
+			chains: tokenResponse.tokenChainBalance.map((chainBalance) => ({
+				isAccountDeployed: chainBalance.isAccountDeployed,
+				chain: chainBalance.chainId,
+				address: chainBalance.tokenAddress,
+				locked: BigInt(chainBalance.balance.locked),
+				unlocked: BigInt(chainBalance.balance.unlocked),
+			})),
+		}));
+
+		return portfolio;
+	}
 }
 
 export type {
@@ -211,5 +335,6 @@ export type {
 	IntentResult,
 	SignedIntentOp,
 	Claim,
+	Portfolio,
 };
 export default Service;

@@ -97,7 +97,7 @@ const fillTransactionHash = ref<Hex | undefined>(undefined);
 
 const isCompleted = computed(() => {
   return (
-    status.value === "COMPLETED" ||
+    status.value === "FILLED" ||
     status.value === "FAILED" ||
     status.value === "EXPIRED"
   );
@@ -109,7 +109,7 @@ const displayStatus = computed(() => {
 
 const statusClass = computed(() => {
   const s = status.value;
-  if (s === "COMPLETED") return "status-success";
+  if (s === "FILLED") return "status-success";
   if (s === "FAILED" || s === "EXPIRED") return "status-error";
   if (s === "PRECONFIRMED") return "status-preconfirmed";
   return "status-pending";
