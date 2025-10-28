@@ -66,14 +66,13 @@ export function getTypedData(
 	nonce: bigint,
 	expires: bigint,
 ) {
-	const tokens = element.idsAndAmounts.map(([id, amount]) => [
-		BigInt(id),
-		BigInt(amount),
-	]);
+	const tokens = element.idsAndAmounts.map(
+		([id, amount]) => [BigInt(id), BigInt(amount)] as const,
+	);
 	const tokenPermissions = tokens.reduce<TokenPermissions[]>(
 		(permissions, [id, amountIn]) => {
-			const token = toToken(BigInt(id));
-			const amount = BigInt(amountIn);
+			const token = toToken(id);
+			const amount = amountIn;
 			const permission: TokenPermissions = { token, amount };
 			permissions.push(permission);
 			return permissions;

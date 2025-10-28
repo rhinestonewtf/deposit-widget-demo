@@ -41,7 +41,9 @@ interface Execution {
 interface Intent {
 	intentOp: IntentOp;
 	intentCost: IntentCost;
-	tokenRequirements: Record<string, Record<Address, TokenRequirement>>;
+	tokenRequirements:
+		| Record<string, Record<Address, TokenRequirement>>
+		| undefined;
 }
 
 type TokenRequirement =
@@ -83,6 +85,43 @@ interface IntentCost {
 
 type AccountType = "GENERIC" | "ERC7579" | "EOA";
 
+type IntentStatus =
+	| "PENDING"
+	| "PRECONFIRMED"
+	| "COMPLETED"
+	| "FAILED"
+	| "EXPIRED"
+	| "FILLED"
+	| "PARTIALLY_COMPLETED"
+	| "UNKNOWN";
+
+interface Claim {
+	claimId: string;
+	status: string;
+	// Add other claim fields as needed
+}
+
+interface IntentOpStatus {
+	status: IntentStatus;
+	claims: Claim[];
+	destinationChainId: number;
+	userAddress: Address;
+	fillTimestamp?: number;
+	fillTransactionHash?: Hex;
+}
+
+interface IntentResult {
+	result: {
+		id: string;
+		status: IntentStatus;
+	};
+}
+
+type SignedIntentOp = IntentOp & {
+	originSignatures: Hex[];
+	destinationSignature: Hex;
+};
+
 class Service {
 	private readonly baseUrl = "https://dev.v1.orchestrator.rhinestone.dev";
 	private readonly apiKey;
@@ -122,6 +161,55 @@ class Service {
 		});
 		return response.json();
 	}
+
+	async submitIntent(
+		signedIntentOp: SignedIntentOp,
+		dryRun = false,
+	): Promise<IntentResult> {
+		const payload: Record<string, unknown> = {
+			signedIntentOp,
+		};
+		if (dryRun) {
+			(
+				payload.signedIntentOp as SignedIntentOp & { options?: unknown }
+			).options = {
+				dryRun: true,
+			};
+		}
+		const response = await fetch(`${this.baseUrl}/intent-operations`, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"x-api-key": this.apiKey,
+			},
+			body: JSON.stringify(payload, (_, value) =>
+				typeof value === "bigint" ? value.toString() : value,
+			),
+		});
+		const result = await response.json();
+		return result;
+	}
+
+	async getIntentStatus(intentId: bigint): Promise<IntentOpStatus> {
+		const response = await fetch(
+			`${this.baseUrl}/intent-operation/${intentId.toString()}`,
+			{
+				method: "GET",
+				headers: {
+					"Content-Type": "application/json",
+					"x-api-key": this.apiKey,
+				},
+			},
+		);
+		return response.json();
+	}
 }
 
+export type {
+	IntentStatus,
+	IntentOpStatus,
+	IntentResult,
+	SignedIntentOp,
+	Claim,
+};
 export default Service;

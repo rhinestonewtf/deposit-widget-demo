@@ -123,7 +123,8 @@ watchDebounced(
             amount: BigInt(tokenData.unlocked),
           }))
       );
-      const tokenRequirements = quote.tokenRequirements;
+      intentOp.value = quote.intentOp;
+      const tokenRequirements = quote.tokenRequirements || {};
       inputTokenRequirements.value = Object.entries(tokenRequirements).flatMap(
         ([chainId, tokens]) =>
           Object.entries(tokens).map(([tokenAddress, tokenData]) => {
@@ -147,7 +148,6 @@ watchDebounced(
             };
           })
       );
-      intentOp.value = quote.intentOp;
     }
   },
   { debounce: 250, maxWait: 2000 }

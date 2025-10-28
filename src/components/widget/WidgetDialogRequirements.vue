@@ -130,7 +130,7 @@ interface EthereumProvider {
 }
 
 const emit = defineEmits<{
-  next: [signature: Hex];
+  next: [signatures: Hex[]];
 }>();
 
 const { requirements, intentOp } = defineProps<{
@@ -142,7 +142,7 @@ const completedRequirements = ref<Set<number>>(new Set());
 const processingIndex = ref<number | null>(null);
 const isSigningCompleted = ref(false);
 const isSigningProcessing = ref(false);
-const signature = ref<Hex | null>(null);
+const signatures = ref<Hex[]>([]);
 
 const allTokenRequirementsCompleted = computed(() => {
   return completedRequirements.value.size === requirements.length;
@@ -339,7 +339,7 @@ async function handleSigning(): Promise<void> {
       return;
     }
 
-    const signatures: Hex[] = [];
+    const collectedSignatures: Hex[] = [];
 
     // Sign each element in the intentOp
     for (const element of intentOp.elements) {
@@ -379,11 +379,11 @@ async function handleSigning(): Promise<void> {
         account,
         ...typedData,
       });
-      signatures.push(sig);
+      collectedSignatures.push(sig);
     }
 
-    // Store the first signature (or use as needed)
-    signature.value = signatures[0] ?? ("0x" as Hex);
+    // Store all signatures
+    signatures.value = collectedSignatures;
     isSigningCompleted.value = true;
   } catch (error) {
     console.error("Signing failed:", error);
@@ -393,11 +393,11 @@ async function handleSigning(): Promise<void> {
 }
 
 function handleContinue(): void {
-  if (!signature.value) {
-    console.error("No signature available");
+  if (signatures.value.length === 0) {
+    console.error("No signatures available");
     return;
   }
-  emit("next", signature.value);
+  emit("next", signatures.value);
 }
 </script>
 

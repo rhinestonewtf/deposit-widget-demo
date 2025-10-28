@@ -25,6 +25,13 @@
             :intent-op="step.intentOp"
             @next="handleRequirementsNext"
           />
+          <WidgetDialogSubmit
+            v-if="step.type === 'deposit'"
+            :signatures="step.signatures"
+            :intent-op="step.intentOp"
+            :user-address="account"
+            @next="handleSubmitNext"
+          />
         </div>
       </Dialog.Content>
     </Dialog.Portal>
@@ -38,6 +45,7 @@ import type { Address, Chain, Hex } from "viem";
 import { ref } from "vue";
 import WidgetDialogQuote from "./WidgetDialogQuote.vue";
 import WidgetDialogTokens from "./WidgetDialogRequirements.vue";
+import WidgetDialogSubmit from "./WidgetDialogSubmit.vue";
 import type { IntentOp, TokenRequirement } from "./common";
 
 type Step =
@@ -53,10 +61,12 @@ type Step =
       type: "signing";
       requirements: TokenRequirement[];
       intentOp: IntentOp;
-      signature: Hex;
+      signatures: Hex[];
     }
   | {
       type: "deposit";
+      intentOp: IntentOp;
+      signatures: Hex[];
     };
 
 const open = defineModel<boolean>("open", {
@@ -83,15 +93,19 @@ function handleQuoteNext(
   step.value = { type: "requirements", requirements, intentOp };
 }
 
-function handleRequirementsNext(signature: Hex): void {
+function handleRequirementsNext(signatures: Hex[]): void {
   if (step.value.type === "requirements") {
     step.value = {
-      type: "signing",
-      requirements: step.value.requirements,
+      type: "deposit",
       intentOp: step.value.intentOp,
-      signature,
+      signatures,
     };
   }
+}
+
+function handleSubmitNext(): void {
+  open.value = false;
+  step.value = { type: "quote" };
 }
 </script>
 
