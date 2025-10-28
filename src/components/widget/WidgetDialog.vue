@@ -17,14 +17,13 @@
             :token="token"
             :chain="chain"
             :user-address="account"
-            @next="
-              (requirements) => (step = { type: 'requirements', requirements })
-            "
+            @next="handleQuoteNext"
           />
           <WidgetDialogTokens
             v-if="step.type === 'requirements'"
             :requirements="step.requirements"
-            @next="step = { type: 'signing' }"
+            :intent-op="step.intentOp"
+            @next="handleRequirementsNext"
           />
         </div>
       </Dialog.Content>
@@ -35,11 +34,11 @@
 <script setup lang="ts">
 import { VisuallyHidden } from "reka-ui";
 import { Dialog } from "reka-ui/namespaced";
-import type { Address, Chain } from "viem";
+import type { Address, Chain, Hex } from "viem";
 import { ref } from "vue";
 import WidgetDialogQuote from "./WidgetDialogQuote.vue";
 import WidgetDialogTokens from "./WidgetDialogRequirements.vue";
-import type { TokenRequirement } from "./common";
+import type { IntentOp, TokenRequirement } from "./common";
 
 type Step =
   | {
@@ -48,9 +47,13 @@ type Step =
   | {
       type: "requirements";
       requirements: TokenRequirement[];
+      intentOp: IntentOp;
     }
   | {
       type: "signing";
+      requirements: TokenRequirement[];
+      intentOp: IntentOp;
+      signature: Hex;
     }
   | {
       type: "deposit";
@@ -70,6 +73,24 @@ const { token, chain, account } = defineProps<{
 function handleOpen(value: boolean): void {
   if (!value) {
     open.value = false;
+  }
+}
+
+function handleQuoteNext(
+  requirements: TokenRequirement[],
+  intentOp: IntentOp
+): void {
+  step.value = { type: "requirements", requirements, intentOp };
+}
+
+function handleRequirementsNext(signature: Hex): void {
+  if (step.value.type === "requirements") {
+    step.value = {
+      type: "signing",
+      requirements: step.value.requirements,
+      intentOp: step.value.intentOp,
+      signature,
+    };
   }
 }
 </script>

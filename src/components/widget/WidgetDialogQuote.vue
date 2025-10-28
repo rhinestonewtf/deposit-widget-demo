@@ -50,7 +50,7 @@ import { type Address, type Chain, formatUnits, parseUnits } from "viem";
 import { computed, ref, watch } from "vue";
 
 import RhinestoneService from "../../services/rhinestone";
-import type { TokenRequirement } from "./common";
+import type { IntentOp, TokenRequirement } from "./common";
 
 const apiKey = import.meta.env.VITE_PUBLIC_RHINESTONE_API_KEY;
 if (!apiKey) {
@@ -59,7 +59,7 @@ if (!apiKey) {
 const rhinestoneService = new RhinestoneService(apiKey);
 
 const emit = defineEmits<{
-  next: [requirements: TokenRequirement[]];
+  next: [requirements: TokenRequirement[], intentOp: IntentOp];
 }>();
 
 const { token, chain, userAddress } = defineProps<{
@@ -88,6 +88,7 @@ const inputAmount = computed(() => {
 });
 const inputTokens = ref<InputToken[]>([]);
 const inputTokenRequirements = ref<TokenRequirement[]>([]);
+const intentOp = ref<IntentOp | null>(null);
 const isQuoteLoading = ref(false);
 
 const inputWidth = computed(() => {
@@ -146,13 +147,18 @@ watchDebounced(
             };
           })
       );
+      intentOp.value = quote.intentOp;
     }
   },
   { debounce: 250, maxWait: 2000 }
 );
 
 function handleContinue(): void {
-  emit("next", inputTokenRequirements.value);
+  if (!intentOp.value) {
+    console.error("No intent data available");
+    return;
+  }
+  emit("next", inputTokenRequirements.value, intentOp.value);
 }
 
 function getTokenSymbol(chainId: string, tokenAddress: Address): string | null {

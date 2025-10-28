@@ -28,23 +28,27 @@
               class="token-icon"
             />
             <div class="requirement-text">
-              <span class="action-type">{{
-                requirement.type === "wrap" ? "Wrap" : "Approve"
-              }}</span>
-              <span class="amount" v-if="requirement.type === 'wrap'">{{
-                formatTokenAmount(
-                  requirement.chain,
-                  requirement.address,
-                  requirement.amount
-                )
-              }}</span>
-              <span class="token-symbol">{{
-                getTokenSymbol(requirement.chain, requirement.address) ||
-                "Unknown"
-              }}</span>
-              <span class="chain-name"
-                >on {{ getChainName(requirement.chain) }}</span
-              >
+              <div class="requirement-text-top">
+                <span class="action-type">{{
+                  requirement.type === "wrap" ? "Wrap" : "Approve"
+                }}</span>
+                <span class="amount" v-if="requirement.type === 'wrap'">{{
+                  formatTokenAmount(
+                    requirement.chain,
+                    requirement.address,
+                    requirement.amount
+                  )
+                }}</span>
+                <span class="token-symbol">{{
+                  getTokenSymbol(requirement.chain, requirement.address) ||
+                  "Unknown"
+                }}</span>
+              </div>
+              <div class="requirement-text-bottom">
+                <span class="chain-name"
+                  >on {{ getChainName(requirement.chain) }}</span
+                >
+              </div>
             </div>
           </div>
           <button
@@ -60,6 +64,29 @@
                 ? "Wrap"
                 : "Approve"
             }}
+          </button>
+          <span v-else class="completed-badge">✓</span>
+        </div>
+
+        <!-- Signing requirement -->
+        <div class="requirement-item">
+          <div class="requirement-info">
+            <div class="requirement-text">
+              <div class="requirement-text-top">
+                <span class="action-type">Sign Intent</span>
+              </div>
+              <div class="requirement-text-bottom">
+                <span class="chain-name">Approve the deposit order</span>
+              </div>
+            </div>
+          </div>
+          <button
+            v-if="!isSigningCompleted"
+            @click="handleSigning"
+            :disabled="isSigningProcessing"
+            class="action-button"
+          >
+            {{ isSigningProcessing ? "Signing..." : "Sign" }}
           </button>
           <span v-else class="completed-badge">✓</span>
         </div>
@@ -79,6 +106,7 @@ import {
   http,
   type Address,
   type Chain,
+  type Hex,
   createPublicClient,
   createWalletClient,
   custom,
@@ -89,7 +117,8 @@ import * as chains from "viem/chains";
 import { computed, ref } from "vue";
 import ethIcon from "/icons/eth.svg?url";
 import usdcIcon from "/icons/usdc.svg?url";
-import type { TokenRequirement } from "./common";
+import type { IntentOp, TokenRequirement } from "./common";
+import { getTypedData } from "./permit2";
 
 interface EthereumProvider {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
@@ -101,18 +130,26 @@ interface EthereumProvider {
 }
 
 const emit = defineEmits<{
-  next: [];
+  next: [signature: Hex];
 }>();
 
-const { requirements } = defineProps<{
+const { requirements, intentOp } = defineProps<{
   requirements: TokenRequirement[];
+  intentOp: IntentOp;
 }>();
 
 const completedRequirements = ref<Set<number>>(new Set());
 const processingIndex = ref<number | null>(null);
+const isSigningCompleted = ref(false);
+const isSigningProcessing = ref(false);
+const signature = ref<Hex | null>(null);
+
+const allTokenRequirementsCompleted = computed(() => {
+  return completedRequirements.value.size === requirements.length;
+});
 
 const allCompleted = computed(() => {
-  return completedRequirements.value.size === requirements.length;
+  return allTokenRequirementsCompleted.value && isSigningCompleted.value;
 });
 
 function getTokenSymbol(chainId: string, tokenAddress: Address): string | null {
@@ -293,8 +330,74 @@ async function handleAction(
   }
 }
 
+async function handleSigning(): Promise<void> {
+  isSigningProcessing.value = true;
+
+  try {
+    if (!window.ethereum) {
+      console.error("Please install a Web3 wallet");
+      return;
+    }
+
+    const signatures: Hex[] = [];
+
+    // Sign each element in the intentOp
+    for (const element of intentOp.elements) {
+      const chainIdNum = Number(element.chainId);
+      const chainList = Object.values(chains) as Chain[];
+      const chain = chainList.find((c) => c.id === chainIdNum);
+
+      if (!chain) {
+        console.error(`Unsupported chain: ${element.chainId}`);
+        continue;
+      }
+
+      const walletClient = createWalletClient({
+        chain,
+        transport: custom(window.ethereum as unknown as EthereumProvider),
+      });
+
+      const [account] = await walletClient.requestAddresses();
+
+      if (!account) {
+        console.error("No account found");
+        return;
+      }
+
+      // Switch to the required chain
+      await switchChain(walletClient, chain);
+
+      // Generate typed data for this element
+      const typedData = getTypedData(
+        element,
+        BigInt(intentOp.nonce),
+        BigInt(intentOp.expires)
+      );
+
+      // Sign the typed data
+      const sig = await walletClient.signTypedData({
+        account,
+        ...typedData,
+      });
+      signatures.push(sig);
+    }
+
+    // Store the first signature (or use as needed)
+    signature.value = signatures[0] ?? ("0x" as Hex);
+    isSigningCompleted.value = true;
+  } catch (error) {
+    console.error("Signing failed:", error);
+  } finally {
+    isSigningProcessing.value = false;
+  }
+}
+
 function handleContinue(): void {
-  emit("next");
+  if (!signature.value) {
+    console.error("No signature available");
+    return;
+  }
+  emit("next", signature.value);
 }
 </script>
 
@@ -356,28 +459,36 @@ function handleContinue(): void {
 
           .requirement-text {
             display: flex;
-            flex-wrap: wrap;
-            align-items: baseline;
-            gap: 4px;
+            flex-direction: column;
+            gap: 2px;
             font-size: 14px;
 
-            .action-type {
-              font-weight: 600;
-              color: #000;
+            .requirement-text-top {
+              display: flex;
+              align-items: baseline;
+              gap: 4px;
+
+              .action-type {
+                font-weight: 600;
+                color: #000;
+              }
+
+              .amount {
+                font-weight: 600;
+                color: #000;
+              }
+
+              .token-symbol {
+                font-weight: 600;
+                color: #000;
+              }
             }
 
-            .amount {
-              font-weight: 600;
-              color: #000;
-            }
-
-            .token-symbol {
-              font-weight: 600;
-              color: #000;
-            }
-
-            .chain-name {
-              color: #666;
+            .requirement-text-bottom {
+              .chain-name {
+                color: #666;
+                font-size: 13px;
+              }
             }
           }
         }

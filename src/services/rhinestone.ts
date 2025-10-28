@@ -1,4 +1,5 @@
 import type { Address, Chain, Hex } from "viem";
+import type { IntentOp } from "../components/widget/permit2";
 
 interface IntentOptions {
 	topupCompact: boolean;
@@ -38,7 +39,7 @@ interface Execution {
 }
 
 interface Intent {
-	intentOp: unknown;
+	intentOp: IntentOp;
 	intentCost: IntentCost;
 	tokenRequirements: Record<string, Record<Address, TokenRequirement>>;
 }
