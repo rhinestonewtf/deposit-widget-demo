@@ -4,7 +4,12 @@
   </header>
   <main>
     <button @click="openDepositModal">Deposit</button>
-    <WidgetDialog v-model:open="isModalOpen" :token="token" :chain="chain" />
+    <WidgetDialog
+      v-model:open="isModalOpen"
+      :token="token"
+      :chain="chain"
+      :account="account"
+    />
   </main>
 </template>
 
@@ -13,15 +18,22 @@ import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 import {
   type AppKitNetwork,
   arbitrum,
+  arbitrumSepolia,
   base,
   baseSepolia,
   mainnet,
-  polygon,
+  optimism,
+  optimismSepolia,
+  sepolia,
 } from "@reown/appkit/networks";
 import { createAppKit } from "@reown/appkit/vue";
+import { useAppKitAccount } from "@reown/appkit/vue";
 import type { Address, Chain } from "viem";
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import WidgetDialog from "./components/widget/WidgetDialog.vue";
+
+const accountData = useAppKitAccount();
+const account = computed(() => accountData.value?.address as Address);
 
 // 1. Get projectId from https://dashboard.reown.com
 const projectId = import.meta.env.VITE_PUBLIC_REOWN_PROJECT_ID;
@@ -42,8 +54,12 @@ const metadata = {
 const networks: [AppKitNetwork, ...AppKitNetwork[]] = [
   mainnet,
   arbitrum,
-  polygon,
   base,
+  optimism,
+  sepolia,
+  arbitrumSepolia,
+  baseSepolia,
+  optimismSepolia,
 ];
 
 // 4. Create Wagmi Adapter
@@ -81,6 +97,10 @@ header {
   padding: 16px;
   width: 100%;
   background-color: #f8f8f8;
+
+  @media (prefers-color-scheme: dark) {
+    background-color: #18181b;
+  }
 }
 
 main {
