@@ -11,7 +11,7 @@
       </div>
     </div>
     <div class="bottom">
-      <div class="input-tokens">
+      <div class="input-tokens" v-if="intentOp">
         <div
           class="input-token"
           v-for="token in inputTokens"
@@ -61,7 +61,7 @@
 
 <script setup lang="ts">
 import { chainRegistry } from "@rhinestone/shared-configs";
-import { watchDebounced } from "@vueuse/core";
+import { useIntervalFn, watchDebounced } from "@vueuse/core";
 import { type Address, type Chain, formatUnits, parseUnits } from "viem";
 import { computed, ref, watch } from "vue";
 
@@ -118,6 +118,61 @@ const inputWidth = computed(() => {
   return `${Math.max(length * 0.6 + 0.2, 1)}em`;
 });
 
+const isAmountZeroish = computed(() => {
+  return !amount.value || amount.value === 0;
+});
+
+async function fetchQuote(): Promise<void> {
+  if (isAmountZeroish.value) {
+    return;
+  }
+
+  const quote = await rhinestoneService.getQuote(
+    userAddress,
+    chain,
+    token,
+    inputAmount.value,
+    recipient,
+    inputChain.value || undefined,
+    inputToken.value || undefined
+  );
+  isQuoteLoading.value = false;
+  const tokensSpent = quote.intentCost.tokensSpent;
+
+  inputTokens.value = Object.entries(tokensSpent).flatMap(([chainId, tokens]) =>
+    Object.entries(tokens).map(([tokenAddress, tokenData]) => ({
+      chain: chainId,
+      address: tokenAddress as Address,
+      amount: BigInt(tokenData.unlocked),
+    }))
+  );
+  intentOp.value = quote.intentOp;
+  const tokenRequirements = quote.tokenRequirements || {};
+  inputTokenRequirements.value = Object.entries(tokenRequirements).flatMap(
+    ([chainId, tokens]) =>
+      Object.entries(tokens).map(([tokenAddress, tokenData]) => {
+        const base = {
+          chain: chainId,
+          address: tokenAddress as Address,
+          type: tokenData.type,
+          amount: BigInt(tokenData.amount),
+        };
+
+        if (tokenData.type === "approval") {
+          return {
+            ...base,
+            type: "approval" as const,
+            spender: tokenData.spender,
+          };
+        }
+        return {
+          ...base,
+          type: "wrap" as const,
+        };
+      })
+  );
+}
+
 watch([amount, inputChain, inputToken], ([amountValue]) => {
   // Reset intentOp when custom route changes
   intentOp.value = null;
@@ -125,59 +180,21 @@ watch([amount, inputChain, inputToken], ([amountValue]) => {
     isQuoteLoading.value = true;
   }
 });
+
 watchDebounced(
   [amount, inputChain, inputToken],
-  async ([amountValue]) => {
-    if (amountValue) {
-      const quote = await rhinestoneService.getQuote(
-        userAddress,
-        chain,
-        token,
-        inputAmount.value,
-        recipient,
-        inputChain.value || undefined,
-        inputToken.value || undefined
-      );
-      isQuoteLoading.value = false;
-      const tokensSpent = quote.intentCost.tokensSpent;
-
-      inputTokens.value = Object.entries(tokensSpent).flatMap(
-        ([chainId, tokens]) =>
-          Object.entries(tokens).map(([tokenAddress, tokenData]) => ({
-            chain: chainId,
-            address: tokenAddress as Address,
-            amount: BigInt(tokenData.unlocked),
-          }))
-      );
-      intentOp.value = quote.intentOp;
-      const tokenRequirements = quote.tokenRequirements || {};
-      inputTokenRequirements.value = Object.entries(tokenRequirements).flatMap(
-        ([chainId, tokens]) =>
-          Object.entries(tokens).map(([tokenAddress, tokenData]) => {
-            const base = {
-              chain: chainId,
-              address: tokenAddress as Address,
-              type: tokenData.type,
-              amount: BigInt(tokenData.amount),
-            };
-
-            if (tokenData.type === "approval") {
-              return {
-                ...base,
-                type: "approval" as const,
-                spender: tokenData.spender,
-              };
-            }
-            return {
-              ...base,
-              type: "wrap" as const,
-            };
-          })
-      );
-    }
+  async () => {
+    await fetchQuote();
   },
   { debounce: 250, maxWait: 2000 }
 );
+
+// Poll for updated quotes every 10 seconds
+useIntervalFn(async () => {
+  if (!isAmountZeroish.value) {
+    await fetchQuote();
+  }
+}, 10000);
 
 function handleContinue(): void {
   if (!intentOp.value) {
