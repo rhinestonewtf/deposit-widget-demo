@@ -64,11 +64,12 @@ interface Execution {
 }
 
 interface Intent {
-	intentOp: IntentOp;
-	intentCost: IntentCost;
-	tokenRequirements:
+	intentOp?: IntentOp;
+	intentCost?: IntentCost;
+	tokenRequirements?:
 		| Record<string, Record<Address, TokenRequirement>>
 		| undefined;
+	error?: ApiError;
 }
 
 type TokenRequirement =
@@ -106,6 +107,29 @@ interface IntentCost {
 			};
 		};
 	};
+}
+
+interface ApiErrorContext {
+	hasFulfilledAll?: boolean;
+	tokenShortfall?: Array<{
+		tokenAddress: Address;
+		destinationAmount: string;
+		amountSpent: string;
+		fee: string;
+		tokenSymbol: string;
+		tokenDecimals: number;
+	}>;
+	sponsorFee?: {
+		relayer: number;
+		protocol: number;
+	};
+	totalTokenShortfallInUSD?: number;
+	[key: string]: unknown;
+}
+
+interface ApiError {
+	message: string;
+	context?: ApiErrorContext;
 }
 
 type AccountType = "GENERIC" | "ERC7579" | "EOA";
@@ -236,7 +260,16 @@ class Service {
 				typeof value === "bigint" ? value.toString() : value,
 			),
 		});
-		return response.json();
+		const data = await response.json();
+
+		// Check if the response contains errors
+		if (data.errors && Array.isArray(data.errors) && data.errors.length > 0) {
+			return {
+				error: data.errors[0], // Return the first error for now
+			};
+		}
+
+		return data;
 	}
 
 	async submitIntent(
@@ -342,5 +375,7 @@ export type {
 	SignedIntentOp,
 	Claim,
 	Portfolio,
+	ApiError,
+	ApiErrorContext,
 };
 export default Service;

@@ -1,7 +1,11 @@
 <template>
   <div class="panel">
     <div class="top">
-      <div class="input-wrapper" @click="focusInput">
+      <div
+        class="input-wrapper"
+        :class="{ 'has-error': quoteError }"
+        @click="focusInput"
+      >
         <span class="dollar-sign">$</span>
         <input
           ref="amountInput"
@@ -10,6 +14,7 @@
           placeholder="0"
         />
       </div>
+      <div v-if="quoteError" class="error-message">Not enough balance</div>
     </div>
     <div class="bottom">
       <div class="input-tokens" v-if="intentOp">
@@ -46,7 +51,10 @@
       >
         Custom Route
       </button>
-      <button :disabled="!amount || isQuoteLoading" @click="handleContinue">
+      <button
+        :disabled="!amount || isQuoteLoading || !!quoteError"
+        @click="handleContinue"
+      >
         Continue
       </button>
     </div>
@@ -66,7 +74,7 @@ import { useIntervalFn, watchDebounced } from "@vueuse/core";
 import { type Address, type Chain, formatUnits, parseUnits } from "viem";
 import { computed, ref, watch } from "vue";
 
-import RhinestoneService from "../../services/rhinestone";
+import RhinestoneService, { type ApiError } from "../../services/rhinestone";
 import WidgetDialogBalances from "./WidgetDialogBalances.vue";
 import type { IntentOp, TokenRequirement } from "./common";
 
@@ -113,6 +121,7 @@ const isQuoteLoading = ref(false);
 const showBalances = ref(false);
 const inputToken = ref<Address | null>(null);
 const inputChain = ref<Chain | null>(null);
+const quoteError = ref<ApiError | null>(null);
 
 const inputWidth = computed(() => {
   const value = amount.value.toString();
@@ -139,6 +148,24 @@ async function fetchQuote(): Promise<void> {
     inputToken.value || undefined
   );
   isQuoteLoading.value = false;
+
+  // Check if the quote contains an error
+  if (quote.error) {
+    quoteError.value = quote.error;
+    inputTokens.value = [];
+    intentOp.value = null;
+    inputTokenRequirements.value = [];
+    return;
+  }
+
+  // Clear any previous errors
+  quoteError.value = null;
+
+  if (!quote.intentCost || !quote.intentOp) {
+    console.error("Quote response missing required data");
+    return;
+  }
+
   const tokensSpent = quote.intentCost.tokensSpent;
 
   inputTokens.value = Object.entries(tokensSpent).flatMap(([chainId, tokens]) =>
@@ -176,8 +203,9 @@ async function fetchQuote(): Promise<void> {
 }
 
 watch([amount, inputChain, inputToken], ([amountValue]) => {
-  // Reset intentOp when custom route changes
+  // Reset intentOp and error when custom route changes
   intentOp.value = null;
+  quoteError.value = null;
   if (amountValue) {
     isQuoteLoading.value = true;
   }
@@ -214,8 +242,9 @@ function handleTokenSelect(
   selectedToken: Address | null,
   selectedChain: Chain | null
 ): void {
-  // Reset the quote
+  // Reset the quote and error
   inputTokens.value = [];
+  quoteError.value = null;
   // Handle "All Routes" option (null values)
   if (!selectedToken || !selectedChain) {
     inputToken.value = null;
@@ -298,6 +327,7 @@ function formatTokenAmount(
   padding: 16px;
   height: 400px;
   background-color: #fff;
+  gap: 16px;
   display: flex;
   border-radius: 0 0 8px 8px;
   flex-direction: column;
@@ -308,7 +338,7 @@ function formatTokenAmount(
   .top {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 8px;
 
     .input-wrapper {
       display: flex;
@@ -317,7 +347,6 @@ function formatTokenAmount(
       gap: 4px;
       width: 100%;
       padding: 8px;
-      margin-bottom: 16px;
       background-color: #fafafa;
       border-radius: 4px;
       border: 1px solid transparent;
@@ -325,6 +354,11 @@ function formatTokenAmount(
 
       &:focus-within {
         border-color: #e0e0e0;
+      }
+
+      &.has-error {
+        border-color: #ef4444;
+        background-color: #fef2f2;
       }
 
       .dollar-sign {
@@ -345,6 +379,12 @@ function formatTokenAmount(
         flex: none;
         padding: 0;
       }
+    }
+
+    .error-message {
+      font-size: 12px;
+      color: #ef4444;
+      text-align: center;
     }
   }
 

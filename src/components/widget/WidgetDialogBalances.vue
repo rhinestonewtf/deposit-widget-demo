@@ -270,6 +270,9 @@ function handleSelectAll(): void {
 }
 
 .balances-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   flex: 1;
   overflow-y: auto;
   padding: 8px;
@@ -283,7 +286,6 @@ function handleSelectAll(): void {
   background-color: #fafafa;
   border-radius: 6px;
   border: 1px solid #e0e0e0;
-  margin-bottom: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
