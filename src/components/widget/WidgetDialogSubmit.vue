@@ -35,7 +35,7 @@
 
           <!-- Amount info -->
           <div class="amount-section">
-            <span class="amount-label">You receive</span>
+            <span class="amount-label">You deposit</span>
             <div class="amount-value">
               <img
                 v-if="destinationTokenSymbol"

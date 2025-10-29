@@ -9,6 +9,7 @@
       :token="token"
       :chain="chain"
       :account="account"
+      :recipient="recipient"
     />
   </main>
 </template>
@@ -34,6 +35,7 @@ import WidgetDialog from "./components/widget/WidgetDialog.vue";
 
 const accountData = useAppKitAccount();
 const account = computed(() => accountData.value?.address as Address);
+const recipient = "0x0000000000000000000000000000000000000042" as Address;
 
 // 1. Get projectId from https://dashboard.reown.com
 const projectId = import.meta.env.VITE_PUBLIC_REOWN_PROJECT_ID;

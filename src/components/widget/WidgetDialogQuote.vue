@@ -80,10 +80,11 @@ const emit = defineEmits<{
   next: [requirements: TokenRequirement[], intentOp: IntentOp];
 }>();
 
-const { token, chain, userAddress } = defineProps<{
+const { token, chain, userAddress, recipient } = defineProps<{
   token: Address;
   chain: Chain;
   userAddress: Address;
+  recipient: Address;
 }>();
 
 interface InputToken {
@@ -134,6 +135,7 @@ watchDebounced(
         chain,
         token,
         inputAmount.value,
+        recipient,
         inputChain.value || undefined,
         inputToken.value || undefined
       );

@@ -17,6 +17,7 @@
             :token="token"
             :chain="chain"
             :user-address="account"
+            :recipient="recipient"
             @next="handleQuoteNext"
           />
           <WidgetDialogTokens
@@ -74,10 +75,11 @@ const open = defineModel<boolean>("open", {
 });
 
 const step = ref<Step>({ type: "quote" });
-const { token, chain, account } = defineProps<{
+const { token, chain, account, recipient } = defineProps<{
   token: Address;
   chain: Chain;
   account: Address;
+  recipient: Address;
 }>();
 
 function handleOpen(value: boolean): void {

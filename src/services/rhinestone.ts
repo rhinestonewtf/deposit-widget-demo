@@ -46,7 +46,7 @@ interface IntentInput {
 		tokenAddress: Address;
 		amount?: bigint;
 	}[];
-	// recipient?: Account;
+	recipient?: Account;
 	accountAccessList?: AccountAccessList;
 	options: IntentOptions;
 }
@@ -194,12 +194,18 @@ class Service {
 		chain: Chain,
 		token: Address,
 		amount: bigint,
+		recipient: Address,
 		inputChain?: Chain,
 		inputToken?: Address,
 	): Promise<Intent> {
 		const intentInput: IntentInput = {
 			account: {
 				address: account,
+				accountType: "EOA",
+				setupOps: [],
+			},
+			recipient: {
+				address: recipient,
 				accountType: "EOA",
 				setupOps: [],
 			},
