@@ -11,7 +11,7 @@
   "dependencies": {
     "@reown/appkit": "^1.8.11",
     "@reown/appkit-adapter-wagmi": "^1.8.11",
-    "@rhinestone/shared-configs": "^1.4.12",
+    "@rhinestone/shared-configs": "^1.4.14",
     "@tanstack/vue-query": "^5.90.5",
     "@vueuse/core": "^14.0.0",
     "@wagmi/vue": "^0.2.14",
