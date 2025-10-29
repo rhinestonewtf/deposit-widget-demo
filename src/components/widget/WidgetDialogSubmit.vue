@@ -22,12 +22,30 @@
               <span class="info-label">Source</span>
               <div class="info-value">
                 <span class="wallet-text">{{ shortAddress }}</span>
+                <a
+                  v-if="sourceBlockExplorerUrl"
+                  :href="sourceBlockExplorerUrl"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="explorer-link"
+                >
+                  <IconArrowSquareOut />
+                </a>
               </div>
             </div>
             <div class="info-row">
               <span class="info-label">Destination</span>
               <div class="info-value">
                 <span class="wallet-text">{{ shortRecipient }}</span>
+                <a
+                  v-if="destinationBlockExplorerUrl"
+                  :href="destinationBlockExplorerUrl"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="explorer-link"
+                >
+                  <IconArrowSquareOut />
+                </a>
               </div>
             </div>
           </div>
@@ -80,13 +98,23 @@
 
 <script setup lang="ts">
 import { chainRegistry } from "@rhinestone/shared-configs";
-import type { Address, Hex } from "viem";
+import type { Address, Chain, Hex } from "viem";
 import { formatUnits } from "viem";
+import {
+  arbitrum,
+  base,
+  baseSepolia,
+  mainnet,
+  optimism,
+  polygon,
+  sepolia,
+} from "viem/chains";
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import RhinestoneService, {
   type IntentStatus,
   type SignedIntentOp,
 } from "../../services/rhinestone";
+import IconArrowSquareOut from "../icon/IconArrowSquareOut.vue";
 import type { IntentOp } from "./common";
 
 const apiKey = import.meta.env.VITE_PUBLIC_RHINESTONE_API_KEY;
@@ -268,6 +296,33 @@ const displayAmount = computed(() => {
     destinationTokenAmount.value
   );
 });
+
+const sourceBlockExplorerUrl = computed<string | null>(() => {
+  if (!sourceChainId.value) return null;
+  const chain = getViemChain(sourceChainId.value);
+  if (!chain?.blockExplorers?.default?.url) return null;
+  return `${chain.blockExplorers.default.url}/address/${userAddress}`;
+});
+
+const destinationBlockExplorerUrl = computed<string | null>(() => {
+  if (!destinationChainId.value) return null;
+  const chain = getViemChain(destinationChainId.value);
+  if (!chain?.blockExplorers?.default?.url) return null;
+  return `${chain.blockExplorers.default.url}/address/${recipient}`;
+});
+
+function getViemChain(chainId: string): Chain | null {
+  const chainMap: Record<string, Chain> = {
+    "1": mainnet,
+    "8453": base,
+    "42161": arbitrum,
+    "10": optimism,
+    "137": polygon,
+    "11155111": sepolia,
+    "84532": baseSepolia,
+  };
+  return chainMap[chainId] || null;
+}
 
 async function submitIntent(): Promise<void> {
   if (!signature) {
@@ -492,6 +547,22 @@ onUnmounted(() => {
                 font-size: 13px;
                 font-weight: 500;
                 color: #000;
+              }
+
+              .explorer-link {
+                display: flex;
+                align-items: center;
+                color: #000;
+                text-decoration: none;
+
+                svg {
+                  width: 16px;
+                  height: 16px;
+                }
+
+                &:hover {
+                  opacity: 0.7;
+                }
               }
             }
           }
