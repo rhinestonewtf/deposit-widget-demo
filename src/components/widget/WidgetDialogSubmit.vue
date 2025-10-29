@@ -1,7 +1,6 @@
 <template>
   <div class="panel">
     <div class="top">
-      <div class="header">Deposit</div>
       <div class="status-section">
         <div class="status-title">Submitting transaction...</div>
         <div class="status-description">
@@ -100,8 +99,8 @@ const emit = defineEmits<{
   next: [];
 }>();
 
-const { signatures, intentOp, userAddress, recipient } = defineProps<{
-  signatures: Hex[];
+const { signature, intentOp, userAddress, recipient } = defineProps<{
+  signature: Hex;
   intentOp: IntentOp;
   userAddress: string;
   recipient: Address;
@@ -271,25 +270,12 @@ const displayAmount = computed(() => {
 });
 
 async function submitIntent(): Promise<void> {
-  if (signatures.length === 0) {
-    throw new Error("No signatures provided");
+  if (!signature) {
+    throw new Error("No signature provided");
   }
 
-  // Construct SignedIntentOp from intentOp and signatures
-  // For single element intents, use the same signature for both origin and destination
-  // For multi-element intents, use all but last for origin, and last for destination
-  const lastSignature = signatures[signatures.length - 1];
-  if (!lastSignature) {
-    throw new Error("Invalid signature array");
-  }
-
-  const originSignatures =
-    signatures.length > 1 ? signatures.slice(0, -1) : signatures;
-  const signedIntentOp = createSignedIntentOp(
-    intentOp,
-    originSignatures,
-    lastSignature
-  );
+  // Use the same signature for both origin and destination
+  const signedIntentOp = createSignedIntentOp(intentOp, signature, signature);
 
   const response = await rhinestoneService.submitIntent(signedIntentOp);
   console.log(response);
@@ -299,12 +285,12 @@ async function submitIntent(): Promise<void> {
 
 function createSignedIntentOp(
   intentOp: IntentOp,
-  originSignatures: Hex[],
+  originSignature: Hex,
   destinationSignature: Hex
 ): SignedIntentOp {
   return {
     ...intentOp,
-    originSignatures,
+    originSignatures: [originSignature],
     destinationSignature,
   };
 }
@@ -401,8 +387,7 @@ onUnmounted(() => {
   color: #000;
   padding: 16px;
   height: 400px;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
+  border-radius: 0 0 8px 8px;
   background-color: #fff;
   display: flex;
   flex-direction: column;
@@ -415,14 +400,6 @@ onUnmounted(() => {
     gap: 16px;
     flex: 1;
     overflow-y: auto;
-
-    .header {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      font-size: 14px;
-      font-weight: 600;
-    }
 
     .status-section {
       display: flex;

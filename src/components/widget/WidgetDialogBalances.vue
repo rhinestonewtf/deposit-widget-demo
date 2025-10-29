@@ -1,10 +1,5 @@
 <template>
   <div class="balances-panel">
-    <div class="header">
-      <h3>Select Token</h3>
-      <button class="close-button" @click="$emit('close')">×</button>
-    </div>
-
     <div v-if="isLoading" class="loading">Loading balances...</div>
 
     <div v-else class="balances-list">
@@ -12,7 +7,7 @@
         <div class="balance-info">
           <div class="all-icon">★</div>
           <div class="token-details">
-            <span class="token-symbol">All Routes</span>
+            <span class="token-symbol">Default</span>
             <span class="chain-name">Use best available route</span>
           </div>
         </div>
@@ -226,7 +221,7 @@ function handleSelectAll(): void {
   right: 0;
   bottom: 0;
   background-color: #fff;
-  border-radius: 8px;
+  border-radius: 0 0 8px 8px;
   display: flex;
   flex-direction: column;
   z-index: 10;

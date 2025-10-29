@@ -1,8 +1,6 @@
 <template>
   <div class="panel">
     <div class="top">
-      <div class="header">Deposit</div>
-
       <div class="requirements">
         <div
           v-for="(requirement, index) in requirements"
@@ -65,7 +63,9 @@
                 : "Approve"
             }}
           </button>
-          <span v-else class="completed-badge">✓</span>
+          <span v-else class="completed-badge">
+            <IconCheck />
+          </span>
         </div>
 
         <!-- Signing requirement -->
@@ -88,7 +88,9 @@
           >
             {{ isSigningProcessing ? "Signing..." : "Sign" }}
           </button>
-          <span v-else class="completed-badge">✓</span>
+          <span v-else class="completed-badge">
+            <IconCheck />
+          </span>
         </div>
       </div>
     </div>
@@ -117,6 +119,7 @@ import * as chains from "viem/chains";
 import { computed, ref } from "vue";
 import ethIcon from "/icons/eth.svg?url";
 import usdcIcon from "/icons/usdc.svg?url";
+import IconCheck from "../icon/IconCheck.vue";
 import type { IntentOp, TokenRequirement } from "./common";
 import { getTypedData } from "./permit2";
 
@@ -130,7 +133,7 @@ interface EthereumProvider {
 }
 
 const emit = defineEmits<{
-  next: [signatures: Hex[]];
+  next: [signature: Hex];
 }>();
 
 const { requirements, intentOp } = defineProps<{
@@ -142,7 +145,7 @@ const completedRequirements = ref<Set<number>>(new Set());
 const processingIndex = ref<number | null>(null);
 const isSigningCompleted = ref(false);
 const isSigningProcessing = ref(false);
-const signatures = ref<Hex[]>([]);
+const signature = ref<Hex | null>(null);
 
 const allTokenRequirementsCompleted = computed(() => {
   return completedRequirements.value.size === requirements.length;
@@ -339,51 +342,52 @@ async function handleSigning(): Promise<void> {
       return;
     }
 
-    const collectedSignatures: Hex[] = [];
-
-    // Sign each element in the intentOp
-    for (const element of intentOp.elements) {
-      const chainIdNum = Number(element.chainId);
-      const chainList = Object.values(chains) as Chain[];
-      const chain = chainList.find((c) => c.id === chainIdNum);
-
-      if (!chain) {
-        console.error(`Unsupported chain: ${element.chainId}`);
-        continue;
-      }
-
-      const walletClient = createWalletClient({
-        chain,
-        transport: custom(window.ethereum as unknown as EthereumProvider),
-      });
-
-      const [account] = await walletClient.requestAddresses();
-
-      if (!account) {
-        console.error("No account found");
-        return;
-      }
-
-      // Switch to the required chain
-      await switchChain(walletClient, chain);
-
-      // Generate typed data for this element
-      const typedData = getTypedData(
-        element,
-        BigInt(intentOp.nonce),
-        BigInt(intentOp.expires)
-      );
-
-      // Sign the typed data
-      const sig = await walletClient.signTypedData({
-        account,
-        ...typedData,
-      });
-      collectedSignatures.push(sig);
+    // Sign the first element in the intentOp
+    const element = intentOp.elements[0];
+    if (!element) {
+      console.error("No elements in intentOp");
+      return;
     }
 
-    // Store all signatures
-    signatures.value = collectedSignatures;
+    const chainIdNum = Number(element.chainId);
+    const chainList = Object.values(chains) as Chain[];
+    const chain = chainList.find((c) => c.id === chainIdNum);
+
+    if (!chain) {
+      console.error(`Unsupported chain: ${element.chainId}`);
+      return;
+    }
+
+    const walletClient = createWalletClient({
+      chain,
+      transport: custom(window.ethereum as unknown as EthereumProvider),
+    });
+
+    const [account] = await walletClient.requestAddresses();
+
+    if (!account) {
+      console.error("No account found");
+      return;
+    }
+
+    // Switch to the required chain
+    await switchChain(walletClient, chain);
+
+    // Generate typed data for this element
+    const typedData = getTypedData(
+      element,
+      BigInt(intentOp.nonce),
+      BigInt(intentOp.expires)
+    );
+
+    // Sign the typed data
+    const sig = await walletClient.signTypedData({
+      account,
+      ...typedData,
+    });
+
+    // Store the signature
+    signature.value = sig;
     isSigningCompleted.value = true;
   } catch (error) {
     console.error("Signing failed:", error);
@@ -393,11 +397,11 @@ async function handleSigning(): Promise<void> {
 }
 
 function handleContinue(): void {
-  if (signatures.value.length === 0) {
-    console.error("No signatures available");
+  if (!signature.value) {
+    console.error("No signature available");
     return;
   }
-  emit("next", signatures.value);
+  emit("next", signature.value);
 }
 </script>
 
@@ -406,8 +410,7 @@ function handleContinue(): void {
   color: #000;
   padding: 16px;
   height: 400px;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
+  border-radius: 0 0 8px 8px;
   background-color: #fff;
   display: flex;
   flex-direction: column;
@@ -420,14 +423,6 @@ function handleContinue(): void {
     gap: 16px;
     flex: 1;
     overflow-y: auto;
-
-    .header {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      font-size: 14px;
-      font-weight: 600;
-    }
 
     .requirements {
       display: flex;
@@ -524,9 +519,12 @@ function handleContinue(): void {
           background: #4caf50;
           color: #fff;
           border-radius: 50%;
-          font-size: 16px;
-          font-weight: 600;
           flex-shrink: 0;
+
+          svg {
+            width: 18px;
+            height: 18px;
+          }
         }
       }
     }

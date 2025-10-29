@@ -1,7 +1,6 @@
 <template>
   <div class="panel">
     <div class="top">
-      <div class="header">Deposit</div>
       <div class="input-wrapper">
         <span class="dollar-sign">$</span>
         <input
@@ -275,10 +274,9 @@ function formatTokenAmount(
   color: #000;
   padding: 16px;
   height: 400px;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
   background-color: #fff;
   display: flex;
+  border-radius: 0 0 8px 8px;
   flex-direction: column;
   justify-content: space-between;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
@@ -288,14 +286,6 @@ function formatTokenAmount(
     display: flex;
     flex-direction: column;
     gap: 16px;
-
-    .header {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      font-size: 14px;
-      font-weight: 600;
-    }
 
     .input-wrapper {
       display: flex;

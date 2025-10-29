@@ -12,6 +12,23 @@
               Deposit your funds to the platform
             </Dialog.Description>
           </VisuallyHidden>
+          <div class="header">
+            <button
+              v-if="step.type === 'requirements'"
+              class="back-button"
+              @click="handleBack"
+              aria-label="Go back"
+            >
+              <IconCaretLeft />
+            </button>
+            <div v-else class="header-spacer"></div>
+            <div class="header-title">{{ headerTitle }}</div>
+            <Dialog.Close as-child>
+              <button class="close-button" aria-label="Close">
+                <IconX />
+              </button>
+            </Dialog.Close>
+          </div>
           <WidgetDialogQuote
             v-if="step.type === 'quote'"
             :token="token"
@@ -28,7 +45,7 @@
           />
           <WidgetDialogSubmit
             v-if="step.type === 'deposit'"
-            :signatures="step.signatures"
+            :signature="step.signature"
             :intent-op="step.intentOp"
             :user-address="account"
             :recipient="recipient"
@@ -44,7 +61,9 @@
 import { VisuallyHidden } from "reka-ui";
 import { Dialog } from "reka-ui/namespaced";
 import type { Address, Chain, Hex } from "viem";
-import { ref } from "vue";
+import { computed, ref } from "vue";
+import IconCaretLeft from "../icon/IconCaretLeft.vue";
+import IconX from "../icon/IconX.vue";
 import WidgetDialogQuote from "./WidgetDialogQuote.vue";
 import WidgetDialogTokens from "./WidgetDialogRequirements.vue";
 import WidgetDialogSubmit from "./WidgetDialogSubmit.vue";
@@ -60,15 +79,9 @@ type Step =
       intentOp: IntentOp;
     }
   | {
-      type: "signing";
-      requirements: TokenRequirement[];
-      intentOp: IntentOp;
-      signatures: Hex[];
-    }
-  | {
       type: "deposit";
       intentOp: IntentOp;
-      signatures: Hex[];
+      signature: Hex;
     };
 
 const open = defineModel<boolean>("open", {
@@ -83,10 +96,27 @@ const { token, chain, account, recipient } = defineProps<{
   recipient: Address;
 }>();
 
+const headerTitle = computed(() => {
+  switch (step.value.type) {
+    case "quote":
+      return "Deposit";
+    case "requirements":
+      return "Deposit";
+    case "deposit":
+      return "Deposit";
+    default:
+      return "Deposit";
+  }
+});
+
 function handleOpen(value: boolean): void {
   if (!value) {
     open.value = false;
   }
+}
+
+function handleBack(): void {
+  step.value = { type: "quote" };
 }
 
 function handleQuoteNext(
@@ -96,12 +126,12 @@ function handleQuoteNext(
   step.value = { type: "requirements", requirements, intentOp };
 }
 
-function handleRequirementsNext(signatures: Hex[]): void {
+function handleRequirementsNext(signature: Hex): void {
   if (step.value.type === "requirements") {
     step.value = {
       type: "deposit",
       intentOp: step.value.intentOp,
-      signatures,
+      signature,
     };
   }
 }
@@ -166,5 +196,61 @@ function handleSubmitNext(): void {
     transform: translate(-50%, -50%) scale(1);
     opacity: 1;
   }
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  position: relative;
+  background-color: #fff;
+  border-radius: 8px 8px 0 0;
+}
+
+.header-spacer {
+  width: 32px;
+  height: 32px;
+}
+
+.header-title {
+  flex: 1;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: #000;
+}
+
+.back-button,
+.close-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid rgb(0 0 0 / 10%);
+  background-color: transparent;
+  color: rgb(0 0 0 / 60%);
+  cursor: pointer;
+  transition: all 150ms ease;
+  flex-shrink: 0;
+  padding: 8px;
+
+  svg {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+.back-button:hover,
+.close-button:hover {
+  border-color: rgb(0 0 0 / 20%);
+  color: rgb(0 0 0 / 80%);
+}
+
+.back-button:active,
+.close-button:active {
+  transform: scale(0.95);
 }
 </style>
