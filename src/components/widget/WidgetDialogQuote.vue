@@ -1,9 +1,10 @@
 <template>
   <div class="panel">
     <div class="top">
-      <div class="input-wrapper">
+      <div class="input-wrapper" @click="focusInput">
         <span class="dollar-sign">$</span>
         <input
+          ref="amountInput"
           v-model="amount"
           :style="{ width: inputWidth }"
           placeholder="0"
@@ -93,6 +94,7 @@ interface InputToken {
 }
 
 const amount = ref<number>(0);
+const amountInput = ref<HTMLInputElement | null>(null);
 const inputAmount = computed(() => {
   const chainEntry = chainRegistry[chain.id.toString()];
   if (!chainEntry) return BigInt(0);
@@ -202,6 +204,10 @@ function handleContinue(): void {
     return;
   }
   emit("next", inputTokenRequirements.value, intentOp.value);
+}
+
+function focusInput(): void {
+  amountInput.value?.focus();
 }
 
 function handleTokenSelect(
@@ -315,6 +321,7 @@ function formatTokenAmount(
       background-color: #fafafa;
       border-radius: 4px;
       border: 1px solid transparent;
+      cursor: text;
 
       &:focus-within {
         border-color: #e0e0e0;
