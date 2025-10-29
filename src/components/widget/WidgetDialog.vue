@@ -42,6 +42,7 @@
             :requirements="step.requirements"
             :intent-op="step.intentOp"
             @next="handleRequirementsNext"
+            @retry="handleRetry"
           />
           <WidgetDialogSubmit
             v-if="step.type === 'deposit'"
@@ -134,6 +135,10 @@ function handleRequirementsNext(signature: Hex): void {
       signature,
     };
   }
+}
+
+function handleRetry(): void {
+  step.value = { type: "quote" };
 }
 
 function handleSubmitNext(): void {

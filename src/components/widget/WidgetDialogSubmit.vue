@@ -82,11 +82,6 @@
               </div>
             </div>
           </div>
-
-          <!-- Error message -->
-          <div v-if="error" class="error-message">
-            {{ error }}
-          </div>
         </div>
       </div>
     </div>
@@ -136,7 +131,6 @@ const { signature, intentOp, userAddress, recipient } = defineProps<{
 
 const intentId = ref<bigint | null>(null);
 const status = ref<IntentStatus>("PENDING");
-const error = ref<string | null>(null);
 const pollingInterval = ref<number | null>(null);
 const fillTransactionHash = ref<Hex | undefined>(undefined);
 
@@ -329,13 +323,22 @@ async function submitIntent(): Promise<void> {
     throw new Error("No signature provided");
   }
 
-  // Use the same signature for both origin and destination
-  const signedIntentOp = createSignedIntentOp(intentOp, signature, signature);
+  try {
+    // Use the same signature for both origin and destination
+    const signedIntentOp = createSignedIntentOp(intentOp, signature, signature);
 
-  const response = await rhinestoneService.submitIntent(signedIntentOp);
-  console.log(response);
-  intentId.value = BigInt(response.result.id);
-  startPolling();
+    const response = await rhinestoneService.submitIntent(signedIntentOp);
+    console.log(response);
+    intentId.value = BigInt(response.result.id);
+    startPolling();
+  } catch (err) {
+    console.error("Failed to submit intent:", err);
+    handleSubmissionError();
+  }
+}
+
+function handleSubmissionError(): void {
+  status.value = "FAILED";
 }
 
 function createSignedIntentOp(

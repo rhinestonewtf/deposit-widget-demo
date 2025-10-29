@@ -6,6 +6,11 @@
           v-for="(requirement, index) in requirements"
           :key="index"
           class="requirement-item"
+          :class="{
+            active: currentStep === index,
+            completed: completedRequirements.has(index),
+            failed: failedStep === index,
+          }"
         >
           <div class="requirement-info">
             <img
@@ -26,7 +31,7 @@
               class="token-icon"
             />
             <div class="requirement-text">
-              <div class="requirement-text-top">
+              <div class="requirement-text-content">
                 <span class="action-type">{{
                   requirement.type === "wrap" ? "Wrap" : "Approve"
                 }}</span>
@@ -42,61 +47,56 @@
                   "Unknown"
                 }}</span>
               </div>
-              <div class="requirement-text-bottom">
-                <span class="chain-name"
-                  >on {{ getChainName(requirement.chain) }}</span
-                >
-              </div>
+              <span class="chain-name"
+                >on {{ getChainName(requirement.chain) }}</span
+              >
             </div>
           </div>
-          <button
-            v-if="!completedRequirements.has(index)"
-            @click="handleAction(requirement, index)"
-            :disabled="processingIndex === index"
-            class="action-button"
-          >
-            {{
-              processingIndex === index
-                ? "Processing..."
-                : requirement.type === "wrap"
-                ? "Wrap"
-                : "Approve"
-            }}
-          </button>
-          <span v-else class="completed-badge">
+          <span v-if="completedRequirements.has(index)" class="status-badge">
             <IconCheck />
+          </span>
+          <span
+            v-else-if="failedStep === index"
+            class="status-badge failed-badge"
+          >
+            <IconX />
           </span>
         </div>
 
         <!-- Signing requirement -->
-        <div class="requirement-item">
+        <div
+          class="requirement-item"
+          :class="{
+            active: currentStep === requirements.length,
+            completed: isSigningCompleted,
+            failed: failedStep === requirements.length,
+          }"
+        >
           <div class="requirement-info">
             <div class="requirement-text">
-              <div class="requirement-text-top">
-                <span class="action-type">Sign Intent</span>
-              </div>
-              <div class="requirement-text-bottom">
-                <span class="chain-name">Approve the deposit order</span>
-              </div>
+              <span class="action-type">Sign Intent</span>
+              <span class="chain-name">Approve the deposit order</span>
             </div>
           </div>
-          <button
-            v-if="!isSigningCompleted"
-            @click="handleSigning"
-            :disabled="isSigningProcessing"
-            class="action-button"
-          >
-            {{ isSigningProcessing ? "Signing..." : "Sign" }}
-          </button>
-          <span v-else class="completed-badge">
+          <span v-if="isSigningCompleted" class="status-badge">
             <IconCheck />
+          </span>
+          <span
+            v-else-if="failedStep === requirements.length"
+            class="status-badge failed-badge"
+          >
+            <IconX />
           </span>
         </div>
       </div>
     </div>
     <div class="bottom">
-      <button @click="handleContinue" :disabled="!allCompleted">
-        Continue
+      <button
+        v-if="failedStep !== null"
+        @click="handleRetry"
+        class="retry-button"
+      >
+        Retry
       </button>
     </div>
   </div>
@@ -116,10 +116,11 @@ import {
   maxUint256,
 } from "viem";
 import * as chains from "viem/chains";
-import { computed, ref } from "vue";
+import { onMounted, ref } from "vue";
 import ethIcon from "/icons/eth.svg?url";
 import usdcIcon from "/icons/usdc.svg?url";
 import IconCheck from "../icon/IconCheck.vue";
+import IconX from "../icon/IconX.vue";
 import type { IntentOp, TokenRequirement } from "./common";
 import { getTypedData } from "./permit2";
 
@@ -134,6 +135,7 @@ interface EthereumProvider {
 
 const emit = defineEmits<{
   next: [signature: Hex];
+  retry: [];
 }>();
 
 const { requirements, intentOp } = defineProps<{
@@ -142,17 +144,14 @@ const { requirements, intentOp } = defineProps<{
 }>();
 
 const completedRequirements = ref<Set<number>>(new Set());
-const processingIndex = ref<number | null>(null);
 const isSigningCompleted = ref(false);
-const isSigningProcessing = ref(false);
 const signature = ref<Hex | null>(null);
+const currentStep = ref<number>(0);
+const failedStep = ref<number | null>(null);
 
-const allTokenRequirementsCompleted = computed(() => {
-  return completedRequirements.value.size === requirements.length;
-});
-
-const allCompleted = computed(() => {
-  return allTokenRequirementsCompleted.value && isSigningCompleted.value;
+// Start auto-execution when component mounts
+onMounted(() => {
+  executeNextStep();
 });
 
 function getTokenSymbol(chainId: string, tokenAddress: Address): string | null {
@@ -234,16 +233,50 @@ async function switchChain(
   }
 }
 
-async function handleAction(
-  requirement: TokenRequirement,
-  index: number
-): Promise<void> {
-  processingIndex.value = index;
+async function executeNextStep(): Promise<void> {
+  // Execute token requirements first
+  if (currentStep.value < requirements.length) {
+    const requirement = requirements[currentStep.value];
+    if (!requirement) {
+      console.error("No requirement found at current step");
+      return;
+    }
 
+    const success = await handleAction(requirement);
+
+    if (success) {
+      completedRequirements.value.add(currentStep.value);
+      currentStep.value++;
+      // Continue to next step
+      await executeNextStep();
+    } else {
+      // Mark current step as failed
+      failedStep.value = currentStep.value;
+    }
+  }
+  // Then execute signing
+  else if (
+    currentStep.value === requirements.length &&
+    !isSigningCompleted.value
+  ) {
+    const success = await handleSigning();
+
+    if (success) {
+      isSigningCompleted.value = true;
+      // Automatically advance to next step
+      handleContinue();
+    } else {
+      // Mark signing step as failed
+      failedStep.value = requirements.length;
+    }
+  }
+}
+
+async function handleAction(requirement: TokenRequirement): Promise<boolean> {
   try {
     if (!window.ethereum) {
       console.error("Please install a Web3 wallet");
-      return;
+      return false;
     }
 
     const chainIdNum = Number(requirement.chain);
@@ -252,7 +285,7 @@ async function handleAction(
 
     if (!chain) {
       console.error(`Unsupported chain: ${requirement.chain}`);
-      return;
+      return false;
     }
 
     const walletClient = createWalletClient({
@@ -264,7 +297,7 @@ async function handleAction(
 
     if (!account) {
       console.error("No account found");
-      return;
+      return false;
     }
 
     // Switch to the required chain
@@ -295,8 +328,10 @@ async function handleAction(
       });
       await publicClient.waitForTransactionReceipt({ hash });
 
-      completedRequirements.value.add(index);
-    } else if (requirement.type === "approval") {
+      return true;
+    }
+
+    if (requirement.type === "approval") {
       // Handle ERC20 approval
       const hash = await walletClient.writeContract({
         account,
@@ -324,29 +359,28 @@ async function handleAction(
       });
       await publicClient.waitForTransactionReceipt({ hash });
 
-      completedRequirements.value.add(index);
+      return true;
     }
+
+    return false;
   } catch (error) {
     console.error("Action failed:", error);
-  } finally {
-    processingIndex.value = null;
+    return false;
   }
 }
 
-async function handleSigning(): Promise<void> {
-  isSigningProcessing.value = true;
-
+async function handleSigning(): Promise<boolean> {
   try {
     if (!window.ethereum) {
       console.error("Please install a Web3 wallet");
-      return;
+      return false;
     }
 
     // Sign the first element in the intentOp
     const element = intentOp.elements[0];
     if (!element) {
       console.error("No elements in intentOp");
-      return;
+      return false;
     }
 
     const chainIdNum = Number(element.chainId);
@@ -355,7 +389,7 @@ async function handleSigning(): Promise<void> {
 
     if (!chain) {
       console.error(`Unsupported chain: ${element.chainId}`);
-      return;
+      return false;
     }
 
     const walletClient = createWalletClient({
@@ -367,7 +401,7 @@ async function handleSigning(): Promise<void> {
 
     if (!account) {
       console.error("No account found");
-      return;
+      return false;
     }
 
     // Switch to the required chain
@@ -388,12 +422,15 @@ async function handleSigning(): Promise<void> {
 
     // Store the signature
     signature.value = sig;
-    isSigningCompleted.value = true;
+    return true;
   } catch (error) {
     console.error("Signing failed:", error);
-  } finally {
-    isSigningProcessing.value = false;
+    return false;
   }
+}
+
+function handleRetry(): void {
+  emit("retry");
 }
 
 function handleContinue(): void {
@@ -427,103 +464,102 @@ function handleContinue(): void {
     .requirements {
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 4px;
 
       .requirement-item {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 12px;
-        background-color: #fafafa;
-        border-radius: 8px;
-        border: 1px solid #e0e0e0;
+        border-radius: 6px;
         gap: 12px;
+        transition: all 0.2s ease;
+        opacity: 0.5;
+        border: 1px solid transparent;
+        padding: 8px 12px;
+
+        &.active {
+          opacity: 1;
+          background-color: #edf5fd;
+        }
+
+        &.completed {
+          opacity: 0.4;
+        }
+
+        &.failed {
+          opacity: 1;
+          background-color: #fff5f5;
+          border-color: #fecaca;
+        }
 
         .requirement-info {
           display: flex;
-          align-items: center;
           gap: 10px;
           flex: 1;
+          align-items: center;
 
           .token-icon {
-            width: 28px;
-            height: 28px;
+            width: 24px;
+            height: 24px;
             border-radius: 50%;
             flex-shrink: 0;
+            transition: all 0.2s ease;
           }
 
           .requirement-text {
             display: flex;
             flex-direction: column;
-            gap: 2px;
+            flex-wrap: wrap;
+            align-items: baseline;
             font-size: 14px;
+            transition: all 0.2s ease;
 
-            .requirement-text-top {
+            .requirement-text-content {
               display: flex;
-              align-items: baseline;
               gap: 4px;
-
-              .action-type {
-                font-weight: 600;
-                color: #000;
-              }
-
-              .amount {
-                font-weight: 600;
-                color: #000;
-              }
-
-              .token-symbol {
-                font-weight: 600;
-                color: #000;
-              }
             }
 
-            .requirement-text-bottom {
-              .chain-name {
-                color: #666;
-                font-size: 13px;
-              }
+            .action-type {
+              font-weight: 600;
+              color: #000;
+            }
+
+            .amount {
+              font-weight: 600;
+              color: #000;
+            }
+
+            .token-symbol {
+              font-weight: 600;
+              color: #000;
+            }
+
+            .chain-name {
+              color: #666;
+              font-size: 13px;
             }
           }
         }
 
-        .action-button {
-          background: rgb(43, 156, 255);
-          color: #fff;
-          border: none;
-          padding: 6px 16px;
-          border-radius: 6px;
-          font-size: 14px;
-          font-weight: 600;
-          cursor: pointer;
-          white-space: nowrap;
-          flex-shrink: 0;
-
-          &:disabled {
-            background: #b0d4f1;
-            cursor: not-allowed;
-          }
-
-          &:hover:not(:disabled) {
-            background: rgb(35, 135, 220);
-          }
-        }
-
-        .completed-badge {
+        .status-badge {
           display: flex;
           align-items: center;
           justify-content: center;
-          width: 28px;
-          height: 28px;
+          width: 24px;
+          height: 24px;
           background: #4caf50;
           color: #fff;
           border-radius: 50%;
           flex-shrink: 0;
+          transition: all 0.2s ease;
 
           svg {
-            width: 18px;
-            height: 18px;
+            width: 14px;
+            height: 14px;
+          }
+
+          &.failed-badge {
+            background: #ef4444;
           }
         }
       }
@@ -555,6 +591,14 @@ function handleContinue(): void {
 
       &:hover:not(:disabled) {
         background: rgb(35, 135, 220);
+      }
+
+      &.retry-button {
+        background: #ef4444;
+
+        &:hover {
+          background: #dc2626;
+        }
       }
     }
   }
