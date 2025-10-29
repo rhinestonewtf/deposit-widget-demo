@@ -31,6 +31,7 @@
             :signatures="step.signatures"
             :intent-op="step.intentOp"
             :user-address="account"
+            :recipient="recipient"
             @next="handleSubmitNext"
           />
         </div>

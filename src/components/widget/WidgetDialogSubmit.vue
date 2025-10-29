@@ -28,24 +28,41 @@
             <div class="info-row">
               <span class="info-label">Destination</span>
               <div class="info-value">
-                <span class="wallet-text">Smart Account</span>
+                <span class="wallet-text">{{ shortRecipient }}</span>
               </div>
             </div>
           </div>
 
           <!-- Amount info -->
           <div class="amount-section">
-            <span class="amount-label">You deposit</span>
-            <div class="amount-value">
-              <img
-                v-if="destinationTokenSymbol"
-                :src="getTokenIcon(destinationTokenSymbol)"
-                :alt="destinationTokenSymbol"
-                class="token-icon"
-              />
-              <span class="amount-text"
-                >{{ displayAmount }} {{ destinationTokenSymbol }}</span
-              >
+            <div class="amount-row">
+              <span class="amount-label">You pay</span>
+              <div class="amount-value">
+                <img
+                  v-if="sourceTokenSymbol"
+                  :src="getTokenIcon(sourceTokenSymbol)"
+                  :alt="sourceTokenSymbol"
+                  class="token-icon"
+                />
+                <span class="amount-text"
+                  >{{ displaySourceAmount }} {{ sourceTokenSymbol }}</span
+                >
+              </div>
+            </div>
+
+            <div class="amount-row">
+              <span class="amount-label">You deposit</span>
+              <div class="amount-value">
+                <img
+                  v-if="destinationTokenSymbol"
+                  :src="getTokenIcon(destinationTokenSymbol)"
+                  :alt="destinationTokenSymbol"
+                  class="token-icon"
+                />
+                <span class="amount-text"
+                  >{{ displayAmount }} {{ destinationTokenSymbol }}</span
+                >
+              </div>
             </div>
           </div>
 
@@ -83,10 +100,11 @@ const emit = defineEmits<{
   next: [];
 }>();
 
-const { signatures, intentOp, userAddress } = defineProps<{
+const { signatures, intentOp, userAddress, recipient } = defineProps<{
   signatures: Hex[];
   intentOp: IntentOp;
   userAddress: string;
+  recipient: Address;
 }>();
 
 const intentId = ref<bigint | null>(null);
@@ -97,6 +115,7 @@ const fillTransactionHash = ref<Hex | undefined>(undefined);
 
 const isCompleted = computed(() => {
   return (
+    status.value === "COMPLETED" ||
     status.value === "FILLED" ||
     status.value === "FAILED" ||
     status.value === "EXPIRED"
@@ -109,6 +128,7 @@ const displayStatus = computed(() => {
 
 const statusClass = computed(() => {
   const s = status.value;
+  if (s === "COMPLETED") return "status-success";
   if (s === "FILLED") return "status-success";
   if (s === "FAILED" || s === "EXPIRED") return "status-error";
   if (s === "PRECONFIRMED") return "status-preconfirmed";
@@ -117,6 +137,72 @@ const statusClass = computed(() => {
 
 const shortAddress = computed(() => {
   return `${userAddress.slice(0, 6)}…${userAddress.slice(-4)}`;
+});
+
+const shortRecipient = computed(() => {
+  return `${recipient.slice(0, 6)}…${recipient.slice(-4)}`;
+});
+
+const sourceTokenAddress = computed<Address | null>(() => {
+  if (!intentOp.elements || intentOp.elements.length === 0) {
+    return null;
+  }
+  const element = intentOp.elements[0];
+  if (!element) return null;
+  const idsAndAmounts = element.idsAndAmounts;
+  if (!idsAndAmounts) {
+    return null;
+  }
+  const firstToken = idsAndAmounts[0];
+  if (!firstToken) return null;
+  const tokenId = BigInt(firstToken[0]);
+  return toToken(tokenId);
+});
+
+const sourceTokenAmount = computed<bigint | null>(() => {
+  if (!intentOp.elements || intentOp.elements.length === 0) {
+    return null;
+  }
+  const element = intentOp.elements[0];
+  if (!element) return null;
+  const idsAndAmounts = element.idsAndAmounts;
+  if (!idsAndAmounts) {
+    return null;
+  }
+  const firstToken = idsAndAmounts[0];
+  if (!firstToken) return null;
+  return BigInt(firstToken[1]);
+});
+
+const sourceChainId = computed<string | null>(() => {
+  if (!intentOp.elements || intentOp.elements.length === 0) {
+    return null;
+  }
+  const element = intentOp.elements[0];
+  if (!element) return null;
+  return element.chainId;
+});
+
+const sourceTokenSymbol = computed<string | null>(() => {
+  if (!sourceChainId.value || !sourceTokenAddress.value) {
+    return null;
+  }
+  return getTokenSymbol(sourceChainId.value, sourceTokenAddress.value);
+});
+
+const displaySourceAmount = computed(() => {
+  if (
+    !sourceChainId.value ||
+    !sourceTokenAddress.value ||
+    !sourceTokenAmount.value
+  ) {
+    return "0";
+  }
+  return formatTokenAmount(
+    sourceChainId.value,
+    sourceTokenAddress.value,
+    sourceTokenAmount.value
+  );
 });
 
 const destinationTokenAddress = computed<Address | null>(() => {
@@ -436,31 +522,37 @@ onUnmounted(() => {
 
         .amount-section {
           display: flex;
-          justify-content: space-between;
-          align-items: center;
+          flex-direction: column;
+          gap: 8px;
           padding-top: 12px;
           border-top: 1px solid #e0e0e0;
 
-          .amount-label {
-            font-size: 13px;
-            color: #666;
-          }
-
-          .amount-value {
+          .amount-row {
             display: flex;
+            justify-content: space-between;
             align-items: center;
-            gap: 6px;
 
-            .token-icon {
-              width: 20px;
-              height: 20px;
-              border-radius: 50%;
+            .amount-label {
+              font-size: 13px;
+              color: #666;
             }
 
-            .amount-text {
-              font-size: 14px;
-              font-weight: 600;
-              color: #000;
+            .amount-value {
+              display: flex;
+              align-items: center;
+              gap: 6px;
+
+              .token-icon {
+                width: 20px;
+                height: 20px;
+                border-radius: 50%;
+              }
+
+              .amount-text {
+                font-size: 14px;
+                font-weight: 600;
+                color: #000;
+              }
             }
           }
         }
@@ -481,7 +573,6 @@ onUnmounted(() => {
     flex-direction: column;
     gap: 16px;
     padding-top: 16px;
-    border-top: 1px solid #e0e0e0;
 
     button {
       width: 100%;
