@@ -5,7 +5,7 @@
     <div v-else class="balances-list">
       <div class="balance-item all-option" @click="handleSelectAll">
         <div class="balance-info">
-          <div class="all-icon">★</div>
+          <div class="all-icon" />
           <div class="token-details">
             <span class="token-symbol">Default</span>
             <span class="chain-name">Use best available route</span>
@@ -282,7 +282,7 @@ function handleSelectAll(): void {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px;
+  padding: 8px 16px;
   background-color: #fafafa;
   border-radius: 6px;
   border: 1px solid #e0e0e0;
@@ -309,7 +309,6 @@ function handleSelectAll(): void {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background-color: rgb(43, 156, 255);
   color: #fff;
   display: flex;
   align-items: center;
@@ -324,8 +323,8 @@ function handleSelectAll(): void {
 }
 
 .token-icon {
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
 }
 

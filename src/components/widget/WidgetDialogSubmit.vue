@@ -2,9 +2,9 @@
   <div class="panel">
     <div class="top">
       <div class="status-section">
-        <div class="status-title">Submitting transaction...</div>
+        <div class="status-title">{{ statusTitle }}</div>
         <div class="status-description">
-          Filling your transaction on the blockchain.
+          {{ statusDescription }}
         </div>
 
         <!-- Status details -->
@@ -154,6 +154,27 @@ const statusClass = computed(() => {
   if (s === "FAILED" || s === "EXPIRED") return "status-error";
   if (s === "PRECONFIRMED") return "status-success";
   return "status-pending";
+});
+
+const statusTitle = computed(() => {
+  const s = status.value;
+  if (s === "COMPLETED" || s === "FILLED") return "Transaction completed";
+  if (s === "FAILED") return "Transaction failed";
+  if (s === "EXPIRED") return "Transaction expired";
+  if (s === "PRECONFIRMED") return "Transaction preconfirmed";
+  return "Submitting transaction...";
+});
+
+const statusDescription = computed(() => {
+  const s = status.value;
+  if (s === "COMPLETED" || s === "FILLED")
+    return "Your transaction has been successfully filled on the blockchain.";
+  if (s === "FAILED") return "There was an error processing your transaction.";
+  if (s === "EXPIRED")
+    return "Your transaction has expired and was not filled.";
+  if (s === "PRECONFIRMED")
+    return "Your transaction has been preconfirmed and is being processed.";
+  return "Filling your transaction on the blockchain.";
 });
 
 const shortAddress = computed(() => {
