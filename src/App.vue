@@ -16,69 +16,23 @@
 </template>
 
 <script setup lang="ts">
-import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 import {
-  type AppKitNetwork,
   arbitrum,
   arbitrumSepolia,
   base,
   baseSepolia,
-  mainnet,
   optimism,
   optimismSepolia,
   sepolia,
 } from "@reown/appkit/networks";
-import { createAppKit, useAppKit } from "@reown/appkit/vue";
-import { useAppKitAccount } from "@reown/appkit/vue";
+import { useAppKit, useAppKitAccount } from "@reown/appkit/vue";
 import type { Address, Chain } from "viem";
 import { computed, ref } from "vue";
 import WidgetDialog from "./components/widget/WidgetDialog.vue";
+// Import the appkit configuration to initialize it
+import "./config/appkit";
 
-// 1. Get projectId from https://dashboard.reown.com
-const projectId = import.meta.env.VITE_PUBLIC_REOWN_PROJECT_ID;
-if (!projectId) {
-  throw new Error("VITE_PUBLIC_REOWN_PROJECT_ID is not set");
-}
-
-// 2. Create a metadata object
-const metadata = {
-  name: "Deposit Widget Demo",
-  description:
-    "Demo Application that shows Rhinestone Deposit Widget in action",
-  url: "localhost:5173",
-  icons: ["https://avatars.githubusercontent.com/u/179229932"],
-};
-
-// 3. Set the networks
-const networks: [AppKitNetwork, ...AppKitNetwork[]] = [
-  mainnet,
-  arbitrum,
-  base,
-  optimism,
-  sepolia,
-  arbitrumSepolia,
-  baseSepolia,
-  optimismSepolia,
-];
-
-// 4. Create Wagmi Adapter
-const wagmiAdapter = new WagmiAdapter({
-  networks,
-  projectId,
-});
-
-// 5. Create the modal
-createAppKit({
-  adapters: [wagmiAdapter],
-  networks,
-  projectId,
-  metadata,
-  features: {
-    analytics: false,
-  },
-});
-
-// 6. Use AppKit composables after createAppKit
+// Use AppKit composables after createAppKit
 const { open } = useAppKit();
 const accountData = useAppKitAccount();
 const account = computed(() => accountData.value?.address as Address);
@@ -126,8 +80,9 @@ header {
   display: flex;
   justify-content: end;
   align-items: center;
-  padding: 16px;
+  height: 48px;
   width: 100%;
+  padding: 0 16px;
   background-color: #f8f8f8;
 
   @media (prefers-color-scheme: dark) {

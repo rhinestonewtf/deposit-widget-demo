@@ -95,32 +95,27 @@
 <script setup lang="ts">
 import { chainRegistry } from "@rhinestone/shared-configs";
 import {
-  http,
+  getAccount,
+  signTypedData,
+  switchChain,
+  waitForTransactionReceipt,
+  writeContract,
+} from "@wagmi/core";
+import {
   type Address,
   type Chain,
   type Hex,
-  createPublicClient,
-  createWalletClient,
-  custom,
   formatUnits,
   maxUint256,
 } from "viem";
 import * as chains from "viem/chains";
 import { onMounted, ref } from "vue";
+import { wagmiConfig } from "../../config/appkit";
 import TokenIcon from "../TokenIcon.vue";
 import IconCheck from "../icon/IconCheck.vue";
 import IconX from "../icon/IconX.vue";
 import type { IntentOp, TokenRequirement } from "./common";
 import { getTypedData } from "./permit2";
-
-interface EthereumProvider {
-  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
-  on?: (event: string, callback: (...args: unknown[]) => void) => void;
-  removeListener?: (
-    event: string,
-    callback: (...args: unknown[]) => void
-  ) => void;
-}
 
 const emit = defineEmits<{
   next: [signature: Hex];
@@ -180,39 +175,6 @@ function getChainName(chainId: string): string {
   return chain?.name || `Chain ${chainId}`;
 }
 
-async function switchChain(
-  walletClient: ReturnType<typeof createWalletClient>,
-  chain: Chain
-): Promise<void> {
-  try {
-    await walletClient.switchChain({ id: chain.id });
-  } catch (error: unknown) {
-    // If the chain hasn't been added to the wallet, add it
-    if (
-      error &&
-      typeof error === "object" &&
-      "name" in error &&
-      error.name === "ChainNotConfiguredError"
-    ) {
-      try {
-        await walletClient.addChain({ chain });
-      } catch (addError) {
-        throw new Error(
-          `Failed to add chain ${chain.name}: ${
-            addError instanceof Error ? addError.message : "Unknown error"
-          }`
-        );
-      }
-    } else {
-      throw new Error(
-        `Failed to switch chain: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`
-      );
-    }
-  }
-}
-
 async function executeNextStep(): Promise<void> {
   // Execute token requirements first
   if (currentStep.value < requirements.length) {
@@ -254,8 +216,11 @@ async function executeNextStep(): Promise<void> {
 
 async function handleAction(requirement: TokenRequirement): Promise<boolean> {
   try {
-    if (!window.ethereum) {
-      console.error("Please install a Web3 wallet");
+    // Get the connected account
+    const account = getAccount(wagmiConfig);
+
+    if (!account.address) {
+      console.error("No account connected");
       return false;
     }
 
@@ -268,25 +233,12 @@ async function handleAction(requirement: TokenRequirement): Promise<boolean> {
       return false;
     }
 
-    const walletClient = createWalletClient({
-      chain,
-      transport: custom(window.ethereum as unknown as EthereumProvider),
-    });
-
-    const [account] = await walletClient.requestAddresses();
-
-    if (!account) {
-      console.error("No account found");
-      return false;
-    }
-
-    // Switch to the required chain
-    await switchChain(walletClient, chain);
+    // Switch to the required chain using Wagmi
+    await switchChain(wagmiConfig, { chainId: chain.id });
 
     if (requirement.type === "wrap") {
       // Handle WETH-style wrap (deposit native token)
-      const hash = await walletClient.writeContract({
-        account,
+      const hash = await writeContract(wagmiConfig, {
         address: requirement.address,
         abi: [
           {
@@ -301,20 +253,15 @@ async function handleAction(requirement: TokenRequirement): Promise<boolean> {
         value: requirement.amount,
       });
 
-      // Wait for transaction confirmation
-      const publicClient = createPublicClient({
-        chain,
-        transport: http(),
-      });
-      await publicClient.waitForTransactionReceipt({ hash });
+      // Wait for transaction confirmation using Wagmi
+      await waitForTransactionReceipt(wagmiConfig, { hash });
 
       return true;
     }
 
     if (requirement.type === "approval") {
       // Handle ERC20 approval
-      const hash = await walletClient.writeContract({
-        account,
+      const hash = await writeContract(wagmiConfig, {
         address: requirement.address,
         abi: [
           {
@@ -332,12 +279,8 @@ async function handleAction(requirement: TokenRequirement): Promise<boolean> {
         args: [requirement.spender, maxUint256],
       });
 
-      // Wait for transaction confirmation
-      const publicClient = createPublicClient({
-        chain,
-        transport: http(),
-      });
-      await publicClient.waitForTransactionReceipt({ hash });
+      // Wait for transaction confirmation using Wagmi
+      await waitForTransactionReceipt(wagmiConfig, { hash });
 
       return true;
     }
@@ -351,8 +294,11 @@ async function handleAction(requirement: TokenRequirement): Promise<boolean> {
 
 async function handleSigning(): Promise<boolean> {
   try {
-    if (!window.ethereum) {
-      console.error("Please install a Web3 wallet");
+    // Get the connected account
+    const account = getAccount(wagmiConfig);
+
+    if (!account.address) {
+      console.error("No account connected");
       return false;
     }
 
@@ -372,20 +318,8 @@ async function handleSigning(): Promise<boolean> {
       return false;
     }
 
-    const walletClient = createWalletClient({
-      chain,
-      transport: custom(window.ethereum as unknown as EthereumProvider),
-    });
-
-    const [account] = await walletClient.requestAddresses();
-
-    if (!account) {
-      console.error("No account found");
-      return false;
-    }
-
-    // Switch to the required chain
-    await switchChain(walletClient, chain);
+    // Switch to the required chain using Wagmi
+    await switchChain(wagmiConfig, { chainId: chain.id });
 
     // Generate typed data for this element
     const typedData = getTypedData(
@@ -394,9 +328,8 @@ async function handleSigning(): Promise<boolean> {
       BigInt(intentOp.expires)
     );
 
-    // Sign the typed data
-    const sig = await walletClient.signTypedData({
-      account,
+    // Sign the typed data using Wagmi
+    const sig = await signTypedData(wagmiConfig, {
       ...typedData,
     });
 

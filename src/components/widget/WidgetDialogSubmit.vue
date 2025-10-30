@@ -10,7 +10,7 @@
         <!-- Status details -->
         <div class="status-details">
           <div class="status-row">
-            <span class="status-label">Fill status</span>
+            <span class="status-label">Status</span>
             <span class="status-value" :class="statusClass">{{
               displayStatus
             }}</span>
