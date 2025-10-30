@@ -117,7 +117,7 @@
 import { chainRegistry, chains } from "@rhinestone/shared-configs";
 import { useIntervalFn, watchDebounced } from "@vueuse/core";
 import { type Address, type Chain, formatUnits, parseUnits } from "viem";
-import { computed, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 
 import RhinestoneService, { type ApiError } from "../../services/rhinestone";
 import TokenIcon from "../TokenIcon.vue";
@@ -146,7 +146,7 @@ interface InputToken {
 
 const isMainnets = computed(() => chain.testnet !== true);
 
-const amount = ref<number>(0);
+const amount = ref<string>("");
 const amountInput = ref<HTMLInputElement | null>(null);
 const inputAmount = computed(() => {
   const chainEntry = chainRegistry[chain.id.toString()];
@@ -168,6 +168,10 @@ const inputToken = ref<Address | null>(null);
 const inputChain = ref<Chain | null>(null);
 const quoteError = ref<ApiError | null>(null);
 
+onMounted(() => {
+  amountInput.value?.focus();
+});
+
 const firstInputToken = computed(() => {
   return inputTokens.value[0] as InputToken;
 });
@@ -188,7 +192,7 @@ const inputWidth = computed(() => {
 });
 
 const isAmountZeroish = computed(() => {
-  return !amount.value || amount.value === 0;
+  return !amount.value || amount.value === "0";
 });
 
 async function fetchQuote(): Promise<void> {
