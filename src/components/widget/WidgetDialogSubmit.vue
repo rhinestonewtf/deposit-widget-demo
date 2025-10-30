@@ -152,7 +152,7 @@ const statusClass = computed(() => {
   if (s === "COMPLETED") return "status-success";
   if (s === "FILLED") return "status-success";
   if (s === "FAILED" || s === "EXPIRED") return "status-error";
-  if (s === "PRECONFIRMED") return "status-preconfirmed";
+  if (s === "PRECONFIRMED") return "status-success";
   return "status-pending";
 });
 
@@ -509,11 +509,6 @@ onUnmounted(() => {
               background-color: #f0f0f0;
             }
 
-            &.status-preconfirmed {
-              color: #ff9800;
-              background-color: #fff3e0;
-            }
-
             &.status-success {
               color: #4caf50;
               background-color: #e8f5e9;
@@ -630,9 +625,9 @@ onUnmounted(() => {
       background: rgb(43, 156, 255);
       color: #fff;
       border: none;
-      padding: 8px 16px;
       border-radius: 8px;
-      font-size: 18px;
+      padding: 12px 16px;
+      font-size: 14px;
       font-weight: 600;
       cursor: pointer;
 

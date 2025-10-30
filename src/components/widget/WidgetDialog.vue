@@ -211,6 +211,7 @@ function handleSubmitNext(): void {
   position: relative;
   background-color: #fff;
   border-radius: 8px 8px 0 0;
+  border-bottom: 1px solid #ebebeb;
 }
 
 .header-spacer {

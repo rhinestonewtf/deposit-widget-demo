@@ -577,9 +577,9 @@ function handleContinue(): void {
       background: rgb(43, 156, 255);
       color: #fff;
       border: none;
-      padding: 8px 16px;
       border-radius: 8px;
-      font-size: 18px;
+      padding: 12px 16px;
+      font-size: 14px;
       font-weight: 600;
       cursor: pointer;
 

@@ -17,40 +17,38 @@
       <div v-if="quoteError" class="error-message">Not enough balance</div>
     </div>
     <div class="bottom">
-      <div class="input-tokens" v-if="intentOp">
-        <div
-          class="input-token"
-          v-for="token in inputTokens"
-          :key="`${token.chain}-${token.address}`"
-        >
-          <div class="input-token-info">
-            <img
-              v-if="getTokenSymbol(token.chain, token.address)"
-              :src="
-                getTokenIcon(getTokenSymbol(token.chain, token.address) || '')
-              "
-              :alt="getTokenSymbol(token.chain, token.address) || ''"
-              class="token-icon"
-            />
-            <div class="token-details">
-              <span class="token-symbol">{{
-                getTokenSymbol(token.chain, token.address) || "Unknown"
-              }}</span>
-              <span class="chain-name">{{ getChainName(token.chain) }}</span>
+      <div class="route-container" v-if="intentOp">
+        <div class="input-tokens">
+          <div
+            class="input-token"
+            v-for="token in inputTokens"
+            :key="`${token.chain}-${token.address}`"
+          >
+            <div class="input-token-info">
+              <img
+                v-if="getTokenSymbol(token.chain, token.address)"
+                :src="
+                  getTokenIcon(getTokenSymbol(token.chain, token.address) || '')
+                "
+                :alt="getTokenSymbol(token.chain, token.address) || ''"
+                class="token-icon"
+              />
+              <div class="token-details">
+                <span class="token-symbol">{{
+                  getTokenSymbol(token.chain, token.address) || "Unknown"
+                }}</span>
+                <span class="chain-name">{{ getChainName(token.chain) }}</span>
+              </div>
+            </div>
+            <div class="input-token-amount">
+              {{ formatTokenAmount(token.chain, token.address, token.amount) }}
             </div>
           </div>
-          <div class="input-token-amount">
-            {{ formatTokenAmount(token.chain, token.address, token.amount) }}
-          </div>
         </div>
+        <button class="custom-route-button" @click="showBalances = true">
+          Custom Route
+        </button>
       </div>
-      <button
-        v-if="intentOp"
-        class="custom-route-button"
-        @click="showBalances = true"
-      >
-        Custom Route
-      </button>
       <button
         :disabled="!amount || isQuoteLoading || !!quoteError"
         @click="handleContinue"
@@ -125,8 +123,10 @@ const quoteError = ref<ApiError | null>(null);
 
 const inputWidth = computed(() => {
   const value = amount.value.toString();
-  const length = value.length || 1;
-  return `${Math.max(length * 0.6 + 0.2, 1)}em`;
+  const tokens = value.split(".");
+  const characters = tokens.reduce((acc, token) => acc + token.length, 0);
+  const dots = tokens.length - 1;
+  return `${characters + 0.25 * dots}ch`;
 });
 
 const isAmountZeroish = computed(() => {
@@ -344,17 +344,11 @@ function formatTokenAmount(
       display: flex;
       justify-content: center;
       align-items: baseline;
-      gap: 4px;
       width: 100%;
       padding: 8px;
-      background-color: #fafafa;
       border-radius: 4px;
       border: 1px solid transparent;
       cursor: text;
-
-      &:focus-within {
-        border-color: #e0e0e0;
-      }
 
       &.has-error {
         border-color: #ef4444;
@@ -362,7 +356,7 @@ function formatTokenAmount(
       }
 
       .dollar-sign {
-        font-size: 26px;
+        font-size: 40px;
         font-weight: 600;
         color: #000;
       }
@@ -371,7 +365,7 @@ function formatTokenAmount(
         border: none;
         background: transparent;
         text-align: center;
-        font-size: 32px;
+        font-size: 48px;
         font-weight: 600;
         color: #000;
         outline: none;
@@ -445,20 +439,16 @@ function formatTokenAmount(
     }
 
     .custom-route-button {
-      width: 100%;
-      background: #fff;
-      color: rgb(43, 156, 255);
-      border: 1px solid rgb(43, 156, 255);
-      padding: 8px 16px;
+      background: transparent;
+      color: #6b6b6b;
       border-radius: 8px;
-      font-size: 16px;
-      font-weight: 600;
+      font-size: 12px;
       cursor: pointer;
       transition: all 0.2s ease;
+      padding: 0;
 
       &:hover {
-        background: rgb(43, 156, 255);
-        color: #fff;
+        color: #606060;
       }
     }
 
@@ -467,9 +457,9 @@ function formatTokenAmount(
       background: rgb(43, 156, 255);
       color: #fff;
       border: none;
-      padding: 8px 16px;
+      padding: 12px 16px;
       border-radius: 8px;
-      font-size: 18px;
+      font-size: 14px;
       font-weight: 600;
       cursor: pointer;
 
