@@ -126,7 +126,7 @@ const inputWidth = computed(() => {
   const tokens = value.split(".");
   const characters = tokens.reduce((acc, token) => acc + token.length, 0);
   const dots = tokens.length - 1;
-  return `${characters + 0.25 * dots}ch`;
+  return `${Math.max(characters + 0.25 * dots, 1)}ch`;
 });
 
 const isAmountZeroish = computed(() => {
