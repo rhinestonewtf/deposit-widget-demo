@@ -144,33 +144,63 @@ const isCompleted = computed(() => {
 });
 
 const displayStatus = computed(() => {
-  return status.value;
+  switch (status.value) {
+    case "PRECONFIRMED":
+    case "COMPLETED":
+    case "FILLED":
+      return "Completed";
+    case "FAILED":
+      return "Failed";
+    case "EXPIRED":
+      return "Expired";
+    default:
+      return "In progress";
+  }
 });
 
 const statusClass = computed(() => {
-  const s = status.value;
-  if (s === "COMPLETED" || s === "PRECONFIRMED") return "status-success";
-  if (s === "FILLED") return "status-success";
-  if (s === "FAILED" || s === "EXPIRED") return "status-error";
-  return "status-pending";
+  switch (status.value) {
+    case "PRECONFIRMED":
+    case "COMPLETED":
+    case "FILLED":
+      return "status-success";
+    case "FAILED":
+      return "status-error";
+    case "EXPIRED":
+      return "status-error";
+    default:
+      return "status-pending";
+  }
 });
 
 const statusTitle = computed(() => {
-  const s = status.value;
-  if (s === "COMPLETED" || s === "FILLED" || s === "PRECONFIRMED")
-    return "Transaction completed";
-  if (s === "FAILED") return "Transaction failed";
-  if (s === "EXPIRED") return "Transaction expired";
-  return "Submitting transaction...";
+  switch (status.value) {
+    case "PRECONFIRMED":
+    case "COMPLETED":
+    case "FILLED":
+      return "Transaction completed";
+    case "FAILED":
+      return "Transaction failed";
+    case "EXPIRED":
+      return "Transaction expired";
+    default:
+      return "Submitting transaction...";
+  }
 });
 
 const statusDescription = computed(() => {
-  const s = status.value;
-  if (s === "COMPLETED" || s === "FILLED" || s === "PRECONFIRMED")
-    return "Your deposit has been completed.";
-  if (s === "FAILED") return "There was an error processing your deposit.";
-  if (s === "EXPIRED") return "Your deposit has expired and was not completed.";
-  return "Filling your deposit on the blockchain.";
+  switch (status.value) {
+    case "PRECONFIRMED":
+    case "COMPLETED":
+    case "FILLED":
+      return "Your deposit has been completed.";
+    case "FAILED":
+      return "There was an error processing your deposit.";
+    case "EXPIRED":
+      return "Your deposit has expired and was not completed.";
+    default:
+      return "Filling your deposit on the blockchain.";
+  }
 });
 
 const shortAddress = computed(() => {
