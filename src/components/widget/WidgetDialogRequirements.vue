@@ -13,19 +13,9 @@
           }"
         >
           <div class="requirement-info">
-            <img
-              v-if="
-                getTokenSymbol(requirement.chain, requirement.address) &&
-                getTokenIcon(
-                  getTokenSymbol(requirement.chain, requirement.address) || ''
-                )
-              "
-              :src="
-                getTokenIcon(
-                  getTokenSymbol(requirement.chain, requirement.address) || ''
-                )
-              "
-              :alt="
+            <TokenIcon
+              v-if="getTokenSymbol(requirement.chain, requirement.address)"
+              :symbol="
                 getTokenSymbol(requirement.chain, requirement.address) || ''
               "
               class="token-icon"
@@ -117,8 +107,7 @@ import {
 } from "viem";
 import * as chains from "viem/chains";
 import { onMounted, ref } from "vue";
-import ethIcon from "/icons/eth.svg?url";
-import usdcIcon from "/icons/usdc.svg?url";
+import TokenIcon from "../TokenIcon.vue";
 import IconCheck from "../icon/IconCheck.vue";
 import IconX from "../icon/IconX.vue";
 import type { IntentOp, TokenRequirement } from "./common";
@@ -162,15 +151,6 @@ function getTokenSymbol(chainId: string, tokenAddress: Address): string | null {
     (t) => t.address.toLowerCase() === tokenAddress.toLowerCase()
   );
   return tokenEntry?.symbol || null;
-}
-
-function getTokenIcon(symbol: string): string {
-  const iconMap: Record<string, string> = {
-    ETH: ethIcon,
-    WETH: ethIcon,
-    USDC: usdcIcon,
-  };
-  return iconMap[symbol] || "";
 }
 
 function formatTokenAmount(
@@ -499,10 +479,6 @@ function handleContinue(): void {
           align-items: center;
 
           .token-icon {
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            flex-shrink: 0;
             transition: all 0.2s ease;
           }
 

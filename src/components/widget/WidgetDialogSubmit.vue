@@ -55,10 +55,10 @@
             <div class="amount-row">
               <span class="amount-label">You pay</span>
               <div class="amount-value">
-                <img
+                <TokenIcon
                   v-if="sourceTokenSymbol"
-                  :src="getTokenIcon(sourceTokenSymbol)"
-                  :alt="sourceTokenSymbol"
+                  :symbol="sourceTokenSymbol"
+                  :size="20"
                   class="token-icon"
                 />
                 <span class="amount-text"
@@ -70,10 +70,10 @@
             <div class="amount-row">
               <span class="amount-label">You deposit</span>
               <div class="amount-value">
-                <img
+                <TokenIcon
                   v-if="destinationTokenSymbol"
-                  :src="getTokenIcon(destinationTokenSymbol)"
-                  :alt="destinationTokenSymbol"
+                  :symbol="destinationTokenSymbol"
+                  :size="20"
                   class="token-icon"
                 />
                 <span class="amount-text"
@@ -110,6 +110,7 @@ import RhinestoneService, {
   type SignedIntentOp,
 } from "../../services/rhinestone";
 import IconArrowSquareOut from "../icon/IconArrowSquareOut.vue";
+import TokenIcon from "../TokenIcon.vue";
 import type { IntentOp } from "./common";
 
 const apiKey = import.meta.env.VITE_PUBLIC_RHINESTONE_API_KEY;
@@ -423,15 +424,6 @@ function getTokenSymbol(chainId: string, tokenAddress: Address): string | null {
   return tokenEntry?.symbol || null;
 }
 
-function getTokenIcon(symbol: string): string {
-  const iconMap: Record<string, string> = {
-    ETH: "/icons/eth.svg",
-    WETH: "/icons/eth.svg",
-    USDC: "/icons/usdc.svg",
-  };
-  return iconMap[symbol] || "";
-}
-
 function formatTokenAmount(
   chainId: string,
   tokenAddress: Address,
@@ -608,12 +600,6 @@ onUnmounted(() => {
               display: flex;
               align-items: center;
               gap: 6px;
-
-              .token-icon {
-                width: 20px;
-                height: 20px;
-                border-radius: 50%;
-              }
 
               .amount-text {
                 font-size: 14px;

@@ -20,19 +20,11 @@
       <div class="route-container" v-if="intentOp">
         <div class="path">
           <div class="input">
-            <img
+            <TokenIcon
               v-if="
                 getTokenSymbol(firstInputToken.chain, firstInputToken.address)
               "
-              :src="
-                getTokenIcon(
-                  getTokenSymbol(
-                    firstInputToken.chain,
-                    firstInputToken.address
-                  ) || ''
-                )
-              "
-              :alt="
+              :symbol="
                 getTokenSymbol(
                   firstInputToken.chain,
                   firstInputToken.address
@@ -65,14 +57,9 @@
           </div>
           <IconArrowRight class="icon-arrow" />
           <div class="output">
-            <img
+            <TokenIcon
               v-if="getTokenSymbol(outputToken.chain, outputToken.address)"
-              :src="
-                getTokenIcon(
-                  getTokenSymbol(outputToken.chain, outputToken.address) || ''
-                )
-              "
-              :alt="
+              :symbol="
                 getTokenSymbol(outputToken.chain, outputToken.address) || ''
               "
               class="icon"
@@ -127,6 +114,7 @@ import { type Address, type Chain, formatUnits, parseUnits } from "viem";
 import { computed, ref, watch } from "vue";
 
 import RhinestoneService, { type ApiError } from "../../services/rhinestone";
+import TokenIcon from "../TokenIcon.vue";
 import IconArrowRight from "../icon/IconArrowRight.vue";
 import WidgetDialogBalances from "./WidgetDialogBalances.vue";
 import type { IntentOp, TokenRequirement } from "./common";
@@ -350,15 +338,6 @@ function getTokenSymbol(chainId: string, tokenAddress: Address): string | null {
     (t) => t.address.toLowerCase() === tokenAddress.toLowerCase()
   );
   return tokenEntry?.symbol || null;
-}
-
-function getTokenIcon(symbol: string): string {
-  const iconMap: Record<string, string> = {
-    ETH: "/icons/eth.svg",
-    WETH: "/icons/eth.svg",
-    USDC: "/icons/usdc.svg",
-  };
-  return iconMap[symbol] || "";
 }
 
 function formatTokenAmount(

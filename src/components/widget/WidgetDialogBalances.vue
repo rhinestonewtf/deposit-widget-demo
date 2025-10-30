@@ -20,10 +20,9 @@
         @click="handleSelect(balance)"
       >
         <div class="balance-info">
-          <img
+          <TokenIcon
             v-if="balance.symbol"
-            :src="getTokenIcon(balance.symbol)"
-            :alt="balance.symbol"
+            :symbol="balance.symbol"
             class="token-icon"
           />
           <div class="token-details">
@@ -51,6 +50,7 @@ import * as chains from "viem/chains";
 import { onMounted, ref } from "vue";
 
 import RhinestoneService from "../../services/rhinestone";
+import TokenIcon from "../TokenIcon.vue";
 
 const apiKey = import.meta.env.VITE_PUBLIC_RHINESTONE_API_KEY;
 if (!apiKey) {
@@ -186,15 +186,6 @@ function getViemChain(chainId: number): Chain | null {
   return chainMap[chainId] || null;
 }
 
-function getTokenIcon(symbol: string): string {
-  const iconMap: Record<string, string> = {
-    ETH: "/icons/eth.svg",
-    WETH: "/icons/eth.svg",
-    USDC: "/icons/usdc.svg",
-  };
-  return iconMap[symbol] || "";
-}
-
 function handleSelect(balance: TokenBalance): void {
   const viemChain = getViemChain(balance.chainId);
   if (!viemChain) {
@@ -320,12 +311,6 @@ function handleSelectAll(): void {
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-.token-icon {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
 }
 
 .token-details {
