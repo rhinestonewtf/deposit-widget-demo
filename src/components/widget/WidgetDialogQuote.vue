@@ -10,7 +10,7 @@
         <input
           ref="amountInput"
           v-model="amount"
-          :style="{ width: inputWidth }"
+          :style="{ maxWidth: inputWidth }"
           placeholder="0"
         />
       </div>
@@ -185,7 +185,7 @@ const inputWidth = computed(() => {
   const tokens = value.split(".");
   const characters = tokens.reduce((acc, token) => acc + token.length, 0);
   const dots = tokens.length - 1;
-  return `${Math.max(characters + 0.25 * dots, 1)}ch`;
+  return `${Math.max(characters + 0.5 * dots, 1)}ch`;
 });
 
 const isAmountZeroish = computed(() => {
@@ -395,6 +395,7 @@ function formatTokenAmount(
       align-items: baseline;
       width: 100%;
       padding: 8px;
+      gap: 2px;
       border-radius: 4px;
       border: 1px solid transparent;
       cursor: text;
@@ -419,6 +420,7 @@ function formatTokenAmount(
         color: #000;
         outline: none;
         min-width: 0;
+        field-sizing: content;
         flex: none;
         padding: 0;
       }
