@@ -109,8 +109,8 @@ import RhinestoneService, {
   type IntentStatus,
   type SignedIntentOp,
 } from "../../services/rhinestone";
-import IconArrowSquareOut from "../icon/IconArrowSquareOut.vue";
 import TokenIcon from "../TokenIcon.vue";
+import IconArrowSquareOut from "../icon/IconArrowSquareOut.vue";
 import type { IntentOp } from "./common";
 
 const apiKey = import.meta.env.VITE_PUBLIC_RHINESTONE_API_KEY;
@@ -138,6 +138,7 @@ const fillTransactionHash = ref<Hex | undefined>(undefined);
 const isCompleted = computed(() => {
   return (
     status.value === "COMPLETED" ||
+    status.value === "PRECONFIRMED" ||
     status.value === "FILLED" ||
     status.value === "FAILED" ||
     status.value === "EXPIRED"
@@ -169,13 +170,11 @@ const statusTitle = computed(() => {
 const statusDescription = computed(() => {
   const s = status.value;
   if (s === "COMPLETED" || s === "FILLED")
-    return "Your transaction has been successfully filled on the blockchain.";
-  if (s === "FAILED") return "There was an error processing your transaction.";
-  if (s === "EXPIRED")
-    return "Your transaction has expired and was not filled.";
-  if (s === "PRECONFIRMED")
-    return "Your transaction has been preconfirmed and is being processed.";
-  return "Filling your transaction on the blockchain.";
+    return "Your deposit has been completed.";
+  if (s === "FAILED") return "There was an error processing your deposit.";
+  if (s === "EXPIRED") return "Your deposit has expired and was not completed.";
+  if (s === "PRECONFIRMED") return "Your deposit has been preconfirmed.";
+  return "Filling your deposit on the blockchain.";
 });
 
 const shortAddress = computed(() => {
