@@ -37,7 +37,7 @@ const { open } = useAppKit();
 const accountData = useAppKitAccount();
 const account = computed(() => accountData.value?.address as Address);
 const isConnected = computed(() => !!accountData.value?.address);
-const recipient = "0x0000000000000000000000000000000000000042" as Address;
+const recipient = "0xfeebabe17996b3346cf80f04a1f072102a90cf09" as Address;
 
 const isModalOpen = ref(false);
 
