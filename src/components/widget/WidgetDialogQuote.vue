@@ -30,6 +30,7 @@
                   firstInputToken.address
                 ) || ''
               "
+              :chain="getChain(firstInputToken.chain)"
               class="icon"
             />
             <div class="details">
@@ -62,10 +63,11 @@
               :symbol="
                 getTokenSymbol(outputToken.chain, outputToken.address) || ''
               "
+              :chain="getChain(outputToken.chain)"
               class="icon"
             />
             <div class="details">
-              <div class="label">You receive</div>
+              <div class="label">You deposit</div>
               <div class="amount">
                 <div class="value">
                   {{
@@ -108,7 +110,7 @@
 </template>
 
 <script setup lang="ts">
-import { chainRegistry } from "@rhinestone/shared-configs";
+import { chainRegistry, chains } from "@rhinestone/shared-configs";
 import { useIntervalFn, watchDebounced } from "@vueuse/core";
 import { type Address, type Chain, formatUnits, parseUnits } from "viem";
 import { computed, ref, watch } from "vue";
@@ -338,6 +340,10 @@ function getTokenSymbol(chainId: string, tokenAddress: Address): string | null {
     (t) => t.address.toLowerCase() === tokenAddress.toLowerCase()
   );
   return tokenEntry?.symbol || null;
+}
+
+function getChain(chainId: string): Chain | null {
+  return chains.find((c) => c.id.toString() === chainId) || null;
 }
 
 function formatTokenAmount(

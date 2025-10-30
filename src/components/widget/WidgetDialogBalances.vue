@@ -23,6 +23,7 @@
           <TokenIcon
             v-if="balance.symbol"
             :symbol="balance.symbol"
+            :chain="getChain(balance.chainId)"
             class="token-icon"
           />
           <div class="token-details">
@@ -44,7 +45,11 @@
 </template>
 
 <script setup lang="ts">
-import { chainRegistry, testnetChains } from "@rhinestone/shared-configs";
+import {
+  chainRegistry,
+  chains as registryChains,
+  testnetChains,
+} from "@rhinestone/shared-configs";
 import { type Address, type Chain, formatUnits } from "viem";
 import * as chains from "viem/chains";
 import { onMounted, ref } from "vue";
@@ -98,6 +103,10 @@ async function fetchEthPrice(): Promise<number> {
     console.error("Failed to fetch ETH price:", error);
     return 0;
   }
+}
+
+function getChain(chainId: number): Chain | null {
+  return registryChains.find((c) => c.id === chainId) || null;
 }
 
 function getTokenUsdPrice(symbol: string, ethPrice: number): number {
