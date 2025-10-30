@@ -113,11 +113,7 @@ import TokenIcon from "../TokenIcon.vue";
 import IconArrowSquareOut from "../icon/IconArrowSquareOut.vue";
 import type { IntentOp } from "./common";
 
-const apiKey = import.meta.env.VITE_PUBLIC_RHINESTONE_API_KEY;
-if (!apiKey) {
-  throw new Error("VITE_PUBLIC_RHINESTONE_API_KEY is not set");
-}
-const rhinestoneService = new RhinestoneService(apiKey);
+const rhinestoneService = new RhinestoneService();
 
 const emit = defineEmits<{
   next: [];

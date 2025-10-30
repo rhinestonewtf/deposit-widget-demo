@@ -122,11 +122,7 @@ import IconArrowRight from "../icon/IconArrowRight.vue";
 import WidgetDialogBalances from "./WidgetDialogBalances.vue";
 import type { IntentOp, TokenRequirement } from "./common";
 
-const apiKey = import.meta.env.VITE_PUBLIC_RHINESTONE_API_KEY;
-if (!apiKey) {
-  throw new Error("VITE_PUBLIC_RHINESTONE_API_KEY is not set");
-}
-const rhinestoneService = new RhinestoneService(apiKey);
+const rhinestoneService = new RhinestoneService();
 
 const emit = defineEmits<{
   next: [requirements: TokenRequirement[], intentOp: IntentOp];

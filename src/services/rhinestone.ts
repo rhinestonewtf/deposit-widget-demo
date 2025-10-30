@@ -206,11 +206,17 @@ interface Portfolio {
 }
 
 class Service {
-	private readonly baseUrl = "https://dev.v1.orchestrator.rhinestone.dev";
-	private readonly apiKey;
+	private readonly baseUrl: string;
 
-	constructor(apiKey: string) {
-		this.apiKey = apiKey;
+	constructor() {
+		// Use local proxy endpoints (Vercel Functions)
+		// In production, this will be the deployed URL
+		// In development, it will be localhost
+		const appBaseUrl = import.meta.env.VITE_PUBLIC_APP_BASE_URL;
+		if (!appBaseUrl) {
+			throw new Error("VITE_PUBLIC_APP_BASE_URL is not set");
+		}
+		this.baseUrl = import.meta.env.DEV ? `${appBaseUrl}/api` : "/api";
 	}
 
 	async getQuote(
@@ -254,11 +260,10 @@ class Service {
 			};
 		}
 
-		const response = await fetch(`${this.baseUrl}/intents/route`, {
+		const response = await fetch(`${this.baseUrl}/intents-route`, {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
-				"x-api-key": this.apiKey,
 			},
 			body: JSON.stringify(intentInput, (_, value) =>
 				typeof value === "bigint" ? value.toString() : value,
@@ -294,7 +299,6 @@ class Service {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
-				"x-api-key": this.apiKey,
 			},
 			body: JSON.stringify(payload, (_, value) =>
 				typeof value === "bigint" ? value.toString() : value,
@@ -306,12 +310,11 @@ class Service {
 
 	async getIntentStatus(intentId: bigint): Promise<IntentOpStatus> {
 		const response = await fetch(
-			`${this.baseUrl}/intent-operation/${intentId.toString()}`,
+			`${this.baseUrl}/intent-operation-status?id=${intentId.toString()}`,
 			{
 				method: "GET",
 				headers: {
 					"Content-Type": "application/json",
-					"x-api-key": this.apiKey,
 				},
 			},
 		);
@@ -328,6 +331,7 @@ class Service {
 		},
 	): Promise<Portfolio[]> {
 		const params = new URLSearchParams();
+		params.set("address", userAddress);
 		if (filter?.chainIds) {
 			params.set("chainIds", filter.chainIds.join(","));
 		}
@@ -341,13 +345,12 @@ class Service {
 					.join(","),
 			);
 		}
-		const url = new URL(`${this.baseUrl}/accounts/${userAddress}/portfolio`);
+		const url = new URL(`${this.baseUrl}/portfolio`);
 		url.search = params.toString();
 		const response = await fetch(url.toString(), {
 			method: "GET",
 			headers: {
 				"Content-Type": "application/json",
-				"x-api-key": this.apiKey,
 			},
 		});
 		const json = await response.json();

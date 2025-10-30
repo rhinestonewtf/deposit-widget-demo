@@ -59,11 +59,7 @@ import { onMounted, ref } from "vue";
 import RhinestoneService from "../../services/rhinestone";
 import TokenIcon from "../TokenIcon.vue";
 
-const apiKey = import.meta.env.VITE_PUBLIC_RHINESTONE_API_KEY;
-if (!apiKey) {
-  throw new Error("VITE_PUBLIC_RHINESTONE_API_KEY is not set");
-}
-const rhinestoneService = new RhinestoneService(apiKey);
+const rhinestoneService = new RhinestoneService();
 
 const emit = defineEmits<{
   close: [];
