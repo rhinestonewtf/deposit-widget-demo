@@ -49,7 +49,7 @@ function openDepositModal() {
   isModalOpen.value = true;
 }
 
-const chain = baseSepolia;
+const chain = base;
 const USDC = getUsdcAddress(chain);
 const token = ref<Address>(USDC);
 
