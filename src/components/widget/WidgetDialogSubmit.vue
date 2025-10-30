@@ -131,14 +131,16 @@ const status = ref<IntentStatus>("PENDING");
 const pollingInterval = ref<number | null>(null);
 const fillTransactionHash = ref<Hex | undefined>(undefined);
 
-const isCompleted = computed(() => {
+const isFinal = computed(() => {
   return (
     status.value === "COMPLETED" ||
-    status.value === "PRECONFIRMED" ||
     status.value === "FILLED" ||
     status.value === "FAILED" ||
     status.value === "EXPIRED"
   );
+});
+const isCompleted = computed(() => {
+  return isFinal.value || status.value === "PRECONFIRMED";
 });
 
 const displayStatus = computed(() => {
@@ -147,29 +149,27 @@ const displayStatus = computed(() => {
 
 const statusClass = computed(() => {
   const s = status.value;
-  if (s === "COMPLETED") return "status-success";
+  if (s === "COMPLETED" || s === "PRECONFIRMED") return "status-success";
   if (s === "FILLED") return "status-success";
   if (s === "FAILED" || s === "EXPIRED") return "status-error";
-  if (s === "PRECONFIRMED") return "status-success";
   return "status-pending";
 });
 
 const statusTitle = computed(() => {
   const s = status.value;
-  if (s === "COMPLETED" || s === "FILLED") return "Transaction completed";
+  if (s === "COMPLETED" || s === "FILLED" || s === "PRECONFIRMED")
+    return "Transaction completed";
   if (s === "FAILED") return "Transaction failed";
   if (s === "EXPIRED") return "Transaction expired";
-  if (s === "PRECONFIRMED") return "Transaction preconfirmed";
   return "Submitting transaction...";
 });
 
 const statusDescription = computed(() => {
   const s = status.value;
-  if (s === "COMPLETED" || s === "FILLED")
+  if (s === "COMPLETED" || s === "FILLED" || s === "PRECONFIRMED")
     return "Your deposit has been completed.";
   if (s === "FAILED") return "There was an error processing your deposit.";
   if (s === "EXPIRED") return "Your deposit has expired and was not completed.";
-  if (s === "PRECONFIRMED") return "Your deposit has been preconfirmed.";
   return "Filling your deposit on the blockchain.";
 });
 
@@ -379,7 +379,7 @@ async function checkStatus(): Promise<void> {
     fillTransactionHash.value = response.fillTransactionHash;
 
     // Stop polling if we reached a final state
-    if (isCompleted.value) {
+    if (isFinal.value) {
       stopPolling();
     }
   } catch (err) {
