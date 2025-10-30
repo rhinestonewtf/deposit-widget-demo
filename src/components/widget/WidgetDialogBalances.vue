@@ -144,34 +144,42 @@ async function fetchBalances(): Promise<void> {
       for (const chainBalance of tokenPortfolio.chains) {
         const totalBalance = chainBalance.locked + chainBalance.unlocked;
 
-        // Only include non-zero balances
-        if (totalBalance > 0n) {
-          const chainEntry = chainRegistry[chainBalance.chain.toString()];
-          const formattedBalance = formatUnits(
-            totalBalance,
-            tokenPortfolio.decimals
-          );
-          const num = Number.parseFloat(formattedBalance);
-
-          // Calculate USD value
-          const tokenPrice = getTokenUsdPrice(
-            tokenPortfolio.symbol,
-            ethPrice.value
-          );
-          const usdValue = num * tokenPrice;
-
-          allBalances.push({
-            chainId: chainBalance.chain,
-            chainName: chainEntry?.name || `Chain ${chainBalance.chain}`,
-            tokenAddress: chainBalance.address,
-            symbol: tokenPortfolio.symbol,
-            decimals: tokenPortfolio.decimals,
-            balance: totalBalance,
-            formattedBalance: num.toFixed(5).replace(/\.?0+$/, ""),
-            usdValue,
-            formattedUsdValue: usdValue.toFixed(2),
-          });
+        // Skip non USDC balances
+        if (tokenPortfolio.symbol !== "USDC") {
+          continue;
         }
+
+        // Skip if balance is zero
+        if (totalBalance === 0n) {
+          continue;
+        }
+
+        // Only include non-zero balances
+        const chainEntry = chainRegistry[chainBalance.chain.toString()];
+        const formattedBalance = formatUnits(
+          totalBalance,
+          tokenPortfolio.decimals
+        );
+        const num = Number.parseFloat(formattedBalance);
+
+        // Calculate USD value
+        const tokenPrice = getTokenUsdPrice(
+          tokenPortfolio.symbol,
+          ethPrice.value
+        );
+        const usdValue = num * tokenPrice;
+
+        allBalances.push({
+          chainId: chainBalance.chain,
+          chainName: chainEntry?.name || `Chain ${chainBalance.chain}`,
+          tokenAddress: chainBalance.address,
+          symbol: tokenPortfolio.symbol,
+          decimals: tokenPortfolio.decimals,
+          balance: totalBalance,
+          formattedBalance: num.toFixed(5).replace(/\.?0+$/, ""),
+          usdValue,
+          formattedUsdValue: usdValue.toFixed(2),
+        });
       }
     }
 
