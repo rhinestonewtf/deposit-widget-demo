@@ -113,6 +113,7 @@ const headerTitle = computed(() => {
 function handleOpen(value: boolean): void {
   if (!value) {
     open.value = false;
+    resetState();
   }
 }
 
@@ -143,6 +144,10 @@ function handleRetry(): void {
 
 function handleSubmitNext(): void {
   open.value = false;
+  resetState();
+}
+
+function resetState(): void {
   step.value = { type: "quote" };
 }
 </script>
