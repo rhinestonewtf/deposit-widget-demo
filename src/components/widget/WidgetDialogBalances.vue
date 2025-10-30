@@ -47,6 +47,7 @@
 <script setup lang="ts">
 import {
   chainRegistry,
+  mainnetChains,
   chains as registryChains,
   testnetChains,
 } from "@rhinestone/shared-configs";
@@ -68,8 +69,9 @@ const emit = defineEmits<{
   select: [token: Address | null, chain: Chain | null];
 }>();
 
-const { userAddress } = defineProps<{
+const { userAddress, isMainnets } = defineProps<{
   userAddress: Address;
+  isMainnets: boolean;
 }>();
 
 interface TokenBalance {
@@ -129,7 +131,12 @@ async function fetchBalances(): Promise<void> {
     ethPrice.value = await fetchEthPrice();
 
     const portfolio = await rhinestoneService.getPortfolio(userAddress, {
-      chainIds: testnetChains.map((chain) => chain.id),
+      chainIds: isMainnets
+        ? mainnetChains
+            .filter((chain) => chain.id !== 1)
+            .filter((chain) => chain.id !== 146)
+            .map((chain) => chain.id)
+        : testnetChains.map((chain) => chain.id),
     });
 
     for (const tokenPortfolio of portfolio) {

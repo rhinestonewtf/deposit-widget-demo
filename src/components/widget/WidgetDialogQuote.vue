@@ -103,6 +103,7 @@
     <WidgetDialogBalances
       v-if="showBalances"
       :user-address="userAddress"
+      :is-mainnets="isMainnets"
       @close="showBalances = false"
       @select="handleTokenSelect"
     />
@@ -143,6 +144,8 @@ interface InputToken {
   address: Address;
   amount: bigint;
 }
+
+const isMainnets = computed(() => chain.testnet !== true);
 
 const amount = ref<number>(0);
 const amountInput = ref<HTMLInputElement | null>(null);

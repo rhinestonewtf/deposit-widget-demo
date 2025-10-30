@@ -86,9 +86,30 @@ function openDepositModal() {
   isModalOpen.value = true;
 }
 
-const USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+const chain = base;
+const USDC = getUsdcAddress(chain);
 const token = ref<Address>(USDC);
-const chain = ref<Chain>(baseSepolia);
+
+function getUsdcAddress(chain: Chain): Address {
+  switch (chain.id) {
+    case sepolia.id:
+      return "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238";
+    case baseSepolia.id:
+      return "0x036cbd53842c5426634e7929541ec2318f3dcf7e";
+    case arbitrumSepolia.id:
+      return "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d";
+    case optimismSepolia.id:
+      return "0x5fd84259d66Cd46123540766Be93DFE6D43130D7";
+    case base.id:
+      return "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+    case arbitrum.id:
+      return "0xaf88d065e77c8cC2239327C5EDb3A432268e5831";
+    case optimism.id:
+      return "0x0b2c639c533813f4aa9d7837caf62653d097ff85";
+    default:
+      throw new Error("Unsupported chain");
+  }
+}
 </script>
 
 <style scoped>
