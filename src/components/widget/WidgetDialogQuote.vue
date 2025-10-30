@@ -18,30 +18,84 @@
     </div>
     <div class="bottom">
       <div class="route-container" v-if="intentOp">
-        <div class="input-tokens">
-          <div
-            class="input-token"
-            v-for="token in inputTokens"
-            :key="`${token.chain}-${token.address}`"
-          >
-            <div class="input-token-info">
-              <img
-                v-if="getTokenSymbol(token.chain, token.address)"
-                :src="
-                  getTokenIcon(getTokenSymbol(token.chain, token.address) || '')
-                "
-                :alt="getTokenSymbol(token.chain, token.address) || ''"
-                class="token-icon"
-              />
-              <div class="token-details">
-                <span class="token-symbol">{{
-                  getTokenSymbol(token.chain, token.address) || "Unknown"
-                }}</span>
-                <span class="chain-name">{{ getChainName(token.chain) }}</span>
+        <div class="path">
+          <div class="input">
+            <img
+              v-if="
+                getTokenSymbol(firstInputToken.chain, firstInputToken.address)
+              "
+              :src="
+                getTokenIcon(
+                  getTokenSymbol(
+                    firstInputToken.chain,
+                    firstInputToken.address
+                  ) || ''
+                )
+              "
+              :alt="
+                getTokenSymbol(
+                  firstInputToken.chain,
+                  firstInputToken.address
+                ) || ''
+              "
+              class="icon"
+            />
+            <div class="details">
+              <div class="label">You send</div>
+              <div class="amount">
+                <div class="value">
+                  {{
+                    formatTokenAmount(
+                      firstInputToken.chain,
+                      firstInputToken.address,
+                      firstInputToken.amount
+                    )
+                  }}
+                </div>
+                <div class="token-symbol">
+                  {{
+                    getTokenSymbol(
+                      firstInputToken.chain,
+                      firstInputToken.address
+                    ) || "Unknown"
+                  }}
+                </div>
               </div>
             </div>
-            <div class="input-token-amount">
-              {{ formatTokenAmount(token.chain, token.address, token.amount) }}
+          </div>
+          <IconArrowRight class="icon-arrow" />
+          <div class="output">
+            <img
+              v-if="getTokenSymbol(outputToken.chain, outputToken.address)"
+              :src="
+                getTokenIcon(
+                  getTokenSymbol(outputToken.chain, outputToken.address) || ''
+                )
+              "
+              :alt="
+                getTokenSymbol(outputToken.chain, outputToken.address) || ''
+              "
+              class="icon"
+            />
+            <div class="details">
+              <div class="label">You receive</div>
+              <div class="amount">
+                <div class="value">
+                  {{
+                    formatTokenAmount(
+                      outputToken.chain,
+                      outputToken.address,
+                      outputToken.amount
+                    )
+                  }}
+                </div>
+                <div class="token-symbol">
+                  {{
+                    getTokenSymbol(outputToken.chain, outputToken.address) ||
+                    "Unknown"
+                  }}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -73,6 +127,7 @@ import { type Address, type Chain, formatUnits, parseUnits } from "viem";
 import { computed, ref, watch } from "vue";
 
 import RhinestoneService, { type ApiError } from "../../services/rhinestone";
+import IconArrowRight from "../icon/IconArrowRight.vue";
 import WidgetDialogBalances from "./WidgetDialogBalances.vue";
 import type { IntentOp, TokenRequirement } from "./common";
 
@@ -120,6 +175,17 @@ const showBalances = ref(false);
 const inputToken = ref<Address | null>(null);
 const inputChain = ref<Chain | null>(null);
 const quoteError = ref<ApiError | null>(null);
+
+const firstInputToken = computed(() => {
+  return inputTokens.value[0] as InputToken;
+});
+const outputToken = computed(() => {
+  return {
+    chain: chain.id.toString(),
+    address: token,
+    amount: inputAmount.value,
+  };
+});
 
 const inputWidth = computed(() => {
   const value = amount.value.toString();
@@ -286,11 +352,6 @@ function getTokenSymbol(chainId: string, tokenAddress: Address): string | null {
   return tokenEntry?.symbol || null;
 }
 
-function getChainName(chainId: string): string {
-  const chainEntry = chainRegistry[chainId];
-  return chainEntry?.name || `Chain ${chainId}`;
-}
-
 function getTokenIcon(symbol: string): string {
   const iconMap: Record<string, string> = {
     ETH: "/icons/eth.svg",
@@ -385,56 +446,63 @@ function formatTokenAmount(
   .bottom {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 32px;
 
-    .input-tokens {
+    .route-container {
       display: flex;
       flex-direction: column;
       gap: 8px;
+    }
 
-      .input-token {
+    .path {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 16px;
+
+      .input {
+        justify-content: end;
+      }
+
+      .output {
+        justify-content: start;
+      }
+
+      .input,
+      .output {
         display: flex;
-        justify-content: space-between;
         align-items: center;
-        padding: 8px 12px;
-        background-color: #fafafa;
-        border-radius: 6px;
-        border: 1px solid #e0e0e0;
+        gap: 8px;
+        flex: 1;
 
-        .input-token-info {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-
-          .token-icon {
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-          }
-
-          .token-details {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-          }
-
-          .token-symbol {
-            font-size: 14px;
-            font-weight: 600;
-            color: #000;
-          }
-
-          .chain-name {
-            font-size: 12px;
-            color: #666;
-          }
+        .icon {
+          width: 24px;
+          height: 24px;
+          border-radius: 50%;
         }
 
-        .input-token-amount {
-          font-size: 14px;
-          font-weight: 500;
+        .details {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .label {
+          font-size: 12px;
           color: #666;
         }
+
+        .amount {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          font-size: 14px;
+        }
+      }
+
+      .icon-arrow {
+        width: 16px;
+        height: 16px;
+        color: #666;
       }
     }
 
