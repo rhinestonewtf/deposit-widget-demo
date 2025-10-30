@@ -25,6 +25,7 @@
             :symbol="balance.symbol"
             :chain="getChain(balance.chainId)"
             class="token-icon"
+            :size="32"
           />
           <div class="token-details">
             <span class="token-symbol">{{ balance.symbol }}</span>
