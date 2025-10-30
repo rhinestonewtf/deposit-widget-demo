@@ -1,6 +1,27 @@
 <template>
   <div class="panel">
     <div class="top">
+      <div class="deposit">
+        <TokenIcon
+          v-if="outputToken"
+          :symbol="getTokenSymbol(outputToken.chain, outputToken.address) || ''"
+          :chain="getChain(outputToken.chain)"
+          class="token-icon"
+          :size="40"
+        />
+        <div class="deposit-details">
+          Depositing
+          {{
+            formatTokenAmount(
+              outputToken.chain,
+              outputToken.address,
+              outputToken.amount
+            )
+          }}
+          {{ getTokenSymbol(outputToken.chain, outputToken.address) || "" }} on
+          {{ getChainName(outputToken.chain) }}
+        </div>
+      </div>
       <div class="requirements">
         <div
           v-for="(requirement, index) in requirements"
@@ -93,7 +114,7 @@
 </template>
 
 <script setup lang="ts">
-import { chainRegistry } from "@rhinestone/shared-configs";
+import { chainRegistry, chains } from "@rhinestone/shared-configs";
 import {
   getAccount,
   signTypedData,
@@ -108,13 +129,12 @@ import {
   formatUnits,
   maxUint256,
 } from "viem";
-import * as chains from "viem/chains";
 import { onMounted, ref } from "vue";
 import { wagmiConfig } from "../../config/appkit";
 import TokenIcon from "../TokenIcon.vue";
 import IconCheck from "../icon/IconCheck.vue";
 import IconX from "../icon/IconX.vue";
-import type { IntentOp, TokenRequirement } from "./common";
+import type { IntentOp, Token, TokenRequirement } from "./common";
 import { getTypedData } from "./permit2";
 
 const emit = defineEmits<{
@@ -122,9 +142,10 @@ const emit = defineEmits<{
   retry: [];
 }>();
 
-const { requirements, intentOp } = defineProps<{
+const { requirements, intentOp, outputToken } = defineProps<{
   requirements: TokenRequirement[];
   intentOp: IntentOp;
+  outputToken: Token;
 }>();
 
 const completedRequirements = ref<Set<number>>(new Set());
@@ -168,10 +189,12 @@ function formatTokenAmount(
   return num.toFixed(5).replace(/\.?0+$/, "");
 }
 
+function getChain(chainId: string): Chain | null {
+  return chains.find((c) => c.id.toString() === chainId) || null;
+}
+
 function getChainName(chainId: string): string {
-  const chainIdNum = Number(chainId);
-  const chainList = Object.values(chains) as Chain[];
-  const chain = chainList.find((c) => c.id === chainIdNum);
+  const chain = getChain(chainId);
   return chain?.name || `Chain ${chainId}`;
 }
 
@@ -370,9 +393,24 @@ function handleContinue(): void {
   .top {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 32px;
     flex: 1;
     overflow-y: auto;
+
+    .deposit {
+      margin-top: 16px;
+      display: flex;
+      align-items: center;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .deposit-details {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 14px;
+    }
 
     .requirements {
       display: flex;
@@ -397,6 +435,7 @@ function handleContinue(): void {
 
         &.completed {
           opacity: 0.4;
+          padding: 4px 12px;
         }
 
         &.failed {

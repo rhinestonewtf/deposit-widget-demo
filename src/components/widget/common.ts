@@ -1,5 +1,11 @@
 import type { Address } from "viem";
 
+interface Token {
+	chain: string;
+	address: Address;
+	amount: bigint;
+}
+
 type TokenRequirement =
 	| {
 			chain: string;
@@ -15,5 +21,5 @@ type TokenRequirement =
 			amount: bigint;
 	  };
 
-export type { TokenRequirement };
+export type { Token, TokenRequirement };
 export type { IntentOp, IntentOpElement } from "./permit2";

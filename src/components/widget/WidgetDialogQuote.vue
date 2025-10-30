@@ -123,12 +123,16 @@ import RhinestoneService, { type ApiError } from "../../services/rhinestone";
 import TokenIcon from "../TokenIcon.vue";
 import IconArrowRight from "../icon/IconArrowRight.vue";
 import WidgetDialogBalances from "./WidgetDialogBalances.vue";
-import type { IntentOp, TokenRequirement } from "./common";
+import type { IntentOp, Token, TokenRequirement } from "./common";
 
 const rhinestoneService = new RhinestoneService();
 
 const emit = defineEmits<{
-  next: [requirements: TokenRequirement[], intentOp: IntentOp];
+  next: [
+    requirements: TokenRequirement[],
+    intentOp: IntentOp,
+    outputToken: Token
+  ];
 }>();
 
 const { token, chain, userAddress, recipient } = defineProps<{
@@ -137,12 +141,6 @@ const { token, chain, userAddress, recipient } = defineProps<{
   userAddress: Address;
   recipient: Address;
 }>();
-
-interface InputToken {
-  chain: string;
-  address: Address;
-  amount: bigint;
-}
 
 const isMainnets = computed(() => chain.testnet !== true);
 
@@ -159,7 +157,7 @@ const inputAmount = computed(() => {
 
   return parseUnits(amount.value.toString(), decimals);
 });
-const inputTokens = ref<InputToken[]>([]);
+const inputTokens = ref<Token[]>([]);
 const inputTokenRequirements = ref<TokenRequirement[]>([]);
 const intentOp = ref<IntentOp | null>(null);
 const isQuoteLoading = ref(false);
@@ -173,7 +171,7 @@ onMounted(() => {
 });
 
 const firstInputToken = computed(() => {
-  return inputTokens.value[0] as InputToken;
+  return inputTokens.value[0] as Token;
 });
 const outputToken = computed(() => {
   return {
@@ -293,7 +291,7 @@ function handleContinue(): void {
     console.error("No intent data available");
     return;
   }
-  emit("next", inputTokenRequirements.value, intentOp.value);
+  emit("next", inputTokenRequirements.value, intentOp.value, outputToken.value);
 }
 
 function focusInput(): void {

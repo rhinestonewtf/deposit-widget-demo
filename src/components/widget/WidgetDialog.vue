@@ -41,6 +41,7 @@
             v-if="step.type === 'requirements'"
             :requirements="step.requirements"
             :intent-op="step.intentOp"
+            :output-token="step.outputToken"
             @next="handleRequirementsNext"
             @retry="handleRetry"
           />
@@ -68,7 +69,7 @@ import IconX from "../icon/IconX.vue";
 import WidgetDialogQuote from "./WidgetDialogQuote.vue";
 import WidgetDialogTokens from "./WidgetDialogRequirements.vue";
 import WidgetDialogSubmit from "./WidgetDialogSubmit.vue";
-import type { IntentOp, TokenRequirement } from "./common";
+import type { IntentOp, Token, TokenRequirement } from "./common";
 
 type Step =
   | {
@@ -78,6 +79,7 @@ type Step =
       type: "requirements";
       requirements: TokenRequirement[];
       intentOp: IntentOp;
+      outputToken: Token;
     }
   | {
       type: "deposit";
@@ -123,9 +125,10 @@ function handleBack(): void {
 
 function handleQuoteNext(
   requirements: TokenRequirement[],
-  intentOp: IntentOp
+  intentOp: IntentOp,
+  outputToken: Token
 ): void {
-  step.value = { type: "requirements", requirements, intentOp };
+  step.value = { type: "requirements", requirements, intentOp, outputToken };
 }
 
 function handleRequirementsNext(signature: Hex): void {
