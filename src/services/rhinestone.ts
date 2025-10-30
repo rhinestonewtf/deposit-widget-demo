@@ -216,7 +216,7 @@ class Service {
 		if (!appBaseUrl) {
 			throw new Error("VITE_PUBLIC_APP_BASE_URL is not set");
 		}
-		this.baseUrl = import.meta.env.DEV ? `${appBaseUrl}/api` : "/api";
+		this.baseUrl = `${appBaseUrl}/api`;
 	}
 
 	async getQuote(
