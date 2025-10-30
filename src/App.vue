@@ -3,7 +3,8 @@
     <appkit-button />
   </header>
   <main>
-    <button @click="openDepositModal">Deposit</button>
+    <button v-if="!isConnected" @click="openConnectModal">Connect</button>
+    <button v-else @click="openDepositModal">Deposit</button>
     <WidgetDialog
       v-model:open="isModalOpen"
       :token="token"
@@ -27,15 +28,11 @@ import {
   optimismSepolia,
   sepolia,
 } from "@reown/appkit/networks";
-import { createAppKit } from "@reown/appkit/vue";
+import { createAppKit, useAppKit } from "@reown/appkit/vue";
 import { useAppKitAccount } from "@reown/appkit/vue";
 import type { Address, Chain } from "viem";
 import { computed, ref } from "vue";
 import WidgetDialog from "./components/widget/WidgetDialog.vue";
-
-const accountData = useAppKitAccount();
-const account = computed(() => accountData.value?.address as Address);
-const recipient = "0x0000000000000000000000000000000000000042" as Address;
 
 // 1. Get projectId from https://dashboard.reown.com
 const projectId = import.meta.env.VITE_PUBLIC_REOWN_PROJECT_ID;
@@ -81,7 +78,19 @@ createAppKit({
   },
 });
 
+// 6. Use AppKit composables after createAppKit
+const { open } = useAppKit();
+const accountData = useAppKitAccount();
+const account = computed(() => accountData.value?.address as Address);
+const isConnected = computed(() => !!accountData.value?.address);
+const recipient = "0x0000000000000000000000000000000000000042" as Address;
+
 const isModalOpen = ref(false);
+
+function openConnectModal() {
+  open();
+}
+
 function openDepositModal() {
   isModalOpen.value = true;
 }
