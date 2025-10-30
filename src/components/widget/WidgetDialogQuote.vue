@@ -17,7 +17,10 @@
       <div v-if="quoteError" class="error-message">Not enough balance</div>
     </div>
     <div class="bottom">
-      <div class="route-container" v-if="intentOp">
+      <div
+        class="route-container"
+        v-if="intentOp && firstInputToken && outputToken"
+      >
         <div class="path">
           <div class="input">
             <TokenIcon
@@ -496,6 +499,7 @@ function formatTokenAmount(
       background: transparent;
       color: #6b6b6b;
       border-radius: 8px;
+      outline: none;
       font-size: 12px;
       cursor: pointer;
       transition: all 0.2s ease;
