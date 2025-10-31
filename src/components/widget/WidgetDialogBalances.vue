@@ -161,11 +161,6 @@ async function fetchBalances(): Promise<void> {
           continue;
         }
 
-        // Skip Polygon
-        if (chainBalance.chain === 137) {
-          continue;
-        }
-
         // Only include non-zero balances
         const chainEntry = chainRegistry[chainBalance.chain.toString()];
         const formattedBalance = formatUnits(
