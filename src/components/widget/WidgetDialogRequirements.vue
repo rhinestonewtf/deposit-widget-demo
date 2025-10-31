@@ -488,7 +488,7 @@ function handleContinue(): void {
         transition: all 0.2s ease;
         opacity: 0.5;
         border: 1px solid transparent;
-        padding: 8px 12px;
+        padding: 12px 12px;
 
         &.active {
           opacity: 1;

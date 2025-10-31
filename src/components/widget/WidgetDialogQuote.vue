@@ -19,73 +19,78 @@
     <div class="bottom">
       <div
         class="route-container"
-        v-if="intentOp && firstInputToken && outputToken"
+        v-if="intentOp && inputTokens.length > 0 && outputToken"
       >
         <div class="path">
-          <div class="input">
-            <TokenIcon
-              v-if="
-                getTokenSymbol(firstInputToken.chain, firstInputToken.address)
-              "
-              :symbol="
-                getTokenSymbol(
-                  firstInputToken.chain,
-                  firstInputToken.address
-                ) || ''
-              "
-              :chain="getChain(firstInputToken.chain)"
-              class="icon"
-            />
-            <div class="details">
-              <div class="label">You send</div>
-              <div class="amount">
-                <div class="value">
-                  {{
-                    formatTokenAmount(
-                      firstInputToken.chain,
-                      firstInputToken.address,
-                      firstInputToken.amount
-                    )
-                  }}
-                </div>
-                <div class="token-symbol">
-                  {{
-                    getTokenSymbol(
-                      firstInputToken.chain,
-                      firstInputToken.address
-                    ) || "Unknown"
-                  }}
+          <div class="inputs">
+            <div class="input-tokens">
+              <div
+                v-for="inputToken in inputTokens"
+                :key="`${inputToken.chain}-${inputToken.address}`"
+                class="input-token"
+              >
+                <TokenIcon
+                  v-if="getTokenSymbol(inputToken.chain, inputToken.address)"
+                  :symbol="
+                    getTokenSymbol(inputToken.chain, inputToken.address) || ''
+                  "
+                  class="icon"
+                />
+                <div class="token-info">
+                  <div class="amount-row">
+                    <span class="value">
+                      {{
+                        formatTokenAmount(
+                          inputToken.chain,
+                          inputToken.address,
+                          inputToken.amount
+                        )
+                      }}
+                    </span>
+                    <span class="token-symbol">
+                      {{
+                        getTokenSymbol(inputToken.chain, inputToken.address) ||
+                        "Unknown"
+                      }}
+                    </span>
+                  </div>
+                  <div class="chain-name">
+                    on {{ getChain(inputToken.chain)?.name || "Unknown" }}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
           <IconArrowRight class="icon-arrow" />
           <div class="output">
-            <TokenIcon
-              v-if="getTokenSymbol(outputToken.chain, outputToken.address)"
-              :symbol="
-                getTokenSymbol(outputToken.chain, outputToken.address) || ''
-              "
-              :chain="getChain(outputToken.chain)"
-              class="icon"
-            />
-            <div class="details">
-              <div class="label">You deposit</div>
-              <div class="amount">
-                <div class="value">
-                  {{
-                    formatTokenAmount(
-                      outputToken.chain,
-                      outputToken.address,
-                      outputToken.amount
-                    )
-                  }}
+            <div class="output-token">
+              <TokenIcon
+                v-if="getTokenSymbol(outputToken.chain, outputToken.address)"
+                :symbol="
+                  getTokenSymbol(outputToken.chain, outputToken.address) || ''
+                "
+                class="icon"
+              />
+              <div class="token-info">
+                <div class="amount-row">
+                  <span class="value">
+                    {{
+                      formatTokenAmount(
+                        outputToken.chain,
+                        outputToken.address,
+                        outputToken.amount
+                      )
+                    }}
+                  </span>
+                  <span class="token-symbol">
+                    {{
+                      getTokenSymbol(outputToken.chain, outputToken.address) ||
+                      "Unknown"
+                    }}
+                  </span>
                 </div>
-                <div class="token-symbol">
-                  {{
-                    getTokenSymbol(outputToken.chain, outputToken.address) ||
-                    "Unknown"
-                  }}
+                <div class="chain-name">
+                  on {{ getChain(outputToken.chain)?.name || "Unknown" }}
                 </div>
               </div>
             </div>
@@ -172,9 +177,6 @@ onMounted(() => {
   amountInput.value?.focus();
 });
 
-const firstInputToken = computed(() => {
-  return inputTokens.value[0] as Token;
-});
 const outputToken = computed(() => {
   return {
     chain: chain.id.toString(),
@@ -466,42 +468,66 @@ function formatTokenAmount(
       align-items: center;
       gap: 16px;
 
-      .input {
-        justify-content: end;
+      .inputs,
+      .output {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        flex: 1;
+
+        .label {
+          font-size: 12px;
+          color: #666;
+          text-align: center;
+        }
+      }
+
+      .inputs {
+        align-items: flex-end;
       }
 
       .output {
-        justify-content: start;
+        align-items: flex-start;
       }
 
-      .input,
-      .output {
+      .input-tokens {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        max-height: 120px;
+        overflow: scroll;
+      }
+
+      .input-token,
+      .output-token {
         display: flex;
         align-items: center;
         gap: 8px;
-        flex: 1;
 
         .icon {
           width: 24px;
           height: 24px;
           border-radius: 50%;
+          flex-shrink: 0;
         }
 
-        .details {
+        .token-info {
           display: flex;
           flex-direction: column;
+          gap: 2px;
         }
 
-        .label {
-          font-size: 12px;
-          color: #666;
-        }
-
-        .amount {
+        .amount-row {
           display: flex;
           align-items: center;
           gap: 4px;
           font-size: 14px;
+          font-weight: 500;
+        }
+
+        .chain-name {
+          font-size: 12px;
+          color: #999;
         }
       }
 
@@ -509,6 +535,7 @@ function formatTokenAmount(
         width: 16px;
         height: 16px;
         color: #666;
+        flex-shrink: 0;
       }
     }
 
