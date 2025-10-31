@@ -53,7 +53,17 @@ import {
   testnetChains,
 } from "@rhinestone/shared-configs";
 import { type Address, type Chain, formatUnits } from "viem";
-import * as chains from "viem/chains";
+import {
+  arbitrum,
+  arbitrumSepolia,
+  base,
+  baseSepolia,
+  mainnet,
+  optimism,
+  optimismSepolia,
+  polygon,
+  sepolia,
+} from "viem/chains";
 import { onMounted, ref } from "vue";
 
 import RhinestoneService from "../../services/rhinestone";
@@ -194,14 +204,15 @@ async function fetchBalances(): Promise<void> {
 function getViemChain(chainId: number): Chain | null {
   // Map chain IDs to viem chain objects
   const chainMap: Record<number, Chain> = {
-    1: chains.mainnet,
-    10: chains.optimism,
-    8453: chains.base,
-    42161: chains.arbitrum,
-    11155111: chains.sepolia,
-    84532: chains.baseSepolia,
-    11155420: chains.optimismSepolia,
-    421614: chains.arbitrumSepolia,
+    1: mainnet,
+    10: optimism,
+    137: polygon,
+    8453: base,
+    42161: arbitrum,
+    11155111: sepolia,
+    84532: baseSepolia,
+    11155420: optimismSepolia,
+    421614: arbitrumSepolia,
   };
 
   return chainMap[chainId] || null;
