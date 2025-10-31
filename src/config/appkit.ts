@@ -8,6 +8,7 @@ import {
 	mainnet,
 	optimism,
 	optimismSepolia,
+	polygon,
 	sepolia,
 } from "@reown/appkit/networks";
 import { createAppKit } from "@reown/appkit/vue";
@@ -38,6 +39,7 @@ const networks: [AppKitNetwork, ...AppKitNetwork[]] = [
 	arbitrum,
 	base,
 	optimism,
+	polygon,
 	sepolia,
 	arbitrumSepolia,
 	baseSepolia,
