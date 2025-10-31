@@ -124,14 +124,6 @@ import { useIntervalFn, watchDebounced } from "@vueuse/core";
 import { type Address, type Chain, formatUnits, parseUnits } from "viem";
 import { computed, onMounted, ref, watch } from "vue";
 
-import {
-  arbitrum,
-  arbitrumSepolia,
-  base,
-  baseSepolia,
-  optimism,
-  optimismSepolia,
-} from "viem/chains";
 import RhinestoneService, { type ApiError } from "../../services/rhinestone";
 import TokenIcon from "../TokenIcon.vue";
 import IconArrowRight from "../icon/IconArrowRight.vue";
@@ -206,102 +198,20 @@ const isAmountZeroish = computed(() => {
 });
 
 async function fetchQuote(): Promise<void> {
-  const supportedChains = isMainnets.value
-    ? [arbitrum, optimism, base]
-    : [arbitrumSepolia, optimismSepolia, baseSepolia];
   if (isAmountZeroish.value) {
     return;
   }
   const amount = inputAmount.value;
 
-  // If inputChain is specified, fetch quote for that chain only
-  if (inputChain.value) {
-    const quote = await rhinestoneService.getQuote(
-      userAddress,
-      chain,
-      token,
-      inputAmount.value,
-      recipient,
-      inputChain.value,
-      inputToken.value || undefined
-    );
-    isQuoteLoading.value = false;
-
-    // Prevent race conditions
-    if (amount !== inputAmount.value) {
-      return;
-    }
-
-    // Check if the quote contains an error
-    if (quote.error) {
-      quoteError.value = quote.error;
-      inputTokens.value = [];
-      intentOp.value = null;
-      inputTokenRequirements.value = [];
-      return;
-    }
-
-    // Clear any previous errors
-    quoteError.value = null;
-
-    if (!quote.intentCost || !quote.intentOp) {
-      console.error("Quote response missing required data");
-      return;
-    }
-
-    const tokensSpent = quote.intentCost.tokensSpent;
-
-    inputTokens.value = Object.entries(tokensSpent).flatMap(
-      ([chainId, tokens]) =>
-        Object.entries(tokens).map(([tokenAddress, tokenData]) => ({
-          chain: chainId,
-          address: tokenAddress as Address,
-          amount: BigInt(tokenData.unlocked),
-        }))
-    );
-    intentOp.value = quote.intentOp;
-    const tokenRequirements = quote.tokenRequirements || {};
-    inputTokenRequirements.value = Object.entries(tokenRequirements).flatMap(
-      ([chainId, tokens]) =>
-        Object.entries(tokens).map(([tokenAddress, tokenData]) => {
-          const base = {
-            chain: chainId,
-            address: tokenAddress as Address,
-            type: tokenData.type,
-            amount: BigInt(tokenData.amount),
-          };
-
-          if (tokenData.type === "approval") {
-            return {
-              ...base,
-              type: "approval" as const,
-              spender: tokenData.spender,
-            };
-          }
-          return {
-            ...base,
-            type: "wrap" as const,
-          };
-        })
-    );
-    return;
-  }
-
-  // If inputChain is not specified, fetch quotes for all supported chains
-  const quotePromises = supportedChains.map(async (supportedChain) => {
-    const quote = await rhinestoneService.getQuote(
-      userAddress,
-      chain,
-      token,
-      inputAmount.value,
-      recipient,
-      supportedChain,
-      inputToken.value || undefined
-    );
-    return { quote, sourceChain: supportedChain };
-  });
-
-  const quoteResults = await Promise.all(quotePromises);
+  const quote = await rhinestoneService.getQuote(
+    userAddress,
+    chain,
+    token,
+    inputAmount.value,
+    recipient,
+    inputChain.value || undefined,
+    inputToken.value || undefined
+  );
   isQuoteLoading.value = false;
 
   // Prevent race conditions
@@ -309,16 +219,9 @@ async function fetchQuote(): Promise<void> {
     return;
   }
 
-  // Filter valid quotes (no errors and has required data)
-  const validQuotes = quoteResults.filter(
-    ({ quote }) => !quote.error && quote.intentCost && quote.intentOp
-  );
-
-  // If no valid quotes, set error
-  if (validQuotes.length === 0) {
-    quoteError.value = {
-      message: "No valid routes found",
-    };
+  // Check if the quote contains an error
+  if (quote.error) {
+    quoteError.value = quote.error;
     inputTokens.value = [];
     intentOp.value = null;
     inputTokenRequirements.value = [];
@@ -328,34 +231,12 @@ async function fetchQuote(): Promise<void> {
   // Clear any previous errors
   quoteError.value = null;
 
-  // Pick the best quote - prioritize where input chain = target chain
-  const targetChainId = chain.id.toString();
-  let bestQuoteResult = validQuotes[0];
-
-  if (!bestQuoteResult) {
-    console.error("No valid quote result found");
+  if (!quote.intentCost || !quote.intentOp) {
+    console.error("Quote response missing required data");
     return;
   }
 
-  for (const quoteResult of validQuotes) {
-    if (!quoteResult.quote.intentCost) continue;
-    const tokensSpent = quoteResult.quote.intentCost.tokensSpent;
-    const inputChains = Object.keys(tokensSpent);
-
-    // Check if this quote uses the target chain
-    if (inputChains.includes(targetChainId)) {
-      bestQuoteResult = quoteResult;
-      break;
-    }
-  }
-
-  const selectedQuote = bestQuoteResult.quote;
-  if (!selectedQuote.intentCost || !selectedQuote.intentOp) {
-    console.error("Selected quote missing required data");
-    return;
-  }
-
-  const tokensSpent = selectedQuote.intentCost.tokensSpent;
+  const tokensSpent = quote.intentCost.tokensSpent;
 
   inputTokens.value = Object.entries(tokensSpent).flatMap(([chainId, tokens]) =>
     Object.entries(tokens).map(([tokenAddress, tokenData]) => ({
@@ -364,8 +245,8 @@ async function fetchQuote(): Promise<void> {
       amount: BigInt(tokenData.unlocked),
     }))
   );
-  intentOp.value = selectedQuote.intentOp;
-  const tokenRequirements = selectedQuote.tokenRequirements || {};
+  intentOp.value = quote.intentOp;
+  const tokenRequirements = quote.tokenRequirements || {};
   inputTokenRequirements.value = Object.entries(tokenRequirements).flatMap(
     ([chainId, tokens]) =>
       Object.entries(tokens).map(([tokenAddress, tokenData]) => {
@@ -420,12 +301,6 @@ function handleContinue(): void {
     console.error("No intent data available");
     return;
   }
-  const firstElement = intentOp.value.elements[0];
-  if (!firstElement) {
-    console.error("No elements in intentOp");
-    return;
-  }
-  inputChain.value = inputChain.value || getChain(firstElement.chainId);
   emit(
     "next",
     inputTokenRequirements.value,
