@@ -320,7 +320,6 @@ function handleTokenSelect(
   selectedChain: Chain | null
 ): void {
   // Reset the quote and error
-  inputTokens.value = [];
   quoteError.value = null;
   // Handle "All Routes" option (null values)
   if (!selectedToken || !selectedChain) {
