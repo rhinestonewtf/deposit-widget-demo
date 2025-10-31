@@ -254,6 +254,11 @@ class Service {
 					[inputChain.id as SupportedChain]: [inputToken],
 				},
 			};
+		} else if (inputChain) {
+			intentInput.accountAccessList = {
+				chainIds: [inputChain.id as SupportedChain],
+				tokens: ["USDC"],
+			};
 		} else {
 			intentInput.accountAccessList = {
 				tokens: ["USDC"],

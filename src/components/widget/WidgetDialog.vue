@@ -37,7 +37,7 @@
             :recipient="recipient"
             @next="handleQuoteNext"
           />
-          <WidgetDialogTokens
+          <WidgetDialogRequirements
             v-if="step.type === 'requirements'"
             :requirements="step.requirements"
             :intent-op="step.intentOp"
@@ -71,7 +71,7 @@ import { computed, ref } from "vue";
 import IconCaretLeft from "../icon/IconCaretLeft.vue";
 import IconX from "../icon/IconX.vue";
 import WidgetDialogQuote from "./WidgetDialogQuote.vue";
-import WidgetDialogTokens from "./WidgetDialogRequirements.vue";
+import WidgetDialogRequirements from "./WidgetDialogRequirements.vue";
 import WidgetDialogSubmit from "./WidgetDialogSubmit.vue";
 import type { IntentOp, Token, TokenRequirement } from "./common";
 
