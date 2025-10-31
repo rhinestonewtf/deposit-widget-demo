@@ -131,7 +131,9 @@ const emit = defineEmits<{
   next: [
     requirements: TokenRequirement[],
     intentOp: IntentOp,
-    outputToken: Token
+    outputToken: Token,
+    inputChain?: Chain | null,
+    inputToken?: Address | null
   ];
 }>();
 
@@ -291,7 +293,14 @@ function handleContinue(): void {
     console.error("No intent data available");
     return;
   }
-  emit("next", inputTokenRequirements.value, intentOp.value, outputToken.value);
+  emit(
+    "next",
+    inputTokenRequirements.value,
+    intentOp.value,
+    outputToken.value,
+    inputChain.value,
+    inputToken.value
+  );
 }
 
 function focusInput(): void {

@@ -131,22 +131,39 @@ import {
 } from "viem";
 import { onMounted, ref } from "vue";
 import { wagmiConfig } from "../../config/appkit";
+import RhinestoneService from "../../services/rhinestone";
 import TokenIcon from "../TokenIcon.vue";
 import IconCheck from "../icon/IconCheck.vue";
 import IconX from "../icon/IconX.vue";
 import type { IntentOp, Token, TokenRequirement } from "./common";
 import { getTypedData } from "./permit2";
 
+const rhinestoneService = new RhinestoneService();
+
 const emit = defineEmits<{
-  next: [signature: Hex];
+  next: [intentOp: IntentOp, signature: Hex];
   retry: [];
 }>();
 
-const { requirements, intentOp, outputToken } = defineProps<{
+const {
+  requirements,
+  intentOp: initialIntentOp,
+  outputToken,
+  userAddress,
+  recipient,
+  inputChain,
+  inputToken,
+} = defineProps<{
   requirements: TokenRequirement[];
   intentOp: IntentOp;
   outputToken: Token;
+  userAddress: Address;
+  recipient: Address;
+  inputChain?: Chain | null;
+  inputToken?: Address | null;
 }>();
+
+const intentOp = ref<IntentOp>(initialIntentOp);
 
 const completedRequirements = ref<Set<number>>(new Set());
 const isSigningCompleted = ref(false);
@@ -315,6 +332,44 @@ async function handleAction(requirement: TokenRequirement): Promise<boolean> {
   }
 }
 
+async function fetchQuote(): Promise<boolean> {
+  try {
+    const chain = getChain(outputToken.chain);
+    if (!chain) {
+      console.error(`Unsupported chain: ${outputToken.chain}`);
+      return false;
+    }
+
+    const quote = await rhinestoneService.getQuote(
+      userAddress,
+      chain,
+      outputToken.address,
+      outputToken.amount,
+      recipient,
+      inputChain || undefined,
+      inputToken || undefined
+    );
+
+    // Check if the quote contains an error
+    if (quote.error) {
+      console.error("Quote error:", quote.error);
+      return false;
+    }
+
+    if (!quote.intentOp) {
+      console.error("Quote response missing intentOp");
+      return false;
+    }
+
+    // Update the intentOp with fresh data
+    intentOp.value = quote.intentOp;
+    return true;
+  } catch (error) {
+    console.error("Failed to fetch quote:", error);
+    return false;
+  }
+}
+
 async function handleSigning(): Promise<boolean> {
   try {
     // Get the connected account
@@ -325,8 +380,15 @@ async function handleSigning(): Promise<boolean> {
       return false;
     }
 
+    // Fetch the latest quote before signing
+    const quoteSuccess = await fetchQuote();
+    if (!quoteSuccess) {
+      console.error("Failed to get fresh quote");
+      return false;
+    }
+
     // Sign the first element in the intentOp
-    const element = intentOp.elements[0];
+    const element = intentOp.value.elements[0];
     if (!element) {
       console.error("No elements in intentOp");
       return false;
@@ -347,8 +409,8 @@ async function handleSigning(): Promise<boolean> {
     // Generate typed data for this element
     const typedData = getTypedData(
       element,
-      BigInt(intentOp.nonce),
-      BigInt(intentOp.expires)
+      BigInt(intentOp.value.nonce),
+      BigInt(intentOp.value.expires)
     );
 
     // Sign the typed data using Wagmi
@@ -374,7 +436,7 @@ function handleContinue(): void {
     console.error("No signature available");
     return;
   }
-  emit("next", signature.value);
+  emit("next", intentOp.value, signature.value);
 }
 </script>
 

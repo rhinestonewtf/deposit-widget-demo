@@ -42,6 +42,10 @@
             :requirements="step.requirements"
             :intent-op="step.intentOp"
             :output-token="step.outputToken"
+            :user-address="account"
+            :recipient="recipient"
+            :input-chain="step.inputChain"
+            :input-token="step.inputToken"
             @next="handleRequirementsNext"
             @retry="handleRetry"
           />
@@ -80,6 +84,8 @@ type Step =
       requirements: TokenRequirement[];
       intentOp: IntentOp;
       outputToken: Token;
+      inputChain?: Chain | null;
+      inputToken?: Address | null;
     }
   | {
       type: "deposit";
@@ -126,16 +132,25 @@ function handleBack(): void {
 function handleQuoteNext(
   requirements: TokenRequirement[],
   intentOp: IntentOp,
-  outputToken: Token
+  outputToken: Token,
+  inputChain?: Chain | null,
+  inputToken?: Address | null
 ): void {
-  step.value = { type: "requirements", requirements, intentOp, outputToken };
+  step.value = {
+    type: "requirements",
+    requirements,
+    intentOp,
+    outputToken,
+    inputChain,
+    inputToken,
+  };
 }
 
-function handleRequirementsNext(signature: Hex): void {
+function handleRequirementsNext(intentOp: IntentOp, signature: Hex): void {
   if (step.value.type === "requirements") {
     step.value = {
       type: "deposit",
-      intentOp: step.value.intentOp,
+      intentOp,
       signature,
     };
   }
