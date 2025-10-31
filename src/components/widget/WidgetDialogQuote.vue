@@ -199,6 +199,7 @@ async function fetchQuote(): Promise<void> {
   if (isAmountZeroish.value) {
     return;
   }
+  const amount = inputAmount.value;
 
   const quote = await rhinestoneService.getQuote(
     userAddress,
@@ -210,6 +211,11 @@ async function fetchQuote(): Promise<void> {
     inputToken.value || undefined
   );
   isQuoteLoading.value = false;
+
+  // Prevent race conditions
+  if (amount !== inputAmount.value) {
+    return;
+  }
 
   // Check if the quote contains an error
   if (quote.error) {
@@ -286,7 +292,7 @@ useIntervalFn(async () => {
   if (!isAmountZeroish.value) {
     await fetchQuote();
   }
-}, 10000);
+}, 20 * 1000);
 
 function handleContinue(): void {
   if (!intentOp.value) {
