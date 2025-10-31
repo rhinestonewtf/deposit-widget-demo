@@ -119,8 +119,8 @@ const emit = defineEmits<{
   next: [];
 }>();
 
-const { signature, intentOp, userAddress, recipient } = defineProps<{
-  signature: Hex;
+const { signatures, intentOp, userAddress, recipient } = defineProps<{
+  signatures: { originSignatures: Hex[]; destinationSignature: Hex };
   intentOp: IntentOp;
   userAddress: string;
   recipient: Address;
@@ -211,131 +211,148 @@ const shortRecipient = computed(() => {
   return `${recipient.slice(0, 6)}…${recipient.slice(-4)}`;
 });
 
-const sourceTokenAddress = computed<Address | null>(() => {
+// Aggregate source tokens by symbol across all elements
+const sourceTokensBySymbol = computed<
+  Map<string, { amount: bigint; decimals: number }>
+>(() => {
+  const tokenMap = new Map<string, { amount: bigint; decimals: number }>();
+
   if (!intentOp.elements || intentOp.elements.length === 0) {
-    return null;
+    return tokenMap;
   }
-  const element = intentOp.elements[0];
-  if (!element) return null;
-  const idsAndAmounts = element.idsAndAmounts;
-  if (!idsAndAmounts) {
-    return null;
+
+  for (const element of intentOp.elements) {
+    if (!element.idsAndAmounts) continue;
+
+    for (const [tokenIdStr, amountStr] of element.idsAndAmounts) {
+      const tokenId = BigInt(tokenIdStr);
+      const tokenAddress = toToken(tokenId);
+      const amount = BigInt(amountStr);
+      const symbol = getTokenSymbol(element.chainId, tokenAddress);
+
+      if (!symbol) continue;
+
+      const chainEntry = chainRegistry[element.chainId];
+      const tokenEntry = chainEntry?.tokens.find(
+        (t) => t.address.toLowerCase() === tokenAddress.toLowerCase()
+      );
+      const decimals = tokenEntry?.decimals || 18;
+
+      const existing = tokenMap.get(symbol);
+      if (existing) {
+        tokenMap.set(symbol, {
+          amount: existing.amount + amount,
+          decimals: decimals, // Use same decimals (assuming same symbol = same decimals)
+        });
+      } else {
+        tokenMap.set(symbol, { amount, decimals });
+      }
+    }
   }
-  const firstToken = idsAndAmounts[0];
-  if (!firstToken) return null;
-  const tokenId = BigInt(firstToken[0]);
-  return toToken(tokenId);
+
+  return tokenMap;
 });
 
-const sourceTokenAmount = computed<bigint | null>(() => {
-  if (!intentOp.elements || intentOp.elements.length === 0) {
-    return null;
-  }
-  const element = intentOp.elements[0];
-  if (!element) return null;
-  const idsAndAmounts = element.idsAndAmounts;
-  if (!idsAndAmounts) {
-    return null;
-  }
-  const firstToken = idsAndAmounts[0];
-  if (!firstToken) return null;
-  return BigInt(firstToken[1]);
+const sourceTokenSymbol = computed<string | null>(() => {
+  const symbols = Array.from(sourceTokensBySymbol.value.keys());
+  return symbols.length > 0 ? symbols[0] ?? null : null;
 });
 
+const displaySourceAmount = computed(() => {
+  if (!sourceTokenSymbol.value) {
+    return "0";
+  }
+
+  const tokenData = sourceTokensBySymbol.value.get(sourceTokenSymbol.value);
+  if (!tokenData) {
+    return "0";
+  }
+
+  const formatted = formatUnits(tokenData.amount, tokenData.decimals);
+  const num = Number.parseFloat(formatted);
+  return num.toFixed(5).replace(/\.?0+$/, "");
+});
+
+// Aggregate destination tokens by symbol across all elements
+const destinationTokensBySymbol = computed<
+  Map<string, { amount: bigint; decimals: number }>
+>(() => {
+  const tokenMap = new Map<string, { amount: bigint; decimals: number }>();
+
+  if (!intentOp.elements || intentOp.elements.length === 0) {
+    return tokenMap;
+  }
+
+  for (const element of intentOp.elements) {
+    if (!element.mandate.tokenOut) continue;
+
+    for (const [tokenIdStr, amountStr] of element.mandate.tokenOut) {
+      const tokenId = BigInt(tokenIdStr);
+      const tokenAddress = toToken(tokenId);
+      const amount = BigInt(amountStr);
+      const symbol = getTokenSymbol(
+        element.mandate.destinationChainId,
+        tokenAddress
+      );
+
+      if (!symbol) continue;
+
+      const chainEntry = chainRegistry[element.mandate.destinationChainId];
+      const tokenEntry = chainEntry?.tokens.find(
+        (t) => t.address.toLowerCase() === tokenAddress.toLowerCase()
+      );
+      const decimals = tokenEntry?.decimals || 18;
+
+      const existing = tokenMap.get(symbol);
+      if (existing) {
+        tokenMap.set(symbol, {
+          amount: existing.amount + amount,
+          decimals: decimals,
+        });
+      } else {
+        tokenMap.set(symbol, { amount, decimals });
+      }
+    }
+  }
+
+  return tokenMap;
+});
+
+const destinationTokenSymbol = computed<string | null>(() => {
+  const symbols = Array.from(destinationTokensBySymbol.value.keys());
+  return symbols.length > 0 ? symbols[0] ?? null : null;
+});
+
+const displayAmount = computed(() => {
+  if (!destinationTokenSymbol.value) {
+    return "0";
+  }
+
+  const tokenData = destinationTokensBySymbol.value.get(
+    destinationTokenSymbol.value
+  );
+  if (!tokenData) {
+    return "0";
+  }
+
+  const formatted = formatUnits(tokenData.amount, tokenData.decimals);
+  const num = Number.parseFloat(formatted);
+  return num.toFixed(5).replace(/\.?0+$/, "");
+});
+
+// Keep these for backwards compatibility with block explorer links
 const sourceChainId = computed<string | null>(() => {
   if (!intentOp.elements || intentOp.elements.length === 0) {
     return null;
   }
-  const element = intentOp.elements[0];
-  if (!element) return null;
-  return element.chainId;
-});
-
-const sourceTokenSymbol = computed<string | null>(() => {
-  if (!sourceChainId.value || !sourceTokenAddress.value) {
-    return null;
-  }
-  return getTokenSymbol(sourceChainId.value, sourceTokenAddress.value);
-});
-
-const displaySourceAmount = computed(() => {
-  if (
-    !sourceChainId.value ||
-    !sourceTokenAddress.value ||
-    !sourceTokenAmount.value
-  ) {
-    return "0";
-  }
-  return formatTokenAmount(
-    sourceChainId.value,
-    sourceTokenAddress.value,
-    sourceTokenAmount.value
-  );
-});
-
-const destinationTokenAddress = computed<Address | null>(() => {
-  if (!intentOp.elements || intentOp.elements.length === 0) {
-    return null;
-  }
-  const element = intentOp.elements[0];
-  if (!element) return null;
-  const tokenOut = element.mandate.tokenOut;
-  if (!tokenOut) {
-    return null;
-  }
-  const firstToken = tokenOut[0];
-  if (!firstToken) return null;
-  const tokenId = BigInt(firstToken[0]);
-  return toToken(tokenId);
-});
-
-const destinationTokenAmount = computed<bigint | null>(() => {
-  if (!intentOp.elements || intentOp.elements.length === 0) {
-    return null;
-  }
-  const element = intentOp.elements[0];
-  if (!element) return null;
-  const tokenOut = element.mandate.tokenOut;
-  if (!tokenOut) {
-    return null;
-  }
-  const firstToken = tokenOut[0];
-  if (!firstToken) return null;
-  return BigInt(firstToken[1]);
+  return intentOp.elements[0]?.chainId || null;
 });
 
 const destinationChainId = computed<string | null>(() => {
   if (!intentOp.elements || intentOp.elements.length === 0) {
     return null;
   }
-  const element = intentOp.elements[0];
-  if (!element) return null;
-  return element.mandate.destinationChainId;
-});
-
-const destinationTokenSymbol = computed<string | null>(() => {
-  if (!destinationChainId.value || !destinationTokenAddress.value) {
-    return null;
-  }
-  return getTokenSymbol(
-    destinationChainId.value,
-    destinationTokenAddress.value
-  );
-});
-
-const displayAmount = computed(() => {
-  if (
-    !destinationChainId.value ||
-    !destinationTokenAddress.value ||
-    !destinationTokenAmount.value
-  ) {
-    return "0";
-  }
-  return formatTokenAmount(
-    destinationChainId.value,
-    destinationTokenAddress.value,
-    destinationTokenAmount.value
-  );
+  return intentOp.elements[0]?.mandate?.destinationChainId || null;
 });
 
 const sourceBlockExplorerUrl = computed<string | null>(() => {
@@ -366,13 +383,19 @@ function getViemChain(chainId: string): Chain | null {
 }
 
 async function submitIntent(): Promise<void> {
-  if (!signature) {
-    throw new Error("No signature provided");
+  if (
+    !signatures.originSignatures ||
+    signatures.originSignatures.length === 0
+  ) {
+    throw new Error("No signatures provided");
   }
 
   try {
-    // Use the same signature for both origin and destination
-    const signedIntentOp = createSignedIntentOp(intentOp, signature, signature);
+    const signedIntentOp = createSignedIntentOp(
+      intentOp,
+      signatures.originSignatures,
+      signatures.destinationSignature
+    );
 
     const response = await rhinestoneService.submitIntent(signedIntentOp);
     console.log(response);
@@ -390,12 +413,12 @@ function handleSubmissionError(): void {
 
 function createSignedIntentOp(
   intentOp: IntentOp,
-  originSignature: Hex,
+  originSignatures: Hex[],
   destinationSignature: Hex
 ): SignedIntentOp {
   return {
     ...intentOp,
-    originSignatures: [originSignature],
+    originSignatures,
     destinationSignature,
   };
 }
@@ -447,26 +470,6 @@ function getTokenSymbol(chainId: string, tokenAddress: Address): string | null {
     (t) => t.address.toLowerCase() === tokenAddress.toLowerCase()
   );
   return tokenEntry?.symbol || null;
-}
-
-function formatTokenAmount(
-  chainId: string,
-  tokenAddress: Address,
-  amount: bigint
-): string {
-  const chainEntry = chainRegistry[chainId];
-  if (!chainEntry) return "0";
-
-  const tokenEntry = chainEntry.tokens.find(
-    (t) => t.address.toLowerCase() === tokenAddress.toLowerCase()
-  );
-  const decimals = tokenEntry?.decimals || 18;
-
-  const formatted = formatUnits(amount, decimals);
-  const num = Number.parseFloat(formatted);
-
-  // Format with 5 decimal places maximum
-  return num.toFixed(5).replace(/\.?0+$/, "");
 }
 
 onMounted(() => {

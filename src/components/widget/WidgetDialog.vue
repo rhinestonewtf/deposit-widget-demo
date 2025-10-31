@@ -51,7 +51,7 @@
           />
           <WidgetDialogSubmit
             v-if="step.type === 'deposit'"
-            :signature="step.signature"
+            :signatures="step.signatures"
             :intent-op="step.intentOp"
             :user-address="account"
             :recipient="recipient"
@@ -90,7 +90,7 @@ type Step =
   | {
       type: "deposit";
       intentOp: IntentOp;
-      signature: Hex;
+      signatures: { originSignatures: Hex[]; destinationSignature: Hex };
     };
 
 const open = defineModel<boolean>("open", {
@@ -146,12 +146,15 @@ function handleQuoteNext(
   };
 }
 
-function handleRequirementsNext(intentOp: IntentOp, signature: Hex): void {
+function handleRequirementsNext(
+  intentOp: IntentOp,
+  signatures: { originSignatures: Hex[]; destinationSignature: Hex }
+): void {
   if (step.value.type === "requirements") {
     step.value = {
       type: "deposit",
       intentOp,
-      signature,
+      signatures,
     };
   }
 }

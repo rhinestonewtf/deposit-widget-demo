@@ -74,26 +74,32 @@
           </span>
         </div>
 
-        <!-- Signing requirement -->
+        <!-- Signing requirements - one for each element/chain -->
         <div
+          v-for="(element, index) in intentOp.elements"
+          :key="`sign-${index}`"
           class="requirement-item"
           :class="{
-            active: currentStep === requirements.length,
-            completed: isSigningCompleted,
-            failed: failedStep === requirements.length,
+            active: currentStep === requirements.length + index,
+            completed: completedSignatures.has(index),
+            failed: failedStep === requirements.length + index,
           }"
         >
           <div class="requirement-info">
             <div class="requirement-text">
-              <span class="action-type">Sign Intent</span>
-              <span class="chain-name">Approve the deposit order</span>
+              <div class="requirement-text-content">
+                <span class="action-type">Sign Deposit Intent</span>
+              </div>
+              <span class="chain-name"
+                >on {{ getChainName(element.chainId) }}</span
+              >
             </div>
           </div>
-          <span v-if="isSigningCompleted" class="status-badge">
+          <span v-if="completedSignatures.has(index)" class="status-badge">
             <IconCheck />
           </span>
           <span
-            v-else-if="failedStep === requirements.length"
+            v-else-if="failedStep === requirements.length + index"
             class="status-badge failed-badge"
           >
             <IconX />
@@ -141,7 +147,10 @@ import { getTypedData } from "./permit2";
 const rhinestoneService = new RhinestoneService();
 
 const emit = defineEmits<{
-  next: [intentOp: IntentOp, signature: Hex];
+  next: [
+    intentOp: IntentOp,
+    signatures: { originSignatures: Hex[]; destinationSignature: Hex }
+  ];
   retry: [];
 }>();
 
@@ -166,8 +175,8 @@ const {
 const intentOp = ref<IntentOp>(initialIntentOp);
 
 const completedRequirements = ref<Set<number>>(new Set());
-const isSigningCompleted = ref(false);
-const signature = ref<Hex | null>(null);
+const completedSignatures = ref<Set<number>>(new Set());
+const signatures = ref<Hex[]>([]);
 const currentStep = ref<number>(0);
 const failedStep = ref<number | null>(null);
 
@@ -236,20 +245,27 @@ async function executeNextStep(): Promise<void> {
       failedStep.value = currentStep.value;
     }
   }
-  // Then execute signing
+  // Then execute signing for each element
   else if (
-    currentStep.value === requirements.length &&
-    !isSigningCompleted.value
+    currentStep.value <
+    requirements.length + intentOp.value.elements.length
   ) {
-    const success = await handleSigning();
+    const elementIndex = currentStep.value - requirements.length;
+    const success = await handleSigning(elementIndex);
 
     if (success) {
-      isSigningCompleted.value = true;
-      // Automatically advance to next step
-      handleContinue();
+      completedSignatures.value.add(elementIndex);
+      currentStep.value++;
+      // Continue to next step or finish
+      if (elementIndex === intentOp.value.elements.length - 1) {
+        // All signatures collected, advance to next screen
+        handleContinue();
+      } else {
+        await executeNextStep();
+      }
     } else {
       // Mark signing step as failed
-      failedStep.value = requirements.length;
+      failedStep.value = currentStep.value;
     }
   }
 }
@@ -370,7 +386,7 @@ async function fetchQuote(): Promise<boolean> {
   }
 }
 
-async function handleSigning(): Promise<boolean> {
+async function handleSigning(elementIndex: number): Promise<boolean> {
   try {
     // Get the connected account
     const account = getAccount(wagmiConfig);
@@ -380,17 +396,19 @@ async function handleSigning(): Promise<boolean> {
       return false;
     }
 
-    // Fetch the latest quote before signing
-    const quoteSuccess = await fetchQuote();
-    if (!quoteSuccess) {
-      console.error("Failed to get fresh quote");
-      return false;
+    // Fetch the latest quote before signing the first element
+    if (elementIndex === 0) {
+      const quoteSuccess = await fetchQuote();
+      if (!quoteSuccess) {
+        console.error("Failed to get fresh quote");
+        return false;
+      }
     }
 
-    // Sign the first element in the intentOp
-    const element = intentOp.value.elements[0];
+    // Sign the element at the specified index
+    const element = intentOp.value.elements[elementIndex];
     if (!element) {
-      console.error("No elements in intentOp");
+      console.error(`No element found at index ${elementIndex}`);
       return false;
     }
 
@@ -418,8 +436,8 @@ async function handleSigning(): Promise<boolean> {
       ...typedData,
     });
 
-    // Store the signature
-    signature.value = sig;
+    // Store the signature in the array
+    signatures.value[elementIndex] = sig;
     return true;
   } catch (error) {
     console.error("Signing failed:", error);
@@ -432,11 +450,19 @@ function handleRetry(): void {
 }
 
 function handleContinue(): void {
-  if (!signature.value) {
-    console.error("No signature available");
+  if (signatures.value.length === 0) {
+    console.error("No signatures available");
     return;
   }
-  emit("next", intentOp.value, signature.value);
+
+  const destinationSignature = signatures.value[
+    signatures.value.length - 1
+  ] as Hex;
+
+  emit("next", intentOp.value, {
+    originSignatures: signatures.value,
+    destinationSignature,
+  });
 }
 </script>
 
