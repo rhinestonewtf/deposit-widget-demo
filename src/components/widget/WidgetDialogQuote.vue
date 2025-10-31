@@ -17,11 +17,11 @@
       <div v-if="quoteError" class="error-message">Not enough balance</div>
     </div>
     <div class="bottom">
-      <div
-        class="route-container"
-        v-if="intentOp && inputTokens.length > 0 && outputToken"
-      >
-        <div class="path">
+      <div class="route-container">
+        <div
+          class="path"
+          v-if="intentOp && inputTokens.length > 0 && outputToken"
+        >
           <div class="inputs">
             <div class="input-tokens">
               <div
