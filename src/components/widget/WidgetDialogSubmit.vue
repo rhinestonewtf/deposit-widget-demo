@@ -97,12 +97,15 @@ import type { Address, Chain, Hex } from "viem";
 import { formatUnits } from "viem";
 import {
   arbitrum,
+  arbitrumSepolia,
   base,
   baseSepolia,
   mainnet,
   optimism,
+  optimismSepolia,
   polygon,
   sepolia,
+  soneium,
 } from "viem/chains";
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import RhinestoneService, {
@@ -373,8 +376,11 @@ function getViemChain(chainId: string): Chain | null {
   const chainMap: Record<string, Chain> = {
     "1": mainnet,
     "8453": base,
+    "1868": soneium,
     "42161": arbitrum,
     "10": optimism,
+    "11155420": optimismSepolia,
+    "421614": arbitrumSepolia,
     "137": polygon,
     "11155111": sepolia,
     "84532": baseSepolia,

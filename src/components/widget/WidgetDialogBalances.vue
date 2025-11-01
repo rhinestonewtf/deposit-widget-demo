@@ -63,6 +63,7 @@ import {
   optimismSepolia,
   polygon,
   sepolia,
+  soneium,
 } from "viem/chains";
 import { onMounted, ref } from "vue";
 
@@ -207,6 +208,7 @@ function getViemChain(chainId: number): Chain | null {
     1: mainnet,
     10: optimism,
     137: polygon,
+    1868: soneium,
     8453: base,
     42161: arbitrum,
     11155111: sepolia,
