@@ -46,7 +46,7 @@ export default {
 
 			// Proxy the request to Rhinestone API
 			const response = await fetch(
-				`https://dev.v1.orchestrator.rhinestone.dev/intent-operation/${intentId}`,
+				`https://v1.orchestrator.rhinestone.dev/intent-operation/${intentId}`,
 				{
 					method: "GET",
 					headers: {

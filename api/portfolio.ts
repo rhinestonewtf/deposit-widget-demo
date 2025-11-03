@@ -14,25 +14,19 @@ export default {
 
 		// Only allow GET requests
 		if (request.method !== "GET") {
-			return new Response(
-				JSON.stringify({ error: "Method not allowed" }),
-				{
-					status: 405,
-					headers: { "Content-Type": "application/json" },
-				},
-			);
+			return new Response(JSON.stringify({ error: "Method not allowed" }), {
+				status: 405,
+				headers: { "Content-Type": "application/json" },
+			});
 		}
 
 		// Get API key from environment variable
 		const apiKey = process.env.RHINESTONE_API_KEY;
 		if (!apiKey) {
-			return new Response(
-				JSON.stringify({ error: "API key not configured" }),
-				{
-					status: 500,
-					headers: { "Content-Type": "application/json" },
-				},
-			);
+			return new Response(JSON.stringify({ error: "API key not configured" }), {
+				status: 500,
+				headers: { "Content-Type": "application/json" },
+			});
 		}
 
 		try {
@@ -52,7 +46,7 @@ export default {
 
 			// Build the target URL with all query parameters (except address which goes in path)
 			const targetUrl = new URL(
-				`https://dev.v1.orchestrator.rhinestone.dev/accounts/${address}/portfolio`,
+				`https://v1.orchestrator.rhinestone.dev/accounts/${address}/portfolio`,
 			);
 
 			// Copy all other query parameters
@@ -99,4 +93,3 @@ export default {
 		}
 	},
 };
-
