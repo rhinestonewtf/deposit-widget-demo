@@ -50,9 +50,17 @@
             @retry="handleRetry"
           />
           <WidgetDialogSubmit
-            v-if="step.type === 'deposit'"
+            v-if="step.type === 'deposit' && step.kind === 'intent'"
             :signatures="step.signatures"
             :intent-op="step.intentOp"
+            :user-address="account"
+            :recipient="recipient"
+            @next="handleSubmitNext"
+          />
+          <WidgetDialogSubmit
+            v-if="step.type === 'deposit' && step.kind === 'transaction'"
+            :transaction-hash="step.transactionHash"
+            :output-token="step.outputToken"
             :user-address="account"
             :recipient="recipient"
             @next="handleSubmitNext"
@@ -89,8 +97,15 @@ type Step =
     }
   | {
       type: "deposit";
+      kind: "intent";
       intentOp: IntentOp;
       signatures: { originSignatures: Hex[]; destinationSignature: Hex };
+    }
+  | {
+      type: "deposit";
+      kind: "transaction";
+      transactionHash: Hex;
+      outputToken: Token;
     };
 
 const open = defineModel<boolean>("open", {
@@ -147,15 +162,34 @@ function handleQuoteNext(
 }
 
 function handleRequirementsNext(
-  intentOp: IntentOp,
-  signatures: { originSignatures: Hex[]; destinationSignature: Hex }
+  data:
+    | {
+        kind: "intent";
+        intentOp: IntentOp;
+        signatures: { originSignatures: Hex[]; destinationSignature: Hex };
+      }
+    | {
+        kind: "transaction";
+        transactionHash: Hex;
+        outputToken: Token;
+      }
 ): void {
   if (step.value.type === "requirements") {
-    step.value = {
-      type: "deposit",
-      intentOp,
-      signatures,
-    };
+    if (data.kind === "intent") {
+      step.value = {
+        type: "deposit",
+        kind: "intent",
+        intentOp: data.intentOp,
+        signatures: data.signatures,
+      };
+    } else {
+      step.value = {
+        type: "deposit",
+        kind: "transaction",
+        transactionHash: data.transactionHash,
+        outputToken: data.outputToken,
+      };
+    }
   }
 }
 

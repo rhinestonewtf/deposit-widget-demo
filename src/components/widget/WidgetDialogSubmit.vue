@@ -93,6 +93,7 @@
 
 <script setup lang="ts">
 import { chainRegistry } from "@rhinestone/shared-configs";
+import { waitForTransactionReceipt } from "@wagmi/core";
 import type { Address, Chain, Hex } from "viem";
 import { formatUnits } from "viem";
 import {
@@ -108,13 +109,14 @@ import {
   soneium,
 } from "viem/chains";
 import { computed, onMounted, onUnmounted, ref } from "vue";
+import { wagmiConfig } from "../../config/appkit";
 import RhinestoneService, {
   type IntentStatus,
   type SignedIntentOp,
 } from "../../services/rhinestone";
 import TokenIcon from "../TokenIcon.vue";
 import IconArrowSquareOut from "../icon/IconArrowSquareOut.vue";
-import type { IntentOp } from "./common";
+import type { IntentOp, Token } from "./common";
 
 const rhinestoneService = new RhinestoneService();
 
@@ -122,24 +124,47 @@ const emit = defineEmits<{
   next: [];
 }>();
 
-const { signatures, intentOp, userAddress, recipient } = defineProps<{
-  signatures: { originSignatures: Hex[]; destinationSignature: Hex };
-  intentOp: IntentOp;
-  userAddress: string;
-  recipient: Address;
-}>();
+const props = defineProps<
+  | {
+      signatures: { originSignatures: Hex[]; destinationSignature: Hex };
+      intentOp: IntentOp;
+      userAddress: string;
+      recipient: Address;
+      transactionHash?: never;
+      outputToken?: never;
+    }
+  | {
+      transactionHash: Hex;
+      outputToken: Token;
+      userAddress: string;
+      recipient: Address;
+      signatures?: never;
+      intentOp?: never;
+    }
+>();
+
+// Extract common props
+const { userAddress, recipient } = props;
 
 const intentId = ref<bigint | null>(null);
-const status = ref<IntentStatus>("PENDING");
+const status = ref<
+  | IntentStatus
+  | "TRANSACTION_PENDING"
+  | "TRANSACTION_SUCCESS"
+  | "TRANSACTION_FAILED"
+>("PENDING");
 const pollingInterval = ref<number | null>(null);
 const fillTransactionHash = ref<Hex | undefined>(undefined);
+const isDirectTransfer = computed(() => !!props.transactionHash);
 
 const isFinal = computed(() => {
   return (
     status.value === "COMPLETED" ||
     status.value === "FILLED" ||
     status.value === "FAILED" ||
-    status.value === "EXPIRED"
+    status.value === "EXPIRED" ||
+    status.value === "TRANSACTION_SUCCESS" ||
+    status.value === "TRANSACTION_FAILED"
   );
 });
 const isCompleted = computed(() => {
@@ -151,8 +176,10 @@ const displayStatus = computed(() => {
     case "PRECONFIRMED":
     case "COMPLETED":
     case "FILLED":
+    case "TRANSACTION_SUCCESS":
       return "Completed";
     case "FAILED":
+    case "TRANSACTION_FAILED":
       return "Failed";
     case "EXPIRED":
       return "Expired";
@@ -166,8 +193,10 @@ const statusClass = computed(() => {
     case "PRECONFIRMED":
     case "COMPLETED":
     case "FILLED":
+    case "TRANSACTION_SUCCESS":
       return "status-success";
     case "FAILED":
+    case "TRANSACTION_FAILED":
       return "status-error";
     case "EXPIRED":
       return "status-error";
@@ -181,8 +210,10 @@ const statusTitle = computed(() => {
     case "PRECONFIRMED":
     case "COMPLETED":
     case "FILLED":
+    case "TRANSACTION_SUCCESS":
       return "Transaction completed";
     case "FAILED":
+    case "TRANSACTION_FAILED":
       return "Transaction failed";
     case "EXPIRED":
       return "Transaction expired";
@@ -196,8 +227,10 @@ const statusDescription = computed(() => {
     case "PRECONFIRMED":
     case "COMPLETED":
     case "FILLED":
+    case "TRANSACTION_SUCCESS":
       return "Your deposit has been completed.";
     case "FAILED":
+    case "TRANSACTION_FAILED":
       return "There was an error processing your deposit.";
     case "EXPIRED":
       return "Your deposit has expired and was not completed.";
@@ -220,11 +253,27 @@ const sourceTokensBySymbol = computed<
 >(() => {
   const tokenMap = new Map<string, { amount: bigint; decimals: number }>();
 
-  if (!intentOp.elements || intentOp.elements.length === 0) {
+  // For direct transfers, source = output token
+  if (isDirectTransfer.value && props.outputToken) {
+    const outputToken = props.outputToken;
+    const symbol = getTokenSymbol(outputToken.chain, outputToken.address);
+    if (symbol) {
+      const chainEntry = chainRegistry[outputToken.chain];
+      const tokenEntry = chainEntry?.tokens.find(
+        (t) => t.address.toLowerCase() === outputToken.address.toLowerCase()
+      );
+      const decimals = tokenEntry?.decimals || 18;
+      tokenMap.set(symbol, { amount: outputToken.amount, decimals });
+    }
     return tokenMap;
   }
 
-  for (const element of intentOp.elements) {
+  // For intent flow
+  if (!props.intentOp?.elements || props.intentOp.elements.length === 0) {
+    return tokenMap;
+  }
+
+  for (const element of props.intentOp.elements) {
     if (!element.idsAndAmounts) continue;
 
     for (const [tokenIdStr, amountStr] of element.idsAndAmounts) {
@@ -282,11 +331,27 @@ const destinationTokensBySymbol = computed<
 >(() => {
   const tokenMap = new Map<string, { amount: bigint; decimals: number }>();
 
-  if (!intentOp.elements || intentOp.elements.length === 0) {
+  // For direct transfers, destination = output token
+  if (isDirectTransfer.value && props.outputToken) {
+    const outputToken = props.outputToken;
+    const symbol = getTokenSymbol(outputToken.chain, outputToken.address);
+    if (symbol) {
+      const chainEntry = chainRegistry[outputToken.chain];
+      const tokenEntry = chainEntry?.tokens.find(
+        (t) => t.address.toLowerCase() === outputToken.address.toLowerCase()
+      );
+      const decimals = tokenEntry?.decimals || 18;
+      tokenMap.set(symbol, { amount: outputToken.amount, decimals });
+    }
     return tokenMap;
   }
 
-  for (const element of intentOp.elements) {
+  // For intent flow
+  if (!props.intentOp?.elements || props.intentOp.elements.length === 0) {
+    return tokenMap;
+  }
+
+  for (const element of props.intentOp.elements) {
     if (!element.mandate.tokenOut) continue;
 
     for (const [tokenIdStr, amountStr] of element.mandate.tokenOut) {
@@ -345,17 +410,23 @@ const displayAmount = computed(() => {
 
 // Keep these for backwards compatibility with block explorer links
 const sourceChainId = computed<string | null>(() => {
-  if (!intentOp.elements || intentOp.elements.length === 0) {
+  if (isDirectTransfer.value && props.outputToken) {
+    return props.outputToken.chain;
+  }
+  if (!props.intentOp?.elements || props.intentOp.elements.length === 0) {
     return null;
   }
-  return intentOp.elements[0]?.chainId || null;
+  return props.intentOp.elements[0]?.chainId || null;
 });
 
 const destinationChainId = computed<string | null>(() => {
-  if (!intentOp.elements || intentOp.elements.length === 0) {
+  if (isDirectTransfer.value && props.outputToken) {
+    return props.outputToken.chain;
+  }
+  if (!props.intentOp?.elements || props.intentOp.elements.length === 0) {
     return null;
   }
-  return intentOp.elements[0]?.mandate?.destinationChainId || null;
+  return props.intentOp.elements[0]?.mandate?.destinationChainId || null;
 });
 
 const sourceBlockExplorerUrl = computed<string | null>(() => {
@@ -388,19 +459,52 @@ function getViemChain(chainId: string): Chain | null {
   return chainMap[chainId] || null;
 }
 
+async function waitForTransaction(): Promise<void> {
+  if (!props.transactionHash || !props.outputToken) {
+    throw new Error("Transaction hash or output token not provided");
+  }
+
+  try {
+    status.value = "TRANSACTION_PENDING";
+
+    const chain = getViemChain(props.outputToken.chain);
+    if (!chain) {
+      throw new Error(`Unsupported chain: ${props.outputToken.chain}`);
+    }
+
+    const receipt = await waitForTransactionReceipt(wagmiConfig, {
+      hash: props.transactionHash,
+      chainId: chain.id,
+    });
+
+    if (receipt.status === "success") {
+      status.value = "TRANSACTION_SUCCESS";
+    } else {
+      status.value = "TRANSACTION_FAILED";
+    }
+  } catch (err) {
+    console.error("Failed to wait for transaction:", err);
+    status.value = "TRANSACTION_FAILED";
+  }
+}
+
 async function submitIntent(): Promise<void> {
   if (
-    !signatures.originSignatures ||
-    signatures.originSignatures.length === 0
+    !props.signatures?.originSignatures ||
+    props.signatures.originSignatures.length === 0
   ) {
     throw new Error("No signatures provided");
   }
 
+  if (!props.intentOp) {
+    throw new Error("Intent operation not provided");
+  }
+
   try {
     const signedIntentOp = createSignedIntentOp(
-      intentOp,
-      signatures.originSignatures,
-      signatures.destinationSignature
+      props.intentOp,
+      props.signatures.originSignatures,
+      props.signatures.destinationSignature
     );
 
     const response = await rhinestoneService.submitIntent(signedIntentOp);
@@ -479,7 +583,11 @@ function getTokenSymbol(chainId: string, tokenAddress: Address): string | null {
 }
 
 onMounted(() => {
-  submitIntent();
+  if (isDirectTransfer.value) {
+    waitForTransaction();
+  } else {
+    submitIntent();
+  }
 });
 
 onUnmounted(() => {

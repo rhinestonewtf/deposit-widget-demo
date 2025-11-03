@@ -61,8 +61,17 @@ const signerPk = useStorage<Hex>(
 
 const emit = defineEmits<{
   next: [
-    intentOp: IntentOp,
-    signatures: { originSignatures: Hex[]; destinationSignature: Hex }
+    data:
+      | {
+          kind: "intent";
+          intentOp: IntentOp;
+          signatures: { originSignatures: Hex[]; destinationSignature: Hex };
+        }
+      | {
+          kind: "transaction";
+          transactionHash: Hex;
+          outputToken: Token;
+        }
   ];
   retry: [];
 }>();
@@ -151,9 +160,48 @@ async function prepareTransactionData(companionAccount: RhinestoneAccount) {
 }
 
 /**
+ * Executes a direct ERC20 transfer for same-chain deposits
+ */
+async function executeDirectTransfer(): Promise<void> {
+  const chain = getChain(outputToken.chain);
+  if (!chain) {
+    throw new Error(`Unsupported chain: ${outputToken.chain}`);
+  }
+
+  // Switch to the required chain
+  await switchChain(wagmiConfig, { chainId: Number(outputToken.chain) });
+
+  // Execute the transfer
+  const hash = await writeContract(wagmiConfig, {
+    address: outputToken.address,
+    abi: erc20Abi,
+    functionName: "transfer",
+    args: [recipient, outputToken.amount],
+  });
+
+  // Emit the transaction hash
+  emit("next", {
+    kind: "transaction",
+    transactionHash: hash,
+    outputToken: outputToken,
+  });
+}
+
+/**
  * Executes the full deposit flow: create account, transfer tokens, prepare and sign transaction
  */
 async function executeDepositFlow(): Promise<void> {
+  // Check if this is a same-chain transfer by verifying all tokens spent are on the same chain as the output
+  const isSameChain = tokensSpent.every(
+    (token) => token.chain === outputToken.chain
+  );
+
+  if (isSameChain) {
+    // Execute direct transfer for same-chain deposits
+    await executeDirectTransfer();
+    return;
+  }
+
   // Spin up a smart account
   const companionAccount = await createAccount(userAddress, signerPk.value);
 
@@ -169,9 +217,13 @@ async function executeDepositFlow(): Promise<void> {
   );
 
   // Emit the signed data
-  emit("next", signedTransactionData.intentRoute.intentOp, {
-    originSignatures: signedTransactionData.originSignatures,
-    destinationSignature: signedTransactionData.destinationSignature,
+  emit("next", {
+    kind: "intent",
+    intentOp: signedTransactionData.intentRoute.intentOp,
+    signatures: {
+      originSignatures: signedTransactionData.originSignatures,
+      destinationSignature: signedTransactionData.destinationSignature,
+    },
   });
 }
 
