@@ -260,7 +260,7 @@ class Service {
 			};
 		}
 
-		const response = await fetch(`${this.baseUrl}/intents-route`, {
+		const response = await fetch(`${this.baseUrl}/intents/route`, {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -310,7 +310,7 @@ class Service {
 
 	async getIntentStatus(intentId: bigint): Promise<IntentOpStatus> {
 		const response = await fetch(
-			`${this.baseUrl}/intent-operation-status?id=${intentId.toString()}`,
+			`${this.baseUrl}/intent-operation/${intentId.toString()}`,
 			{
 				method: "GET",
 				headers: {
@@ -331,7 +331,6 @@ class Service {
 		},
 	): Promise<Portfolio[]> {
 		const params = new URLSearchParams();
-		params.set("address", userAddress);
 		if (filter?.chainIds) {
 			params.set("chainIds", filter.chainIds.join(","));
 		}
@@ -345,7 +344,7 @@ class Service {
 					.join(","),
 			);
 		}
-		const url = new URL(`${this.baseUrl}/portfolio`);
+		const url = new URL(`${this.baseUrl}/accounts/${userAddress}/portfolio`);
 		url.search = params.toString();
 		const response = await fetch(url.toString(), {
 			method: "GET",

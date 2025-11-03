@@ -30,13 +30,15 @@ export default {
 		}
 
 		try {
-			// Extract intentId from URL query parameter
+			// Extract id from URL path parameter
 			const url = new URL(request.url);
-			const intentId = url.searchParams.get("id");
+			const pathParts = url.pathname.split("/").filter(Boolean);
+			// Get the last part of the path as the id
+			const id = pathParts[pathParts.length - 1];
 
-			if (!intentId) {
+			if (!id) {
 				return new Response(
-					JSON.stringify({ error: "Missing intentId parameter" }),
+					JSON.stringify({ error: "Missing id path parameter" }),
 					{
 						status: 400,
 						headers: { "Content-Type": "application/json" },
@@ -46,7 +48,7 @@ export default {
 
 			// Proxy the request to Rhinestone API
 			const response = await fetch(
-				`https://v1.orchestrator.rhinestone.dev/intent-operation/${intentId}`,
+				`https://v1.orchestrator.rhinestone.dev/intent-operation/${id}`,
 				{
 					method: "GET",
 					headers: {

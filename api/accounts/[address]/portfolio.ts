@@ -30,9 +30,11 @@ export default {
 		}
 
 		try {
-			// Extract address and query params from URL
+			// Extract address from URL path
 			const url = new URL(request.url);
-			const address = url.searchParams.get("address");
+			const pathParts = url.pathname.split("/");
+			const addressIndex = pathParts.indexOf("accounts") + 1;
+			const address = pathParts[addressIndex];
 
 			if (!address) {
 				return new Response(
@@ -44,16 +46,14 @@ export default {
 				);
 			}
 
-			// Build the target URL with all query parameters (except address which goes in path)
+			// Build the target URL with the address in the path
 			const targetUrl = new URL(
 				`https://v1.orchestrator.rhinestone.dev/accounts/${address}/portfolio`,
 			);
 
-			// Copy all other query parameters
+			// Copy all query parameters
 			for (const [key, value] of url.searchParams.entries()) {
-				if (key !== "address") {
-					targetUrl.searchParams.set(key, value);
-				}
+				targetUrl.searchParams.set(key, value);
 			}
 
 			// Proxy the request to Rhinestone API
