@@ -14,25 +14,19 @@ export default {
 
 		// Only allow POST requests
 		if (request.method !== "POST") {
-			return new Response(
-				JSON.stringify({ error: "Method not allowed" }),
-				{
-					status: 405,
-					headers: { "Content-Type": "application/json" },
-				},
-			);
+			return new Response(JSON.stringify({ error: "Method not allowed" }), {
+				status: 405,
+				headers: { "Content-Type": "application/json" },
+			});
 		}
 
 		// Get API key from environment variable
 		const apiKey = process.env.RHINESTONE_API_KEY;
 		if (!apiKey) {
-			return new Response(
-				JSON.stringify({ error: "API key not configured" }),
-				{
-					status: 500,
-					headers: { "Content-Type": "application/json" },
-				},
-			);
+			return new Response(JSON.stringify({ error: "API key not configured" }), {
+				status: 500,
+				headers: { "Content-Type": "application/json" },
+			});
 		}
 
 		try {
@@ -41,7 +35,7 @@ export default {
 
 			// Proxy the request to Rhinestone API
 			const response = await fetch(
-				"https://dev.v1.orchestrator.rhinestone.dev/intents/route",
+				"https://v1.orchestrator.rhinestone.dev/intents/route",
 				{
 					method: "POST",
 					headers: {
@@ -80,4 +74,3 @@ export default {
 		}
 	},
 };
-
