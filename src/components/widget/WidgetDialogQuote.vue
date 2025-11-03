@@ -128,13 +128,13 @@ import RhinestoneService, { type ApiError } from "../../services/rhinestone";
 import TokenIcon from "../TokenIcon.vue";
 import IconArrowRight from "../icon/IconArrowRight.vue";
 import WidgetDialogBalances from "./WidgetDialogBalances.vue";
-import type { IntentOp, Token, TokenRequirement } from "./common";
+import type { IntentOp, Token } from "./common";
 
 const rhinestoneService = new RhinestoneService();
 
 const emit = defineEmits<{
   next: [
-    requirements: TokenRequirement[],
+    tokensSpent: Token[],
     intentOp: IntentOp,
     outputToken: Token,
     inputChain?: Chain | null,
@@ -165,7 +165,8 @@ const inputAmount = computed(() => {
   return parseUnits(amount.value.toString(), decimals);
 });
 const inputTokens = ref<Token[]>([]);
-const inputTokenRequirements = ref<TokenRequirement[]>([]);
+// const inputTokenRequirements = ref<TokenRequirement[]>([]);
+const tokensSpent = ref<Token[]>([]);
 const intentOp = ref<IntentOp | null>(null);
 const isQuoteLoading = ref(false);
 const showBalances = ref(false);
@@ -224,7 +225,8 @@ async function fetchQuote(): Promise<void> {
     quoteError.value = quote.error;
     inputTokens.value = [];
     intentOp.value = null;
-    inputTokenRequirements.value = [];
+    // inputTokenRequirements.value = [];
+    tokensSpent.value = [];
     return;
   }
 
@@ -236,39 +238,46 @@ async function fetchQuote(): Promise<void> {
     return;
   }
 
-  const tokensSpent = quote.intentCost.tokensSpent;
-
-  inputTokens.value = Object.entries(tokensSpent).flatMap(([chainId, tokens]) =>
-    Object.entries(tokens).map(([tokenAddress, tokenData]) => ({
-      chain: chainId,
-      address: tokenAddress as Address,
-      amount: BigInt(tokenData.unlocked),
-    }))
+  inputTokens.value = Object.entries(quote.intentCost.tokensSpent).flatMap(
+    ([chainId, tokens]) =>
+      Object.entries(tokens).map(([tokenAddress, tokenData]) => ({
+        chain: chainId,
+        address: tokenAddress as Address,
+        amount: BigInt(tokenData.unlocked),
+      }))
   );
   intentOp.value = quote.intentOp;
-  const tokenRequirements = quote.tokenRequirements || {};
-  inputTokenRequirements.value = Object.entries(tokenRequirements).flatMap(
-    ([chainId, tokens]) =>
-      Object.entries(tokens).map(([tokenAddress, tokenData]) => {
-        const base = {
-          chain: chainId,
-          address: tokenAddress as Address,
-          type: tokenData.type,
-          amount: BigInt(tokenData.amount),
-        };
+  // const tokenRequirements = quote.tokenRequirements || {};
+  // inputTokenRequirements.value = Object.entries(tokenRequirements).flatMap(
+  //   ([chainId, tokens]) =>
+  //     Object.entries(tokens).map(([tokenAddress, tokenData]) => {
+  //       const base = {
+  //         chain: chainId,
+  //         address: tokenAddress as Address,
+  //         type: tokenData.type,
+  //         amount: BigInt(tokenData.amount),
+  //       };
 
-        if (tokenData.type === "approval") {
-          return {
-            ...base,
-            type: "approval" as const,
-            spender: tokenData.spender,
-          };
-        }
-        return {
-          ...base,
-          type: "wrap" as const,
-        };
-      })
+  //       if (tokenData.type === "approval") {
+  //         return {
+  //           ...base,
+  //           type: "approval" as const,
+  //           spender: tokenData.spender,
+  //         };
+  //       }
+  //       return {
+  //         ...base,
+  //         type: "wrap" as const,
+  //       };
+  //     })
+  // );
+  tokensSpent.value = Object.entries(quote.intentCost.tokensSpent).flatMap(
+    ([chainId, tokens]) =>
+      Object.entries(tokens).map(([tokenAddress, tokenData]) => ({
+        chain: chainId,
+        address: tokenAddress as Address,
+        amount: BigInt(tokenData.unlocked),
+      }))
   );
 }
 
@@ -303,7 +312,7 @@ function handleContinue(): void {
   }
   emit(
     "next",
-    inputTokenRequirements.value,
+    tokensSpent.value,
     intentOp.value,
     outputToken.value,
     inputChain.value,

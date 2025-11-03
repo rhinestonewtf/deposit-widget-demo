@@ -39,7 +39,7 @@
           />
           <WidgetDialogTokens
             v-if="step.type === 'requirements'"
-            :requirements="step.requirements"
+            :tokens-spent="step.tokensSpent"
             :intent-op="step.intentOp"
             :output-token="step.outputToken"
             :user-address="account"
@@ -73,7 +73,7 @@ import IconX from "../icon/IconX.vue";
 import WidgetDialogQuote from "./WidgetDialogQuote.vue";
 import WidgetDialogTokens from "./WidgetDialogRequirements.vue";
 import WidgetDialogSubmit from "./WidgetDialogSubmit.vue";
-import type { IntentOp, Token, TokenRequirement } from "./common";
+import type { IntentOp, Token } from "./common";
 
 type Step =
   | {
@@ -81,7 +81,7 @@ type Step =
     }
   | {
       type: "requirements";
-      requirements: TokenRequirement[];
+      tokensSpent: Token[];
       intentOp: IntentOp;
       outputToken: Token;
       inputChain?: Chain | null;
@@ -130,7 +130,7 @@ function handleBack(): void {
 }
 
 function handleQuoteNext(
-  requirements: TokenRequirement[],
+  tokensSpent: Token[],
   intentOp: IntentOp,
   outputToken: Token,
   inputChain?: Chain | null,
@@ -138,7 +138,7 @@ function handleQuoteNext(
 ): void {
   step.value = {
     type: "requirements",
-    requirements,
+    tokensSpent,
     intentOp,
     outputToken,
     inputChain,
