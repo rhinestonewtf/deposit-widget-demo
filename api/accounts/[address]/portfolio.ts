@@ -1,30 +1,13 @@
-// Testnet chain IDs
-const TESTNET_CHAIN_IDS = new Set([
-	11155111, // sepolia
-	421614, // arbitrumSepolia
-	84532, // baseSepolia
-	11155420, // optimismSepolia
-]);
-
-function isTestnetChain(chainId: number): boolean {
-	return TESTNET_CHAIN_IDS.has(chainId);
-}
-
-function detectEnvironmentFromChainIds(
-	chainIds: number[],
-): "prod" | "staging" | null {
-	if (chainIds.length === 0) return null;
-
-	const hasTestnet = chainIds.some((id) => isTestnetChain(id));
-	const hasMainnet = chainIds.some((id) => !isTestnetChain(id));
-
-	// If only testnet chains, use staging
-	if (hasTestnet && !hasMainnet) return "staging";
-	// If only mainnet chains, use prod
-	if (hasMainnet && !hasTestnet) return "prod";
-	// Mixed or unknown chains - return null to try both
-	return null;
-}
+import {
+	buildEndpoints,
+	createApiKeyMissingResponse,
+	createMethodNotAllowedResponse,
+	createProxyErrorResponse,
+	detectEnvironmentFromChainIds,
+	getApiKey,
+	handleCorsPreflight,
+	proxyRequest,
+} from "../../utils";
 
 function extractChainIdsFromQueryParams(url: URL): number[] {
 	const chainIds: number[] = [];
@@ -55,33 +38,22 @@ function extractChainIdsFromQueryParams(url: URL): number[] {
 
 export default {
 	async fetch(request: Request) {
+		const methods = "GET, OPTIONS";
+
 		// Handle CORS preflight
 		if (request.method === "OPTIONS") {
-			return new Response(null, {
-				status: 204,
-				headers: {
-					"Access-Control-Allow-Origin": "*",
-					"Access-Control-Allow-Methods": "GET, OPTIONS",
-					"Access-Control-Allow-Headers": "Content-Type",
-				},
-			});
+			return handleCorsPreflight(methods);
 		}
 
 		// Only allow GET requests
 		if (request.method !== "GET") {
-			return new Response(JSON.stringify({ error: "Method not allowed" }), {
-				status: 405,
-				headers: { "Content-Type": "application/json" },
-			});
+			return createMethodNotAllowedResponse("GET");
 		}
 
 		// Get API key from environment variable
-		const apiKey = process.env.RHINESTONE_API_KEY;
+		const apiKey = getApiKey();
 		if (!apiKey) {
-			return new Response(JSON.stringify({ error: "API key not configured" }), {
-				status: 500,
-				headers: { "Content-Type": "application/json" },
-			});
+			return createApiKeyMissingResponse(methods);
 		}
 
 		try {
@@ -105,110 +77,41 @@ export default {
 			const chainIds = extractChainIdsFromQueryParams(url);
 			const env = detectEnvironmentFromChainIds(chainIds);
 
-			// Determine base URL
-			const baseUrl =
-				env === "staging"
-					? "https://staging.v1.orchestrator.rhinestone.dev"
-					: "https://v1.orchestrator.rhinestone.dev";
-
-			// Build the target URL with the address in the path
-			const targetUrl = new URL(`${baseUrl}/accounts/${address}/portfolio`);
-
-			// Copy all query parameters
+			// Build the target path with query parameters
+			const targetPath = `/accounts/${address}/portfolio`;
+			const targetUrl = new URL(url.origin + targetPath);
 			for (const [key, value] of url.searchParams.entries()) {
 				targetUrl.searchParams.set(key, value);
 			}
 
-			// Try endpoints based on detected environment
-			const endpoints: string[] = [];
-			if (env === "prod") {
-				endpoints.push(targetUrl.toString());
-			} else if (env === "staging") {
-				endpoints.push(targetUrl.toString());
-			} else {
-				// Try both if can't detect
-				const prodUrl = new URL(
-					`https://v1.orchestrator.rhinestone.dev/accounts/${address}/portfolio`,
-				);
-				const stagingUrl = new URL(
-					`https://staging.v1.orchestrator.rhinestone.dev/accounts/${address}/portfolio`,
-				);
-				// Copy query params to both
+			// Build endpoints based on detected environment
+			const baseEndpoints = buildEndpoints(targetPath, env);
+			const endpoints = baseEndpoints.map((baseUrl) => {
+				const endpointUrl = new URL(baseUrl);
 				for (const [key, value] of url.searchParams.entries()) {
-					prodUrl.searchParams.set(key, value);
-					stagingUrl.searchParams.set(key, value);
+					endpointUrl.searchParams.set(key, value);
 				}
-				endpoints.push(prodUrl.toString(), stagingUrl.toString());
-			}
+				return endpointUrl.toString();
+			});
 
-			let lastError: Error | null = null;
-			for (const endpoint of endpoints) {
-				try {
-					const response = await fetch(endpoint, {
-						method: "GET",
-						headers: {
-							"Content-Type": "application/json",
-							"x-api-key": apiKey,
-						},
-					});
-
-					// If successful (200-299) or not found (404), return the response
-					if (
-						response.status === 404 ||
-						(response.status >= 200 && response.status < 300)
-					) {
-						const data = await response.text();
-						return new Response(data, {
-							status: response.status,
-							headers: {
-								"Content-Type": "application/json",
-								"Access-Control-Allow-Origin": "*",
-								"Access-Control-Allow-Methods": "GET, OPTIONS",
-								"Access-Control-Allow-Headers": "Content-Type",
-							},
-						});
-					}
-
-					// If server error, try next endpoint
-					if (endpoints.length > 1) {
-						lastError = new Error(`Server error from ${endpoint}`);
-						continue;
-					}
-
-					// If only one endpoint, return error
-					const data = await response.text();
-					return new Response(data, {
-						status: response.status,
-						headers: {
-							"Content-Type": "application/json",
-							"Access-Control-Allow-Origin": "*",
-							"Access-Control-Allow-Methods": "GET, OPTIONS",
-							"Access-Control-Allow-Headers": "Content-Type",
-						},
-					});
-				} catch (error) {
-					lastError = error instanceof Error ? error : new Error(String(error));
-					if (endpoints.indexOf(endpoint) === endpoints.length - 1) {
-						// Last endpoint, throw error
-						throw lastError;
-					}
-					// Try next endpoint
-				}
-			}
-
-			// Should not reach here, but handle just in case
-			throw lastError || new Error("Failed to proxy request");
-		} catch (error) {
-			return new Response(
-				JSON.stringify({
-					error: "Failed to proxy request",
-					details: error instanceof Error ? error.message : "Unknown error",
-				}),
-				{
-					status: 500,
-					headers: { "Content-Type": "application/json" },
+			// Proxy the request
+			return await proxyRequest({
+				endpoints,
+				method: "GET",
+				apiKey,
+				methods,
+				shouldRetry: (response) => {
+					// Retry on server errors (500+) if we have multiple endpoints
+					// Otherwise return successful responses (200-299) or 404
+					return (
+						endpoints.length > 1 &&
+						response.status >= 500 &&
+						response.status < 600
+					);
 				},
-			);
+			});
+		} catch (error) {
+			return createProxyErrorResponse(error, methods);
 		}
 	},
 };
