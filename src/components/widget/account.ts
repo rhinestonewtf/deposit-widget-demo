@@ -4,7 +4,7 @@ import { privateKeyToAccount, toAccount } from "viem/accounts";
 
 async function createAccount(ownerAddress: Address, signerPk: Hex) {
 	const rhinestone = new RhinestoneSDK({
-		apiKey: import.meta.env.RHINESTONE_API_KEY,
+		endpointUrl: "http://localhost:3000/api",
 	});
 
 	const ownerAccount = toAccount({
