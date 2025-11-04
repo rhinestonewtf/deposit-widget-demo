@@ -39,15 +39,18 @@
 import type { RhinestoneAccount } from "@rhinestone/sdk";
 import { chainRegistry } from "@rhinestone/shared-configs";
 import { useStorage } from "@vueuse/core";
-import { switchChain, writeContract } from "@wagmi/core";
+import { readContract, switchChain, writeContract } from "@wagmi/core";
 import {
+  http,
   type Address,
   type Chain,
   type Hex,
+  createPublicClient,
   erc20Abi,
   formatUnits,
   parseEther,
   parseUnits,
+  size,
 } from "viem";
 import { generatePrivateKey } from "viem/accounts";
 import { onMounted, ref } from "vue";
@@ -103,8 +106,7 @@ const failedStep = ref<number | null>(null);
  */
 async function transferTokensToAccount(
   companionAccountAddress: Address,
-  tokens: Token[],
-  isAccountDeployed: boolean
+  tokens: Token[]
 ): Promise<void> {
   for (const token of tokens) {
     // Switch to the required chain
@@ -113,6 +115,18 @@ async function transferTokensToAccount(
     const priceImpactBuffer = token.amount / 20n;
     const tokenEntry = getToken(token.chain, token.address);
     // Add a fixed buffer to account for deployment costs
+    const chain = getChain(token.chain);
+    if (!chain) {
+      throw new Error(`Unsupported chain: ${token.chain}`);
+    }
+    const publicClient = createPublicClient({
+      chain,
+      transport: http(),
+    });
+    const accountCode = await publicClient.getCode({
+      address: companionAccountAddress,
+    });
+    const isAccountDeployed = accountCode && size(accountCode) > 0;
     const deploymentBuffer = isAccountDeployed
       ? 0n
       : tokenEntry?.symbol === "USDC"
@@ -123,12 +137,21 @@ async function transferTokensToAccount(
       ? parseEther("0.00005")
       : 0n;
     const tokenAmount = token.amount + priceImpactBuffer + deploymentBuffer;
+    // Check the existing token balance of the companion account
+    const existingBalance = await readContract(wagmiConfig, {
+      address: token.address,
+      abi: erc20Abi,
+      functionName: "balanceOf",
+      args: [companionAccountAddress],
+    });
+    const transferAmount =
+      existingBalance > tokenAmount ? 0n : tokenAmount - existingBalance;
     // Make the transfer
     await writeContract(wagmiConfig, {
       address: token.address,
       abi: erc20Abi,
       functionName: "transfer",
-      args: [companionAccountAddress, tokenAmount],
+      args: [companionAccountAddress, transferAmount],
     });
   }
 }
@@ -225,14 +248,9 @@ async function executeDepositFlow(): Promise<void> {
   if (!outputChain) {
     throw new Error(`Unsupported chain: ${outputToken.chain}`);
   }
-  const isDeployed = await companionAccount.isDeployed(outputChain);
 
   // Send the tokens spent to the smart account (+ 10% buffer for gas)
-  await transferTokensToAccount(
-    companionAccount.getAddress(),
-    tokensSpent,
-    isDeployed
-  );
+  await transferTokensToAccount(companionAccount.getAddress(), tokensSpent);
 
   // Request a quote from the smart account
   const transactionData = await prepareTransactionData(companionAccount);
