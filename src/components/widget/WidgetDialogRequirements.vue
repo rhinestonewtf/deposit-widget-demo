@@ -46,6 +46,8 @@ import {
   type Hex,
   erc20Abi,
   formatUnits,
+  parseEther,
+  parseUnits,
 } from "viem";
 import { generatePrivateKey } from "viem/accounts";
 import { onMounted, ref } from "vue";
@@ -53,7 +55,7 @@ import { wagmiConfig } from "../../config/appkit";
 import TokenIcon from "../TokenIcon.vue";
 import { createAccount, getSignerAccount } from "./account";
 import type { IntentOp, Token } from "./common";
-import { getChain, getChainName } from "./registry";
+import { getChain, getChainName, getToken } from "./registry";
 
 const signerPk = useStorage<Hex>(
   "rhinestone:temporary-signer-key",
@@ -101,13 +103,26 @@ const failedStep = ref<number | null>(null);
  */
 async function transferTokensToAccount(
   companionAccountAddress: Address,
-  tokens: Token[]
+  tokens: Token[],
+  isAccountDeployed: boolean
 ): Promise<void> {
   for (const token of tokens) {
     // Switch to the required chain
     await switchChain(wagmiConfig, { chainId: Number(token.chain) });
-    // Add a 10% buffer
-    const tokenAmount = (token.amount * 11n) / 10n;
+    // Add a 5% buffer (to account for price fluctuations)
+    const priceImpactBuffer = token.amount / 20n;
+    const tokenEntry = getToken(token.chain, token.address);
+    // Add a fixed buffer to account for deployment costs
+    const deploymentBuffer = isAccountDeployed
+      ? 0n
+      : tokenEntry?.symbol === "USDC"
+      ? parseUnits("0.1", 6)
+      : tokenEntry?.symbol === "WETH"
+      ? parseEther("0.00005")
+      : tokenEntry?.symbol === "ETH"
+      ? parseEther("0.00005")
+      : 0n;
+    const tokenAmount = token.amount + priceImpactBuffer + deploymentBuffer;
     // Make the transfer
     await writeContract(wagmiConfig, {
       address: token.address,
@@ -206,8 +221,18 @@ async function executeDepositFlow(): Promise<void> {
   // Spin up a smart account
   const companionAccount = await createAccount(userAddress, signerPk.value);
 
+  const outputChain = getChain(outputToken.chain);
+  if (!outputChain) {
+    throw new Error(`Unsupported chain: ${outputToken.chain}`);
+  }
+  const isDeployed = await companionAccount.isDeployed(outputChain);
+
   // Send the tokens spent to the smart account (+ 10% buffer for gas)
-  await transferTokensToAccount(companionAccount.getAddress(), tokensSpent);
+  await transferTokensToAccount(
+    companionAccount.getAddress(),
+    tokensSpent,
+    isDeployed
+  );
 
   // Request a quote from the smart account
   const transactionData = await prepareTransactionData(companionAccount);
