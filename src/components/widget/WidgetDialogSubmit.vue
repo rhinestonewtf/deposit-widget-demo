@@ -94,20 +94,8 @@
 <script setup lang="ts">
 import { chainRegistry } from "@rhinestone/shared-configs";
 import { waitForTransactionReceipt } from "@wagmi/core";
-import type { Address, Chain, Hex } from "viem";
+import type { Address, Hex } from "viem";
 import { formatUnits } from "viem";
-import {
-  arbitrum,
-  arbitrumSepolia,
-  base,
-  baseSepolia,
-  mainnet,
-  optimism,
-  optimismSepolia,
-  polygon,
-  sepolia,
-  soneium,
-} from "viem/chains";
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { wagmiConfig } from "../../config/appkit";
 import RhinestoneService, {
@@ -117,6 +105,7 @@ import RhinestoneService, {
 import TokenIcon from "../TokenIcon.vue";
 import IconArrowSquareOut from "../icon/IconArrowSquareOut.vue";
 import type { IntentOp, Token } from "./common";
+import { getChain } from "./registry";
 
 const rhinestoneService = new RhinestoneService();
 
@@ -431,33 +420,17 @@ const destinationChainId = computed<string | null>(() => {
 
 const sourceBlockExplorerUrl = computed<string | null>(() => {
   if (!sourceChainId.value) return null;
-  const chain = getViemChain(sourceChainId.value);
+  const chain = getChain(sourceChainId.value.toString());
   if (!chain?.blockExplorers?.default?.url) return null;
   return `${chain.blockExplorers.default.url}/address/${userAddress}`;
 });
 
 const destinationBlockExplorerUrl = computed<string | null>(() => {
   if (!destinationChainId.value) return null;
-  const chain = getViemChain(destinationChainId.value);
+  const chain = getChain(destinationChainId.value.toString());
   if (!chain?.blockExplorers?.default?.url) return null;
   return `${chain.blockExplorers.default.url}/address/${recipient}`;
 });
-
-function getViemChain(chainId: string): Chain | null {
-  const chainMap: Record<string, Chain> = {
-    "1": mainnet,
-    "8453": base,
-    "1868": soneium,
-    "42161": arbitrum,
-    "10": optimism,
-    "11155420": optimismSepolia,
-    "421614": arbitrumSepolia,
-    "137": polygon,
-    "11155111": sepolia,
-    "84532": baseSepolia,
-  };
-  return chainMap[chainId] || null;
-}
 
 async function waitForTransaction(): Promise<void> {
   if (!props.transactionHash || !props.outputToken) {
@@ -467,7 +440,7 @@ async function waitForTransaction(): Promise<void> {
   try {
     status.value = "TRANSACTION_PENDING";
 
-    const chain = getViemChain(props.outputToken.chain);
+    const chain = getChain(props.outputToken.chain.toString());
     if (!chain) {
       throw new Error(`Unsupported chain: ${props.outputToken.chain}`);
     }

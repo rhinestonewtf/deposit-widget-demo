@@ -23,7 +23,7 @@
           <TokenIcon
             v-if="balance.symbol"
             :symbol="balance.symbol"
-            :chain="getChain(balance.chainId)"
+            :chain="getChain(balance.chainId.toString())"
             class="token-icon"
             :size="32"
           />
@@ -49,26 +49,14 @@
 import {
   chainRegistry,
   mainnetChains,
-  chains as registryChains,
   testnetChains,
 } from "@rhinestone/shared-configs";
 import { type Address, type Chain, formatUnits } from "viem";
-import {
-  arbitrum,
-  arbitrumSepolia,
-  base,
-  baseSepolia,
-  mainnet,
-  optimism,
-  optimismSepolia,
-  polygon,
-  sepolia,
-  soneium,
-} from "viem/chains";
 import { onMounted, ref } from "vue";
 
 import RhinestoneService from "../../services/rhinestone";
 import TokenIcon from "../TokenIcon.vue";
+import { getChain } from "./registry";
 
 const rhinestoneService = new RhinestoneService();
 
@@ -115,10 +103,6 @@ async function fetchEthPrice(): Promise<number> {
   }
 }
 
-function getChain(chainId: number): Chain | null {
-  return registryChains.find((c) => c.id === chainId) || null;
-}
-
 function getTokenUsdPrice(symbol: string, ethPrice: number): number {
   const upperSymbol = symbol.toUpperCase();
   if (upperSymbol === "USDC" || upperSymbol === "USDT") {
@@ -140,10 +124,7 @@ async function fetchBalances(): Promise<void> {
 
     const portfolio = await rhinestoneService.getPortfolio(userAddress, {
       chainIds: isMainnets
-        ? mainnetChains
-            .filter((chain) => chain.id !== 1)
-            .filter((chain) => chain.id !== 146)
-            .map((chain) => chain.id)
+        ? mainnetChains.map((chain) => chain.id)
         : testnetChains.map((chain) => chain.id),
     });
 
@@ -202,26 +183,8 @@ async function fetchBalances(): Promise<void> {
   }
 }
 
-function getViemChain(chainId: number): Chain | null {
-  // Map chain IDs to viem chain objects
-  const chainMap: Record<number, Chain> = {
-    1: mainnet,
-    10: optimism,
-    137: polygon,
-    1868: soneium,
-    8453: base,
-    42161: arbitrum,
-    11155111: sepolia,
-    84532: baseSepolia,
-    11155420: optimismSepolia,
-    421614: arbitrumSepolia,
-  };
-
-  return chainMap[chainId] || null;
-}
-
 function handleSelect(balance: TokenBalance): void {
-  const viemChain = getViemChain(balance.chainId);
+  const viemChain = getChain(balance.chainId.toString());
   if (!viemChain) {
     console.error("Chain not found:", balance.chainId);
     return;

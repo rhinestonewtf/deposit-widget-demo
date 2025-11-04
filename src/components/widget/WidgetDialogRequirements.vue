@@ -37,7 +37,7 @@
 
 <script setup lang="ts">
 import type { RhinestoneAccount } from "@rhinestone/sdk";
-import { chainRegistry, chains } from "@rhinestone/shared-configs";
+import { chainRegistry } from "@rhinestone/shared-configs";
 import { useStorage } from "@vueuse/core";
 import { switchChain, writeContract } from "@wagmi/core";
 import {
@@ -53,6 +53,7 @@ import { wagmiConfig } from "../../config/appkit";
 import TokenIcon from "../TokenIcon.vue";
 import { createAccount, getSignerAccount } from "./account";
 import type { IntentOp, Token } from "./common";
+import { getChain, getChainName } from "./registry";
 
 const signerPk = useStorage<Hex>(
   "rhinestone:temporary-signer-key",
@@ -260,15 +261,6 @@ function formatTokenAmount(
 
   // Format with 5 decimal places maximum
   return num.toFixed(5).replace(/\.?0+$/, "");
-}
-
-function getChain(chainId: string): Chain | null {
-  return chains.find((c) => c.id.toString() === chainId) || null;
-}
-
-function getChainName(chainId: string): string {
-  const chain = getChain(chainId);
-  return chain?.name || `Chain ${chainId}`;
 }
 
 function handleRetry(): void {

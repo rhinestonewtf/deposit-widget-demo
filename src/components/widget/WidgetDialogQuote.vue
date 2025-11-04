@@ -165,7 +165,6 @@ const inputAmount = computed(() => {
   return parseUnits(amount.value.toString(), decimals);
 });
 const inputTokens = ref<Token[]>([]);
-// const inputTokenRequirements = ref<TokenRequirement[]>([]);
 const tokensSpent = ref<Token[]>([]);
 const intentOp = ref<IntentOp | null>(null);
 const isQuoteLoading = ref(false);
@@ -225,7 +224,6 @@ async function fetchQuote(): Promise<void> {
     quoteError.value = quote.error;
     inputTokens.value = [];
     intentOp.value = null;
-    // inputTokenRequirements.value = [];
     tokensSpent.value = [];
     return;
   }
@@ -247,30 +245,6 @@ async function fetchQuote(): Promise<void> {
       }))
   );
   intentOp.value = quote.intentOp;
-  // const tokenRequirements = quote.tokenRequirements || {};
-  // inputTokenRequirements.value = Object.entries(tokenRequirements).flatMap(
-  //   ([chainId, tokens]) =>
-  //     Object.entries(tokens).map(([tokenAddress, tokenData]) => {
-  //       const base = {
-  //         chain: chainId,
-  //         address: tokenAddress as Address,
-  //         type: tokenData.type,
-  //         amount: BigInt(tokenData.amount),
-  //       };
-
-  //       if (tokenData.type === "approval") {
-  //         return {
-  //           ...base,
-  //           type: "approval" as const,
-  //           spender: tokenData.spender,
-  //         };
-  //       }
-  //       return {
-  //         ...base,
-  //         type: "wrap" as const,
-  //       };
-  //     })
-  // );
   tokensSpent.value = Object.entries(quote.intentCost.tokensSpent).flatMap(
     ([chainId, tokens]) =>
       Object.entries(tokens).map(([tokenAddress, tokenData]) => ({
