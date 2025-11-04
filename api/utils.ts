@@ -1,3 +1,5 @@
+import type { HeadersInit } from "undici-types";
+
 // Testnet chain IDs
 export const TESTNET_CHAIN_IDS = new Set([
 	11155111, // sepolia
