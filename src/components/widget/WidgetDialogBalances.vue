@@ -123,14 +123,7 @@ async function fetchBalances(): Promise<void> {
     // Fetch ETH price first
     ethPrice.value = await fetchEthPrice();
 
-    const portfolio = await rhinestoneService.getPortfolio(userAddress, {
-      chainIds: isMainnets
-        ? mainnetChains
-            .map((chain) => chain.id)
-            .filter((id) => id !== mainnet.id)
-            .filter((id) => id !== sonic.id)
-        : testnetChains.map((chain) => chain.id),
-    });
+    const portfolio = await rhinestoneService.getPortfolio(userAddress);
 
     for (const tokenPortfolio of portfolio) {
       // Iterate through each chain where this token has a balance
