@@ -46,15 +46,10 @@
 </template>
 
 <script setup lang="ts">
-import {
-  chainRegistry,
-  mainnetChains,
-  testnetChains,
-} from "@rhinestone/shared-configs";
+import { chainRegistry } from "@rhinestone/shared-configs";
 import { type Address, type Chain, formatUnits } from "viem";
 import { onMounted, ref } from "vue";
 
-import { mainnet, sonic } from "viem/chains";
 import RhinestoneService from "../../services/rhinestone";
 import TokenIcon from "../TokenIcon.vue";
 import { getChain } from "./registry";
@@ -66,9 +61,8 @@ const emit = defineEmits<{
   select: [token: Address | null, chain: Chain | null];
 }>();
 
-const { userAddress, isMainnets } = defineProps<{
+const { userAddress } = defineProps<{
   userAddress: Address;
-  isMainnets: boolean;
 }>();
 
 interface TokenBalance {

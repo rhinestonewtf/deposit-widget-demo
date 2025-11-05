@@ -111,7 +111,6 @@
     <WidgetDialogBalances
       v-if="showBalances"
       :user-address="userAddress"
-      :is-mainnets="isMainnets"
       @close="showBalances = false"
       @select="handleTokenSelect"
     />
@@ -148,8 +147,6 @@ const { token, chain, userAddress, recipient } = defineProps<{
   userAddress: Address;
   recipient: Address;
 }>();
-
-const isMainnets = computed(() => chain.testnet !== true);
 
 const amount = ref<string>("");
 const amountInput = ref<HTMLInputElement | null>(null);
