@@ -39,7 +39,12 @@
 import type { RhinestoneAccount } from "@rhinestone/sdk";
 import { chainRegistry } from "@rhinestone/shared-configs";
 import { useStorage } from "@vueuse/core";
-import { readContract, switchChain, writeContract } from "@wagmi/core";
+import {
+  readContract,
+  switchChain,
+  waitForTransactionReceipt,
+  writeContract,
+} from "@wagmi/core";
 import {
   http,
   type Address,
@@ -101,6 +106,10 @@ const {
 
 const failedStep = ref<number | null>(null);
 
+async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
  * Transfers tokens to the companion account with a 10% buffer for gas
  */
@@ -146,13 +155,21 @@ async function transferTokensToAccount(
     });
     const transferAmount =
       existingBalance > tokenAmount ? 0n : tokenAmount - existingBalance;
-    // Make the transfer
-    await writeContract(wagmiConfig, {
-      address: token.address,
-      abi: erc20Abi,
-      functionName: "transfer",
-      args: [companionAccountAddress, transferAmount],
-    });
+    if (transferAmount > 0n) {
+      // Make the transfer
+      const transferHash = await writeContract(wagmiConfig, {
+        address: token.address,
+        abi: erc20Abi,
+        functionName: "transfer",
+        args: [companionAccountAddress, transferAmount],
+      });
+      await waitForTransactionReceipt(wagmiConfig, {
+        hash: transferHash,
+        chainId: chain.id,
+      });
+      // Wait for a few seconds for the balance to be indexed
+      await sleep(5 * 1000);
+    }
   }
 }
 
@@ -249,7 +266,7 @@ async function executeDepositFlow(): Promise<void> {
     throw new Error(`Unsupported chain: ${outputToken.chain}`);
   }
 
-  // Send the tokens spent to the smart account (+ 10% buffer for gas)
+  // Send the tokens spent to the smart account with some buffer for gas
   await transferTokensToAccount(companionAccount.getAddress(), tokensSpent);
 
   // Request a quote from the smart account
