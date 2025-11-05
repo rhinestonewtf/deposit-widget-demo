@@ -54,6 +54,7 @@ import {
 import { type Address, type Chain, formatUnits } from "viem";
 import { onMounted, ref } from "vue";
 
+import { mainnet, sonic } from "viem/chains";
 import RhinestoneService from "../../services/rhinestone";
 import TokenIcon from "../TokenIcon.vue";
 import { getChain } from "./registry";
@@ -124,7 +125,10 @@ async function fetchBalances(): Promise<void> {
 
     const portfolio = await rhinestoneService.getPortfolio(userAddress, {
       chainIds: isMainnets
-        ? mainnetChains.map((chain) => chain.id)
+        ? mainnetChains
+            .map((chain) => chain.id)
+            .filter((id) => id !== mainnet.id)
+            .filter((id) => id !== sonic.id)
         : testnetChains.map((chain) => chain.id),
     });
 
