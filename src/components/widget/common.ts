@@ -22,4 +22,4 @@ type TokenRequirement =
 	  };
 
 export type { Token, TokenRequirement };
-export type { IntentOp, IntentOpElement } from "./permit2";
+export type { IntentOp } from "./permit2";

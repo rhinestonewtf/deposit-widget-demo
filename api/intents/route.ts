@@ -7,38 +7,40 @@ import {
 	getApiKey,
 	handleCorsPreflight,
 	proxyRequest,
-} from "./utils";
+} from "../utils";
 
-function extractChainIdsFromSignedIntentOp(body: unknown): number[] {
+function extractChainIdsFromIntentInput(body: unknown): number[] {
 	const chainIds: number[] = [];
 	try {
-		const payload = body as {
-			signedIntentOp?: {
-				elements?: Array<{
-					chainId?: string | number;
-					mandate?: {
-						destinationChainId?: string | number;
-					};
-				}>;
+		const intentInput = body as {
+			destinationChainId?: number | string;
+			accountAccessList?: {
+				chainIds?: number[];
+				chainTokens?: Record<string, unknown>;
 			};
 		};
 
-		if (payload?.signedIntentOp?.elements) {
-			for (const element of payload.signedIntentOp.elements) {
-				if (element.chainId) {
-					const chainId =
-						typeof element.chainId === "string"
-							? Number.parseInt(element.chainId, 10)
-							: element.chainId;
-					if (!Number.isNaN(chainId)) chainIds.push(chainId);
-				}
-				if (element.mandate?.destinationChainId) {
-					const chainId =
-						typeof element.mandate.destinationChainId === "string"
-							? Number.parseInt(element.mandate.destinationChainId, 10)
-							: element.mandate.destinationChainId;
-					if (!Number.isNaN(chainId)) chainIds.push(chainId);
-				}
+		// Extract destinationChainId
+		if (intentInput.destinationChainId) {
+			const chainId =
+				typeof intentInput.destinationChainId === "string"
+					? Number.parseInt(intentInput.destinationChainId, 10)
+					: intentInput.destinationChainId;
+			if (!Number.isNaN(chainId)) chainIds.push(chainId);
+		}
+
+		// Extract chainIds from accountAccessList
+		if (intentInput.accountAccessList?.chainIds) {
+			chainIds.push(...intentInput.accountAccessList.chainIds);
+		}
+
+		// Extract chain IDs from chainTokens object keys
+		if (intentInput.accountAccessList?.chainTokens) {
+			for (const chainIdStr of Object.keys(
+				intentInput.accountAccessList.chainTokens,
+			)) {
+				const chainId = Number.parseInt(chainIdStr, 10);
+				if (!Number.isNaN(chainId)) chainIds.push(chainId);
 			}
 		}
 	} catch {
@@ -73,11 +75,11 @@ export default {
 			const bodyJson = JSON.parse(bodyText);
 
 			// Extract chain IDs from the request
-			const chainIds = extractChainIdsFromSignedIntentOp(bodyJson);
+			const chainIds = extractChainIdsFromIntentInput(bodyJson);
 			const env = detectEnvironmentFromChainIds(chainIds);
 
 			// Build endpoints based on detected environment
-			const endpoints = buildEndpoints("/intent-operations", env);
+			const endpoints = buildEndpoints("/intents/route", env);
 
 			// Proxy the request
 			return await proxyRequest({

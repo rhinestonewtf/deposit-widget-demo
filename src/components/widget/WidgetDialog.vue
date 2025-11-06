@@ -39,7 +39,7 @@
           />
           <WidgetDialogTokens
             v-if="step.type === 'requirements'"
-            :requirements="step.requirements"
+            :tokens-spent="step.tokensSpent"
             :intent-op="step.intentOp"
             :output-token="step.outputToken"
             :user-address="account"
@@ -50,9 +50,17 @@
             @retry="handleRetry"
           />
           <WidgetDialogSubmit
-            v-if="step.type === 'deposit'"
+            v-if="step.type === 'deposit' && step.kind === 'intent'"
             :signatures="step.signatures"
             :intent-op="step.intentOp"
+            :user-address="account"
+            :recipient="recipient"
+            @next="handleSubmitNext"
+          />
+          <WidgetDialogSubmit
+            v-if="step.type === 'deposit' && step.kind === 'transaction'"
+            :transaction-hash="step.transactionHash"
+            :output-token="step.outputToken"
             :user-address="account"
             :recipient="recipient"
             @next="handleSubmitNext"
@@ -73,7 +81,7 @@ import IconX from "../icon/IconX.vue";
 import WidgetDialogQuote from "./WidgetDialogQuote.vue";
 import WidgetDialogTokens from "./WidgetDialogRequirements.vue";
 import WidgetDialogSubmit from "./WidgetDialogSubmit.vue";
-import type { IntentOp, Token, TokenRequirement } from "./common";
+import type { IntentOp, Token } from "./common";
 
 type Step =
   | {
@@ -81,7 +89,7 @@ type Step =
     }
   | {
       type: "requirements";
-      requirements: TokenRequirement[];
+      tokensSpent: Token[];
       intentOp: IntentOp;
       outputToken: Token;
       inputChain?: Chain | null;
@@ -89,8 +97,15 @@ type Step =
     }
   | {
       type: "deposit";
+      kind: "intent";
       intentOp: IntentOp;
       signatures: { originSignatures: Hex[]; destinationSignature: Hex };
+    }
+  | {
+      type: "deposit";
+      kind: "transaction";
+      transactionHash: Hex;
+      outputToken: Token;
     };
 
 const open = defineModel<boolean>("open", {
@@ -130,7 +145,7 @@ function handleBack(): void {
 }
 
 function handleQuoteNext(
-  requirements: TokenRequirement[],
+  tokensSpent: Token[],
   intentOp: IntentOp,
   outputToken: Token,
   inputChain?: Chain | null,
@@ -138,7 +153,7 @@ function handleQuoteNext(
 ): void {
   step.value = {
     type: "requirements",
-    requirements,
+    tokensSpent,
     intentOp,
     outputToken,
     inputChain,
@@ -147,15 +162,34 @@ function handleQuoteNext(
 }
 
 function handleRequirementsNext(
-  intentOp: IntentOp,
-  signatures: { originSignatures: Hex[]; destinationSignature: Hex }
+  data:
+    | {
+        kind: "intent";
+        intentOp: IntentOp;
+        signatures: { originSignatures: Hex[]; destinationSignature: Hex };
+      }
+    | {
+        kind: "transaction";
+        transactionHash: Hex;
+        outputToken: Token;
+      }
 ): void {
   if (step.value.type === "requirements") {
-    step.value = {
-      type: "deposit",
-      intentOp,
-      signatures,
-    };
+    if (data.kind === "intent") {
+      step.value = {
+        type: "deposit",
+        kind: "intent",
+        intentOp: data.intentOp,
+        signatures: data.signatures,
+      };
+    } else {
+      step.value = {
+        type: "deposit",
+        kind: "transaction",
+        transactionHash: data.transactionHash,
+        outputToken: data.outputToken,
+      };
+    }
   }
 }
 

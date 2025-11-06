@@ -1,3 +1,4 @@
+import type { SettlementLayer as CrossChainSettlementLayer } from "@rhinestone/shared-configs";
 import { type Address, type Hex, keccak256 } from "viem";
 
 const PERMIT2_ADDRESS = "0x000000000022D473030F116dDEE9F6B43aC78BA3";
@@ -13,6 +14,25 @@ interface Execution {
 	data: Hex;
 }
 
+type SettlementLayer =
+	| "SAME_CHAIN"
+	| "INTENT_EXECUTOR"
+	| CrossChainSettlementLayer;
+
+type FundingMethod = "COMPACT" | "PERMIT2" | "NO_FUNDING";
+
+type AccountContext =
+	| {
+			accountType: "smartAccount";
+			isDeployed: boolean;
+			isERC7579: boolean;
+			erc7579AccountType: string;
+			erc7579AccountVersion: string;
+	  }
+	| {
+			accountType: "EOA";
+	  };
+
 interface IntentOpElementMandate {
 	recipient: Address;
 	tokenOut: [[string, string]];
@@ -22,29 +42,24 @@ interface IntentOpElementMandate {
 	preClaimOps: Execution[];
 	qualifier: {
 		settlementContext: {
-			settlementLayer: string;
-			usingJIT: boolean;
+			settlementLayer: SettlementLayer;
+			fundingMethod: FundingMethod;
 			using7579: boolean;
+			requestId?: Hex;
 		};
-		encodedVal: string;
+		encodedVal: Hex;
 	};
 	v: number;
 	minGas: string;
 }
 
-export interface IntentOpElement {
+interface IntentOpElement {
 	arbiter: Address;
 	chainId: string;
 	idsAndAmounts: [[string, string]];
 	spendTokens: [[string, string]];
 	beforeFill: boolean;
-	smartAccountStatus: {
-		accountType: string;
-		isDeployed: boolean;
-		isERC7579: boolean;
-		erc7579AccountType: string;
-		erc7579AccountVersion: string;
-	};
+	smartAccountStatus?: AccountContext;
 	mandate: IntentOpElementMandate;
 }
 

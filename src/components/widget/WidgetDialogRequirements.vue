@@ -28,9 +28,9 @@
           :key="index"
           class="requirement-item"
           :class="{
-            active: currentStep === index,
+            active: getRequirementStep(index) === currentStep,
             completed: completedRequirements.has(index),
-            failed: failedStep === index,
+            failed: failedStep === getRequirementStep(index),
           }"
         >
           <div class="requirement-info">
@@ -43,10 +43,8 @@
             />
             <div class="requirement-text">
               <div class="requirement-text-content">
-                <span class="action-type">{{
-                  requirement.type === "wrap" ? "Wrap" : "Approve"
-                }}</span>
-                <span class="amount" v-if="requirement.type === 'wrap'">{{
+                <span class="action-type">{{ requirement.action }}</span>
+                <span class="amount">{{
                   formatTokenAmount(
                     requirement.chain,
                     requirement.address,
@@ -67,39 +65,7 @@
             <IconCheck />
           </span>
           <span
-            v-else-if="failedStep === index"
-            class="status-badge failed-badge"
-          >
-            <IconX />
-          </span>
-        </div>
-
-        <!-- Signing requirements - one for each element/chain -->
-        <div
-          v-for="(element, index) in intentOp.elements"
-          :key="`sign-${index}`"
-          class="requirement-item"
-          :class="{
-            active: currentStep === requirements.length + index,
-            completed: completedSignatures.has(index),
-            failed: failedStep === requirements.length + index,
-          }"
-        >
-          <div class="requirement-info">
-            <div class="requirement-text">
-              <div class="requirement-text-content">
-                <span class="action-type">Sign Deposit Intent</span>
-              </div>
-              <span class="chain-name"
-                >on {{ getChainName(element.chainId) }}</span
-              >
-            </div>
-          </div>
-          <span v-if="completedSignatures.has(index)" class="status-badge">
-            <IconCheck />
-          </span>
-          <span
-            v-else-if="failedStep === requirements.length + index"
+            v-else-if="failedStep === getRequirementStep(index)"
             class="status-badge failed-badge"
           >
             <IconX />
@@ -120,50 +86,76 @@
 </template>
 
 <script setup lang="ts">
-import { chainRegistry, chains } from "@rhinestone/shared-configs";
+import type { RhinestoneAccount } from "@rhinestone/sdk";
+import { chainRegistry } from "@rhinestone/shared-configs";
+import { useStorage } from "@vueuse/core";
 import {
-  getAccount,
-  signTypedData,
+  readContract,
   switchChain,
   waitForTransactionReceipt,
   writeContract,
 } from "@wagmi/core";
 import {
+  http,
   type Address,
   type Chain,
   type Hex,
+  createPublicClient,
+  erc20Abi,
   formatUnits,
-  maxUint256,
+  parseEther,
+  parseUnits,
+  size,
 } from "viem";
-import { onMounted, ref } from "vue";
+import { generatePrivateKey } from "viem/accounts";
+import { computed, onMounted, ref } from "vue";
 import { wagmiConfig } from "../../config/appkit";
-import RhinestoneService from "../../services/rhinestone";
 import TokenIcon from "../TokenIcon.vue";
 import IconCheck from "../icon/IconCheck.vue";
 import IconX from "../icon/IconX.vue";
-import type { IntentOp, Token, TokenRequirement } from "./common";
-import { getTypedData } from "./permit2";
+import { createAccount, getSignerAccount } from "./account";
+import type { IntentOp, Token } from "./common";
+import { getChain, getChainName, getToken } from "./registry";
 
-const rhinestoneService = new RhinestoneService();
+interface Requirement {
+  chain: string;
+  address: Address;
+  amount: bigint;
+  action: string;
+  transferTo?: Address; // For cross-chain transfers to companion account
+}
+
+const signerPk = useStorage<Hex>(
+  "rhinestone:temporary-signer-key",
+  generatePrivateKey()
+);
 
 const emit = defineEmits<{
   next: [
-    intentOp: IntentOp,
-    signatures: { originSignatures: Hex[]; destinationSignature: Hex }
+    data:
+      | {
+          kind: "intent";
+          intentOp: IntentOp;
+          signatures: { originSignatures: Hex[]; destinationSignature: Hex };
+        }
+      | {
+          kind: "transaction";
+          transactionHash: Hex;
+          outputToken: Token;
+        }
   ];
   retry: [];
 }>();
 
 const {
-  requirements,
-  intentOp: initialIntentOp,
+  tokensSpent,
   outputToken,
   userAddress,
   recipient,
   inputChain,
   inputToken,
 } = defineProps<{
-  requirements: TokenRequirement[];
+  tokensSpent: Token[];
   intentOp: IntentOp;
   outputToken: Token;
   userAddress: Address;
@@ -172,17 +164,340 @@ const {
   inputToken?: Address | null;
 }>();
 
-const intentOp = ref<IntentOp>(initialIntentOp);
-
-const completedRequirements = ref<Set<number>>(new Set());
-const completedSignatures = ref<Set<number>>(new Set());
-const signatures = ref<Hex[]>([]);
-const currentStep = ref<number>(0);
 const failedStep = ref<number | null>(null);
+const currentStep = ref<number>(0);
+const completedRequirements = ref<Set<number>>(new Set());
+const companionAccountAddress = ref<Address | null>(null);
+
+// Compute requirements based on whether it's same-chain or cross-chain
+const requirements = computed<Requirement[]>(() => {
+  const isSameChain = tokensSpent.every(
+    (token) => token.chain === outputToken.chain
+  );
+
+  if (isSameChain) {
+    // For same-chain, show just the transfer action
+    return [
+      {
+        chain: outputToken.chain,
+        address: outputToken.address,
+        amount: outputToken.amount,
+        action: "Transfer",
+      },
+    ];
+  }
+
+  // For cross-chain, show token transfers to companion account
+  return tokensSpent.map((token) => ({
+    chain: token.chain,
+    address: token.address,
+    amount: token.amount,
+    action: "Transfer",
+  }));
+});
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Transfers a single token to the companion account with buffer for gas
+ * Returns true if successful, false if user rejected
+ */
+async function transferTokenToAccount(
+  token: Token,
+  companionAccountAddress: Address
+): Promise<boolean> {
+  try {
+    // Switch to the required chain
+    await switchChain(wagmiConfig, { chainId: Number(token.chain) });
+
+    // Add a 5% buffer (to account for price fluctuations)
+    const priceImpactBuffer = token.amount / 20n;
+    const tokenEntry = getToken(token.chain, token.address);
+
+    // Add a fixed buffer to account for deployment costs
+    const chain = getChain(token.chain);
+    if (!chain) {
+      throw new Error(`Unsupported chain: ${token.chain}`);
+    }
+
+    const publicClient = createPublicClient({
+      chain,
+      transport: http(),
+    });
+
+    const accountCode = await publicClient.getCode({
+      address: companionAccountAddress,
+    });
+    const isAccountDeployed = accountCode && size(accountCode) > 0;
+    const deploymentBuffer = isAccountDeployed
+      ? 0n
+      : tokenEntry?.symbol === "USDC"
+      ? parseUnits("0.1", 6)
+      : tokenEntry?.symbol === "WETH"
+      ? parseEther("0.00005")
+      : tokenEntry?.symbol === "ETH"
+      ? parseEther("0.00005")
+      : 0n;
+    const tokenAmount = token.amount + priceImpactBuffer + deploymentBuffer;
+
+    // Check the existing token balance of the companion account
+    const existingBalance = await readContract(wagmiConfig, {
+      address: token.address,
+      abi: erc20Abi,
+      functionName: "balanceOf",
+      args: [companionAccountAddress],
+    });
+
+    const transferAmount =
+      existingBalance > tokenAmount ? 0n : tokenAmount - existingBalance;
+
+    if (transferAmount > 0n) {
+      // Make the transfer - this can throw if user rejects
+      const transferHash = await writeContract(wagmiConfig, {
+        address: token.address,
+        abi: erc20Abi,
+        functionName: "transfer",
+        args: [companionAccountAddress, transferAmount],
+      });
+
+      await waitForTransactionReceipt(wagmiConfig, {
+        hash: transferHash,
+        chainId: chain.id,
+      });
+
+      // Wait for a few seconds for the balance to be indexed
+      await sleep(5 * 1000);
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Token transfer failed:", error);
+    // Check if it's a user rejection (usually has "rejected" or "user rejected" in message)
+    const errorMessage =
+      error instanceof Error
+        ? error.message.toLowerCase()
+        : String(error).toLowerCase();
+    if (
+      errorMessage.includes("rejected") ||
+      errorMessage.includes("user rejected") ||
+      errorMessage.includes("denied")
+    ) {
+      return false;
+    }
+    // Re-throw other errors
+    throw error;
+  }
+}
+
+/**
+ * Prepares transaction data for the companion account
+ */
+async function prepareTransactionData(companionAccount: RhinestoneAccount) {
+  const chain = getChain(outputToken.chain);
+  if (!chain) {
+    throw new Error(`Unsupported chain: ${outputToken.chain}`);
+  }
+
+  const signerAccount = getSignerAccount(signerPk.value);
+
+  return await companionAccount.prepareTransaction({
+    sourceAssets:
+      inputChain && inputToken
+        ? {
+            [inputChain.id]: [inputToken],
+          }
+        : inputToken
+        ? [inputToken]
+        : undefined,
+    sourceChains: inputChain ? [inputChain] : undefined,
+    targetChain: chain,
+    calls: [],
+    tokenRequests: [
+      {
+        address: outputToken.address,
+        amount: outputToken.amount,
+      },
+    ],
+    recipient: {
+      address: recipient,
+      accountType: "EOA",
+      setupOps: [],
+    },
+    signers: {
+      type: "owner",
+      kind: "ecdsa",
+      accounts: [signerAccount],
+    },
+  });
+}
+
+/**
+ * Executes a direct ERC20 transfer for same-chain deposits
+ * Returns true if successful, false if user rejected
+ */
+async function executeDirectTransfer(): Promise<boolean> {
+  try {
+    const chain = getChain(outputToken.chain);
+    if (!chain) {
+      throw new Error(`Unsupported chain: ${outputToken.chain}`);
+    }
+
+    // Switch to the required chain
+    await switchChain(wagmiConfig, { chainId: Number(outputToken.chain) });
+
+    // Execute the transfer - this can throw if user rejects
+    const hash = await writeContract(wagmiConfig, {
+      address: outputToken.address,
+      abi: erc20Abi,
+      functionName: "transfer",
+      args: [recipient, outputToken.amount],
+    });
+
+    // Emit the transaction hash
+    emit("next", {
+      kind: "transaction",
+      transactionHash: hash,
+      outputToken: outputToken,
+    });
+
+    return true;
+  } catch (error) {
+    console.error("Direct transfer failed:", error);
+    // Check if it's a user rejection
+    const errorMessage =
+      error instanceof Error
+        ? error.message.toLowerCase()
+        : String(error).toLowerCase();
+    if (
+      errorMessage.includes("rejected") ||
+      errorMessage.includes("user rejected") ||
+      errorMessage.includes("denied")
+    ) {
+      return false;
+    }
+    // Re-throw other errors
+    throw error;
+  }
+}
+
+/**
+ * Executes the next step in the deposit flow
+ */
+async function executeNextStep(): Promise<void> {
+  // Check if this is a same-chain transfer
+  const isSameChain = tokensSpent.every(
+    (token) => token.chain === outputToken.chain
+  );
+
+  if (isSameChain) {
+    // For same-chain, execute the single transfer step
+    if (currentStep.value === 0) {
+      const success = await executeDirectTransfer();
+      if (success) {
+        completedRequirements.value.add(0);
+        // Flow completed, emit already happened in executeDirectTransfer
+      } else {
+        failedStep.value = 0;
+      }
+    }
+    return;
+  }
+
+  // For cross-chain deposits
+  if (currentStep.value === 0) {
+    // First step: create companion account
+    try {
+      const companionAccount = await createAccount(userAddress, signerPk.value);
+      companionAccountAddress.value = companionAccount.getAddress();
+      currentStep.value++;
+      await executeNextStep();
+    } catch (error) {
+      console.error("Failed to create companion account:", error);
+      failedStep.value = 0;
+    }
+    return;
+  }
+
+  // Transfer tokens step by step
+  const tokenIndex = currentStep.value - 1;
+  if (tokenIndex < tokensSpent.length && companionAccountAddress.value) {
+    const token = tokensSpent[tokenIndex];
+    if (!token) {
+      console.error(`No token found at index ${tokenIndex}`);
+      failedStep.value = currentStep.value;
+      return;
+    }
+
+    const success = await transferTokenToAccount(
+      token,
+      companionAccountAddress.value
+    );
+
+    if (success) {
+      // Map currentStep to requirement index (for cross-chain, requirement index = currentStep - 1)
+      const requirementIndex = tokenIndex;
+      completedRequirements.value.add(requirementIndex);
+      currentStep.value++;
+
+      // Check if all tokens have been transferred
+      if (currentStep.value > tokensSpent.length) {
+        // All transfers complete, now prepare and sign transaction
+        await completeCrossChainDeposit();
+      } else {
+        // Continue to next token transfer
+        await executeNextStep();
+      }
+    } else {
+      // User rejected the transfer
+      failedStep.value = currentStep.value;
+    }
+  }
+}
+
+/**
+ * Completes the cross-chain deposit after all tokens are transferred
+ */
+async function completeCrossChainDeposit(): Promise<void> {
+  try {
+    if (!companionAccountAddress.value) {
+      throw new Error("Companion account not created");
+    }
+
+    const companionAccount = await createAccount(userAddress, signerPk.value);
+    const outputChain = getChain(outputToken.chain);
+    if (!outputChain) {
+      throw new Error(`Unsupported chain: ${outputToken.chain}`);
+    }
+
+    // Request a quote from the smart account
+    const transactionData = await prepareTransactionData(companionAccount);
+
+    // Sign the transaction
+    const signedTransactionData = await companionAccount.signTransaction(
+      transactionData
+    );
+
+    // Emit the signed data
+    emit("next", {
+      kind: "intent",
+      intentOp: signedTransactionData.intentRoute.intentOp,
+      signatures: {
+        originSignatures: signedTransactionData.originSignatures,
+        destinationSignature: signedTransactionData.destinationSignature,
+      },
+    });
+  } catch (error) {
+    console.error("Failed to complete cross-chain deposit:", error);
+    // Mark the last step as failed
+    failedStep.value = currentStep.value - 1;
+  }
+}
 
 // Start auto-execution when component mounts
-onMounted(() => {
-  executeNextStep();
+onMounted(async () => {
+  await executeNextStep();
 });
 
 function getTokenSymbol(chainId: string, tokenAddress: Address): string | null {
@@ -215,254 +530,27 @@ function formatTokenAmount(
   return num.toFixed(5).replace(/\.?0+$/, "");
 }
 
-function getChain(chainId: string): Chain | null {
-  return chains.find((c) => c.id.toString() === chainId) || null;
-}
+/**
+ * Maps requirement index to the actual step number
+ * For same-chain: requirement index = step index
+ * For cross-chain: requirement index = step index - 1 (since step 0 is account creation)
+ */
+function getRequirementStep(requirementIndex: number): number {
+  const isSameChain = tokensSpent.every(
+    (token) => token.chain === outputToken.chain
+  );
 
-function getChainName(chainId: string): string {
-  const chain = getChain(chainId);
-  return chain?.name || `Chain ${chainId}`;
-}
-
-async function executeNextStep(): Promise<void> {
-  // Execute token requirements first
-  if (currentStep.value < requirements.length) {
-    const requirement = requirements[currentStep.value];
-    if (!requirement) {
-      console.error("No requirement found at current step");
-      return;
-    }
-
-    const success = await handleAction(requirement);
-
-    if (success) {
-      completedRequirements.value.add(currentStep.value);
-      currentStep.value++;
-      // Continue to next step
-      await executeNextStep();
-    } else {
-      // Mark current step as failed
-      failedStep.value = currentStep.value;
-    }
+  if (isSameChain) {
+    return requirementIndex;
   }
-  // Then execute signing for each element
-  else if (
-    currentStep.value <
-    requirements.length + intentOp.value.elements.length
-  ) {
-    const elementIndex = currentStep.value - requirements.length;
-    const success = await handleSigning(elementIndex);
 
-    if (success) {
-      completedSignatures.value.add(elementIndex);
-      currentStep.value++;
-      // Continue to next step or finish
-      if (elementIndex === intentOp.value.elements.length - 1) {
-        // All signatures collected, advance to next screen
-        handleContinue();
-      } else {
-        await executeNextStep();
-      }
-    } else {
-      // Mark signing step as failed
-      failedStep.value = currentStep.value;
-    }
-  }
-}
-
-async function handleAction(requirement: TokenRequirement): Promise<boolean> {
-  try {
-    // Get the connected account
-    const account = getAccount(wagmiConfig);
-
-    if (!account.address) {
-      console.error("No account connected");
-      return false;
-    }
-
-    const chainIdNum = Number(requirement.chain);
-    const chainList = Object.values(chains) as Chain[];
-    const chain = chainList.find((c) => c.id === chainIdNum);
-
-    if (!chain) {
-      console.error(`Unsupported chain: ${requirement.chain}`);
-      return false;
-    }
-
-    // Switch to the required chain using Wagmi
-    await switchChain(wagmiConfig, { chainId: chain.id });
-
-    if (requirement.type === "wrap") {
-      // Handle WETH-style wrap (deposit native token)
-      const hash = await writeContract(wagmiConfig, {
-        address: requirement.address,
-        abi: [
-          {
-            name: "deposit",
-            type: "function",
-            stateMutability: "payable",
-            inputs: [],
-            outputs: [],
-          },
-        ],
-        functionName: "deposit",
-        value: requirement.amount,
-      });
-
-      // Wait for transaction confirmation using Wagmi
-      await waitForTransactionReceipt(wagmiConfig, { hash });
-
-      return true;
-    }
-
-    if (requirement.type === "approval") {
-      // Handle ERC20 approval
-      const hash = await writeContract(wagmiConfig, {
-        address: requirement.address,
-        abi: [
-          {
-            name: "approve",
-            type: "function",
-            stateMutability: "nonpayable",
-            inputs: [
-              { name: "spender", type: "address" },
-              { name: "amount", type: "uint256" },
-            ],
-            outputs: [{ name: "", type: "bool" }],
-          },
-        ],
-        functionName: "approve",
-        args: [requirement.spender, maxUint256],
-      });
-
-      // Wait for transaction confirmation using Wagmi
-      await waitForTransactionReceipt(wagmiConfig, { hash });
-
-      return true;
-    }
-
-    return false;
-  } catch (error) {
-    console.error("Action failed:", error);
-    return false;
-  }
-}
-
-async function fetchQuote(): Promise<boolean> {
-  try {
-    const chain = getChain(outputToken.chain);
-    if (!chain) {
-      console.error(`Unsupported chain: ${outputToken.chain}`);
-      return false;
-    }
-
-    const quote = await rhinestoneService.getQuote(
-      userAddress,
-      chain,
-      outputToken.address,
-      outputToken.amount,
-      recipient,
-      inputChain || undefined,
-      inputToken || undefined
-    );
-
-    // Check if the quote contains an error
-    if (quote.error) {
-      console.error("Quote error:", quote.error);
-      return false;
-    }
-
-    if (!quote.intentOp) {
-      console.error("Quote response missing intentOp");
-      return false;
-    }
-
-    // Update the intentOp with fresh data
-    intentOp.value = quote.intentOp;
-    return true;
-  } catch (error) {
-    console.error("Failed to fetch quote:", error);
-    return false;
-  }
-}
-
-async function handleSigning(elementIndex: number): Promise<boolean> {
-  try {
-    // Get the connected account
-    const account = getAccount(wagmiConfig);
-
-    if (!account.address) {
-      console.error("No account connected");
-      return false;
-    }
-
-    // Fetch the latest quote before signing the first element
-    if (elementIndex === 0) {
-      const quoteSuccess = await fetchQuote();
-      if (!quoteSuccess) {
-        console.error("Failed to get fresh quote");
-        return false;
-      }
-    }
-
-    // Sign the element at the specified index
-    const element = intentOp.value.elements[elementIndex];
-    if (!element) {
-      console.error(`No element found at index ${elementIndex}`);
-      return false;
-    }
-
-    const chainIdNum = Number(element.chainId);
-    const chainList = Object.values(chains) as Chain[];
-    const chain = chainList.find((c) => c.id === chainIdNum);
-
-    if (!chain) {
-      console.error(`Unsupported chain: ${element.chainId}`);
-      return false;
-    }
-
-    // Switch to the required chain using Wagmi
-    await switchChain(wagmiConfig, { chainId: chain.id });
-
-    // Generate typed data for this element
-    const typedData = getTypedData(
-      element,
-      BigInt(intentOp.value.nonce),
-      BigInt(intentOp.value.expires)
-    );
-
-    // Sign the typed data using Wagmi
-    const sig = await signTypedData(wagmiConfig, {
-      ...typedData,
-    });
-
-    // Store the signature in the array
-    signatures.value[elementIndex] = sig;
-    return true;
-  } catch (error) {
-    console.error("Signing failed:", error);
-    return false;
-  }
+  // For cross-chain, step 0 is account creation, so requirement index 0 = step 1
+  return requirementIndex + 1;
 }
 
 function handleRetry(): void {
+  // Emit retry event to go back to quote step
   emit("retry");
-}
-
-function handleContinue(): void {
-  if (signatures.value.length === 0) {
-    console.error("No signatures available");
-    return;
-  }
-
-  const destinationSignature = signatures.value[
-    signatures.value.length - 1
-  ] as Hex;
-
-  emit("next", intentOp.value, {
-    originSignatures: signatures.value,
-    destinationSignature,
-  });
 }
 </script>
 
