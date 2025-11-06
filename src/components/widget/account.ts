@@ -2,9 +2,14 @@ import { RhinestoneSDK } from "@rhinestone/sdk";
 import type { Address, Hex } from "viem";
 import { privateKeyToAccount, toAccount } from "viem/accounts";
 
+const appBaseUrl = import.meta.env.VITE_PUBLIC_APP_BASE_URL;
+if (!appBaseUrl) {
+	throw new Error("VITE_PUBLIC_APP_BASE_URL is not set");
+}
+
 async function createAccount(ownerAddress: Address, signerPk: Hex) {
 	const rhinestone = new RhinestoneSDK({
-		endpointUrl: "http://localhost:3000/api",
+		endpointUrl: `${appBaseUrl}/api`,
 	});
 
 	const ownerAccount = toAccount({
