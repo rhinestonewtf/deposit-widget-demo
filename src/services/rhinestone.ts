@@ -42,7 +42,7 @@ interface IntentInput {
 	destinationChainId: number;
 	destinationExecutions: Execution[];
 	destinationGasUnits?: bigint;
-	tokenTransfers: {
+	tokenRequests: {
 		tokenAddress: Address;
 		amount?: bigint;
 	}[];
@@ -241,7 +241,7 @@ class Service {
 			},
 			destinationChainId: chain.id,
 			destinationExecutions: [],
-			tokenTransfers: [{ tokenAddress: token, amount }],
+			tokenRequests: [{ tokenAddress: token, amount }],
 			options: {
 				topupCompact: false,
 			},

@@ -6,7 +6,7 @@
       "dependencies": {
         "@reown/appkit": "^1.8.11",
         "@reown/appkit-adapter-wagmi": "^1.8.11",
-        "@rhinestone/sdk": "^1.0.17",
+        "@rhinestone/sdk": "^1.0.23",
         "@rhinestone/shared-configs": "^1.4.14",
         "@tanstack/vue-query": "^5.90.5",
         "@vueuse/core": "^14.0.0",
@@ -231,7 +231,7 @@
 
     "@reown/appkit-wallet": ["@reown/appkit-wallet@1.8.11", "", { "dependencies": { "@reown/appkit-common": "1.8.11", "@reown/appkit-polyfills": "1.8.11", "@walletconnect/logger": "^3.0.0", "zod": "3.22.4" } }, "sha512-tCzrieMuOD4tDcNQjMe83T38tJUfRdv4LG+cYGyGK1RpPGaszbq06TQVbCPkRrGiTELwkrKwXjSg1XAuHktS2w=="],
 
-    "@rhinestone/sdk": ["@rhinestone/sdk@1.0.17", "", { "dependencies": { "@rhinestone/shared-configs": "^1.4.4", "ox": "^0.9.11", "solady": "^0.1.26" }, "peerDependencies": { "viem": "^2.28.0" } }, "sha512-qNu5DPOrE/1ZRcGbKx5zOvT0Q+7by6HGZZvtsa8hOOXCq7wQjkel2rW8uC9Jix1keIPWQ4I8YbMLn69+UUlX1g=="],
+    "@rhinestone/sdk": ["@rhinestone/sdk@1.0.23", "", { "dependencies": { "@rhinestone/shared-configs": "^1.4.17", "ox": "^0.9.11", "solady": "^0.1.26" }, "peerDependencies": { "viem": "^2.28.0" } }, "sha512-/kQhDK/HdPFBRcL8Uan1uOjuENJb/j5iXPZCWh9BQZEhWdmlTty3DxcPGRMilhpD40wywXBB/kRbAjDflZ0NUw=="],
 
     "@rhinestone/shared-configs": ["@rhinestone/shared-configs@1.4.14", "", { "peerDependencies": { "typescript": "^5", "viem": "^2.28.0" } }, "sha512-XOcmg1qV7VC8mp3h4OB9lnfsCD0LQjzTxCMSEHMbJd/4svA3M3h2y7lzLVYyX7stqr4mcYGjpjmnTbOMzE06pg=="],
 
@@ -1350,6 +1350,8 @@
     "@metamask/sdk-communication-layer/cross-fetch": ["cross-fetch@4.1.0", "", { "dependencies": { "node-fetch": "^2.7.0" } }, "sha512-uKm5PU+MHTootlWEY+mZ4vvXoCn4fLQxT9dSc1sXVMSFkINTJVN8cAQROpwcKm8bJ/c7rgZVIBWzH5T78sNZZw=="],
 
     "@metamask/utils/uuid": ["uuid@9.0.1", "", { "bin": { "uuid": "dist/bin/uuid" } }, "sha512-b+1eJOlsR9K8HJpow9Ok3fiWOWSIcIzXodvv0rQjVoOVNpWMpxf1wZNpt4y9h10odCNrqnYp1OBzRktckBe3sA=="],
+
+    "@rhinestone/sdk/@rhinestone/shared-configs": ["@rhinestone/shared-configs@1.4.19", "", { "peerDependencies": { "typescript": "^5", "viem": "^2.28.0" } }, "sha512-PHMe/LizQiVzfiQNNth3nUKb18c3RmZ0EiuqkJqueAQ7Zz1NwpFPwh8vyvI7fwl208dAD3/coiXwahinzqUjPA=="],
 
     "@ts-morph/common/minimatch": ["minimatch@3.1.2", "", { "dependencies": { "brace-expansion": "^1.1.7" } }, "sha512-J7p63hRiAjw1NDEww1W7i37+ByIrOWO5XQQAzZ3VOcL0PNybwpfmV/N05zFAzwQ9USyEcX6t3UO+K5aqBQOIHw=="],
 

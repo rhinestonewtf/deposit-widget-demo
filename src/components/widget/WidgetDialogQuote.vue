@@ -233,14 +233,25 @@ async function fetchQuote(): Promise<void> {
     return;
   }
 
-  inputTokens.value = Object.entries(quote.intentCost.tokensSpent).flatMap(
-    ([chainId, tokens]) =>
-      Object.entries(tokens).map(([tokenAddress, tokenData]) => ({
-        chain: chainId,
-        address: tokenAddress as Address,
-        amount: BigInt(tokenData.unlocked),
-      }))
-  );
+  const isSameChain =
+    Object.keys(quote.intentCost.tokensSpent).length === 1 &&
+    Object.keys(quote.intentCost.tokensSpent)[0] === chain.id.toString();
+  inputTokens.value = isSameChain
+    ? [
+        {
+          chain: chain.id.toString(),
+          address: token,
+          amount: inputAmount.value,
+        },
+      ]
+    : Object.entries(quote.intentCost.tokensSpent).flatMap(
+        ([chainId, tokens]) =>
+          Object.entries(tokens).map(([tokenAddress, tokenData]) => ({
+            chain: chainId,
+            address: tokenAddress as Address,
+            amount: BigInt(tokenData.unlocked),
+          }))
+      );
   intentOp.value = quote.intentOp;
   tokensSpent.value = Object.entries(quote.intentCost.tokensSpent).flatMap(
     ([chainId, tokens]) =>
