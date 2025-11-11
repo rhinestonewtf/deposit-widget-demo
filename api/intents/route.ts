@@ -4,7 +4,6 @@ import {
 	createMethodNotAllowedResponse,
 	createProxyErrorResponse,
 	detectEnvironmentFromChainIds,
-	generateRequestId,
 	getApiKey,
 	handleCorsPreflight,
 	proxyRequest,
@@ -84,9 +83,6 @@ export default {
 			// Build endpoints based on detected environment
 			const endpoints = buildEndpoints("/intents/route", env);
 
-			// Generate request ID for logging
-			const requestId = generateRequestId();
-
 			// Proxy the request
 			return await proxyRequest({
 				endpoints,
@@ -94,7 +90,6 @@ export default {
 				apiKey,
 				body: bodyText,
 				methods,
-				requestId,
 				shouldRetry: (response) => {
 					// Retry on server errors (500, 502, 503) if we have multiple endpoints
 					return (

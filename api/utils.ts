@@ -197,16 +197,6 @@ export async function fetchWithTiming(
 			);
 		}
 
-		// Enhance error with timing information
-		if (error instanceof Error) {
-			const enhancedError = new Error(
-				`${error.message} (after ${Math.round(elapsedMs)}ms)`,
-			);
-			enhancedError.name = error.name;
-			enhancedError.cause = error.cause || error;
-			throw enhancedError;
-		}
-
 		throw error;
 	}
 }
@@ -226,22 +216,9 @@ export async function createUndiciDispatcher(): Promise<
 			bodyTimeout: 30000, // 30s body timeout (increased from 20s)
 			keepAliveTimeout: 4000,
 		});
-	} catch (error) {
-		// Log if dispatcher creation fails (but don't throw)
-		console.log(
-			JSON.stringify({
-				type: "dispatcher_creation_failed",
-				error: error instanceof Error ? error.message : String(error),
-				timestamp: new Date().toISOString(),
-			}),
-		);
+	} catch {
 		return undefined;
 	}
-}
-
-// Generate request ID
-export function generateRequestId(): string {
-	return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
 }
 
 // Generic proxy function
@@ -253,7 +230,6 @@ export interface ProxyOptions {
 	methods: string;
 	shouldRetry?: (response: Response) => boolean;
 	maxRetries?: number;
-	requestId?: string;
 }
 
 export async function proxyRequest(options: ProxyOptions): Promise<Response> {
@@ -265,27 +241,12 @@ export async function proxyRequest(options: ProxyOptions): Promise<Response> {
 		methods,
 		shouldRetry,
 		maxRetries = 2,
-		requestId = generateRequestId(),
 	} = options;
 
 	// Create dispatcher for Node runtime (will be undefined in Bun/Edge)
 	const dispatcher = await createUndiciDispatcher();
 
 	const isIdempotent = method === "GET";
-
-	// Log dispatcher status for debugging
-	console.log(
-		JSON.stringify({
-			type: "proxy_request_start",
-			requestId,
-			dispatcherCreated: dispatcher !== undefined,
-			endpointsCount: endpoints.length,
-			method,
-			isIdempotent,
-			maxRetries,
-			timestamp: new Date().toISOString(),
-		}),
-	);
 	const totalAttempts = endpoints.length * (isIdempotent ? maxRetries + 1 : 1);
 	let attemptNumber = 0;
 	let lastError: Error | null = null;
@@ -295,22 +256,8 @@ export async function proxyRequest(options: ProxyOptions): Promise<Response> {
 	for (const endpoint of endpoints) {
 		for (let retry = 0; retry <= (isIdempotent ? maxRetries : 0); retry++) {
 			attemptNumber++;
-			const attemptStart = performance.now();
 
 			try {
-				// Log attempt start
-				console.log(
-					JSON.stringify({
-						type: "proxy_attempt_start",
-						requestId,
-						endpoint,
-						attempt: attemptNumber,
-						retry,
-						method,
-						timestamp: new Date().toISOString(),
-					}),
-				);
-
 				// Make request with timing
 				const result = await fetchWithTiming({
 					url: endpoint,
@@ -325,24 +272,6 @@ export async function proxyRequest(options: ProxyOptions): Promise<Response> {
 					timeoutMs: 30000, // 30s overall timeout
 					dispatcher,
 				});
-
-				const elapsedMs = performance.now() - attemptStart;
-
-				// Log successful response
-				console.log(
-					JSON.stringify({
-						type: "proxy_attempt_success",
-						requestId,
-						endpoint,
-						attempt: attemptNumber,
-						retry,
-						ttfbMs: result.ttfbMs,
-						totalMs: result.totalMs,
-						status: result.status,
-						elapsedMs: Math.round(elapsedMs * 100) / 100,
-						timestamp: new Date().toISOString(),
-					}),
-				);
 
 				// Create a Response-like object for shouldRetry callback
 				const mockResponse = new Response(result.body, {
@@ -370,38 +299,7 @@ export async function proxyRequest(options: ProxyOptions): Promise<Response> {
 				// Success - return immediately
 				return createProxyResponse(result.body, result.status, methods);
 			} catch (error) {
-				const elapsedMs = performance.now() - attemptStart;
-				const errorName =
-					error instanceof Error ? error.constructor.name : "UnknownError";
-				const errorMessage =
-					error instanceof Error ? error.message : String(error);
-
 				lastError = error instanceof Error ? error : new Error(String(error));
-
-				// Log error with enhanced details
-				const errorDetails: Record<string, unknown> = {
-					type: "proxy_attempt_error",
-					requestId,
-					endpoint,
-					attempt: attemptNumber,
-					retry,
-					errorName,
-					errorMessage: errorMessage.substring(0, 200), // Limit message length
-					elapsedMs: Math.round(elapsedMs * 100) / 100,
-					timestamp: new Date().toISOString(),
-				};
-
-				// Add error stack trace (first 500 chars) for debugging
-				if (lastError instanceof Error && lastError.stack) {
-					errorDetails.errorStack = lastError.stack.substring(0, 500);
-				}
-
-				// Add cause if available
-				if (lastError instanceof Error && lastError.cause) {
-					errorDetails.errorCause = String(lastError.cause).substring(0, 200);
-				}
-
-				console.log(JSON.stringify(errorDetails));
 
 				// If this is the last attempt, throw
 				if (attemptNumber >= totalAttempts) {
