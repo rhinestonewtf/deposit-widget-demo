@@ -147,6 +147,9 @@ export async function proxyRequest(options: ProxyOptions): Promise<Response> {
 
 	for (const endpoint of endpoints) {
 		try {
+			console.log(
+				`[${new Date().toISOString()}] [api] proxyRequest: ${endpoint}`,
+			);
 			const response = await fetch(endpoint, {
 				method,
 				headers: {
@@ -155,6 +158,9 @@ export async function proxyRequest(options: ProxyOptions): Promise<Response> {
 				},
 				...(body && { body }),
 			});
+			console.log(
+				`[${new Date().toISOString()}] [api] proxyResponse ${endpoint}`,
+			);
 
 			// Check if we should retry with next endpoint
 			if (shouldRetry?.(response)) {
