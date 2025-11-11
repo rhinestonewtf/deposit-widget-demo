@@ -126,7 +126,7 @@ interface Requirement {
 }
 
 const signerPk = useStorage<Hex>(
-  "rhinestone:temporary-signer-key",
+  "rhinestone.temporarySignerKey",
   generatePrivateKey()
 );
 
