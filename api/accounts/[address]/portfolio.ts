@@ -7,7 +7,7 @@ import {
 	getApiKey,
 	handleCorsPreflight,
 	proxyRequest,
-} from "../../utils";
+} from "../../utils.js";
 
 function extractChainIdsFromQueryParams(url: URL): number[] {
 	const chainIds: number[] = [];

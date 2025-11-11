@@ -7,7 +7,7 @@ import {
 	getApiKey,
 	handleCorsPreflight,
 	proxyRequest,
-} from "../utils";
+} from "../utils.js";
 
 function extractChainIdsFromIntentInput(body: unknown): number[] {
 	const chainIds: number[] = [];

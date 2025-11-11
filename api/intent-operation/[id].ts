@@ -6,7 +6,7 @@ import {
 	getApiKey,
 	handleCorsPreflight,
 	proxyRequest,
-} from "../utils";
+} from "../utils.js";
 
 export default {
 	async fetch(request: Request) {

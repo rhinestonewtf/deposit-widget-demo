@@ -7,7 +7,7 @@ import {
 	getApiKey,
 	handleCorsPreflight,
 	proxyRequest,
-} from "./utils";
+} from "./utils.js";
 
 function extractChainIdsFromSignedIntentOp(body: unknown): number[] {
 	const chainIds: number[] = [];
