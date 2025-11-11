@@ -189,12 +189,24 @@ export async function fetchWithTiming(
 		};
 	} catch (error) {
 		clearTimeout(timeoutId);
+		const elapsedMs = performance.now() - t0;
+
 		if (error instanceof Error && error.name === "AbortError") {
-			const elapsedMs = performance.now() - t0;
 			throw new Error(
 				`Request timeout after ${Math.round(elapsedMs)}ms: ${url}`,
 			);
 		}
+
+		// Enhance error with timing information
+		if (error instanceof Error) {
+			const enhancedError = new Error(
+				`${error.message} (after ${Math.round(elapsedMs)}ms)`,
+			);
+			enhancedError.name = error.name;
+			enhancedError.cause = error.cause || error;
+			throw enhancedError;
+		}
+
 		throw error;
 	}
 }
@@ -208,13 +220,21 @@ export async function createUndiciDispatcher(): Promise<
 		const { Agent } = await import("undici");
 		return new Agent({
 			connect: {
-				timeout: 3000, // 3s connection timeout
+				timeout: 5000, // 5s connection timeout (increased from 3s)
 			},
-			headersTimeout: 10000, // 10s headers timeout
-			bodyTimeout: 20000, // 20s body timeout
+			headersTimeout: 25000, // 25s headers timeout (increased from 10s to handle slow upstream)
+			bodyTimeout: 30000, // 30s body timeout (increased from 20s)
 			keepAliveTimeout: 4000,
 		});
-	} catch {
+	} catch (error) {
+		// Log if dispatcher creation fails (but don't throw)
+		console.log(
+			JSON.stringify({
+				type: "dispatcher_creation_failed",
+				error: error instanceof Error ? error.message : String(error),
+				timestamp: new Date().toISOString(),
+			}),
+		);
 		return undefined;
 	}
 }
@@ -252,6 +272,20 @@ export async function proxyRequest(options: ProxyOptions): Promise<Response> {
 	const dispatcher = await createUndiciDispatcher();
 
 	const isIdempotent = method === "GET";
+
+	// Log dispatcher status for debugging
+	console.log(
+		JSON.stringify({
+			type: "proxy_request_start",
+			requestId,
+			dispatcherCreated: dispatcher !== undefined,
+			endpointsCount: endpoints.length,
+			method,
+			isIdempotent,
+			maxRetries,
+			timestamp: new Date().toISOString(),
+		}),
+	);
 	const totalAttempts = endpoints.length * (isIdempotent ? maxRetries + 1 : 1);
 	let attemptNumber = 0;
 	let lastError: Error | null = null;
@@ -344,20 +378,30 @@ export async function proxyRequest(options: ProxyOptions): Promise<Response> {
 
 				lastError = error instanceof Error ? error : new Error(String(error));
 
-				// Log error
-				console.log(
-					JSON.stringify({
-						type: "proxy_attempt_error",
-						requestId,
-						endpoint,
-						attempt: attemptNumber,
-						retry,
-						errorName,
-						errorMessage: errorMessage.substring(0, 200), // Limit message length
-						elapsedMs: Math.round(elapsedMs * 100) / 100,
-						timestamp: new Date().toISOString(),
-					}),
-				);
+				// Log error with enhanced details
+				const errorDetails: Record<string, unknown> = {
+					type: "proxy_attempt_error",
+					requestId,
+					endpoint,
+					attempt: attemptNumber,
+					retry,
+					errorName,
+					errorMessage: errorMessage.substring(0, 200), // Limit message length
+					elapsedMs: Math.round(elapsedMs * 100) / 100,
+					timestamp: new Date().toISOString(),
+				};
+
+				// Add error stack trace (first 500 chars) for debugging
+				if (lastError instanceof Error && lastError.stack) {
+					errorDetails.errorStack = lastError.stack.substring(0, 500);
+				}
+
+				// Add cause if available
+				if (lastError instanceof Error && lastError.cause) {
+					errorDetails.errorCause = String(lastError.cause).substring(0, 200);
+				}
+
+				console.log(JSON.stringify(errorDetails));
 
 				// If this is the last attempt, throw
 				if (attemptNumber >= totalAttempts) {
