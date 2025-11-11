@@ -1,3 +1,4 @@
+import type { Dispatcher } from "undici";
 import type { HeadersInit } from "undici-types";
 
 // Testnet chain IDs
@@ -129,6 +130,100 @@ export function createProxyResponse(
 	});
 }
 
+// Fetch wrapper with timing instrumentation
+export interface FetchTimingResult {
+	ttfbMs: number;
+	totalMs: number;
+	status: number;
+	body: string;
+}
+
+export interface FetchWrapperOptions {
+	url: string;
+	init?: RequestInit;
+	timeoutMs?: number;
+	dispatcher?: Dispatcher;
+}
+
+export async function fetchWithTiming(
+	options: FetchWrapperOptions,
+): Promise<FetchTimingResult> {
+	const { url, init = {}, timeoutMs = 30000, dispatcher } = options;
+	const t0 = performance.now();
+
+	// Create AbortController for overall timeout
+	const abortController = new AbortController();
+	const timeoutId = setTimeout(() => {
+		abortController.abort();
+	}, timeoutMs);
+
+	try {
+		// Merge abort signal
+		const signal = abortController.signal;
+		const mergedInit: RequestInit = {
+			...init,
+			signal,
+		};
+
+		// Add dispatcher for Node runtime (Undici)
+		if (dispatcher && typeof globalThis.fetch !== "undefined") {
+			// @ts-expect-error - dispatcher is a Node.js/Undici feature
+			mergedInit.dispatcher = dispatcher;
+		}
+
+		// Make the request
+		const response = await fetch(url, mergedInit);
+		const ttfbMs = performance.now() - t0;
+
+		// Read the body
+		const body = await response.text();
+		const totalMs = performance.now() - t0;
+
+		clearTimeout(timeoutId);
+
+		return {
+			ttfbMs: Math.round(ttfbMs * 100) / 100,
+			totalMs: Math.round(totalMs * 100) / 100,
+			status: response.status,
+			body,
+		};
+	} catch (error) {
+		clearTimeout(timeoutId);
+		if (error instanceof Error && error.name === "AbortError") {
+			const elapsedMs = performance.now() - t0;
+			throw new Error(
+				`Request timeout after ${Math.round(elapsedMs)}ms: ${url}`,
+			);
+		}
+		throw error;
+	}
+}
+
+// Create Undici dispatcher with explicit timeouts (for Node runtime)
+export async function createUndiciDispatcher(): Promise<
+	Dispatcher | undefined
+> {
+	try {
+		// Dynamic import to avoid issues in Bun/Edge runtimes
+		const { Agent } = await import("undici");
+		return new Agent({
+			connect: {
+				timeout: 3000, // 3s connection timeout
+			},
+			headersTimeout: 10000, // 10s headers timeout
+			bodyTimeout: 20000, // 20s body timeout
+			keepAliveTimeout: 4000,
+		});
+	} catch {
+		return undefined;
+	}
+}
+
+// Generate request ID
+export function generateRequestId(): string {
+	return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+}
+
 // Generic proxy function
 export interface ProxyOptions {
 	endpoints: string[];
@@ -137,54 +232,154 @@ export interface ProxyOptions {
 	body?: string;
 	methods: string;
 	shouldRetry?: (response: Response) => boolean;
+	maxRetries?: number;
+	requestId?: string;
 }
 
 export async function proxyRequest(options: ProxyOptions): Promise<Response> {
-	const { endpoints, method, apiKey, body, methods, shouldRetry } = options;
+	const {
+		endpoints,
+		method,
+		apiKey,
+		body,
+		methods,
+		shouldRetry,
+		maxRetries = 2,
+		requestId = generateRequestId(),
+	} = options;
 
+	// Create dispatcher for Node runtime (will be undefined in Bun/Edge)
+	const dispatcher = await createUndiciDispatcher();
+
+	const isIdempotent = method === "GET";
+	const totalAttempts = endpoints.length * (isIdempotent ? maxRetries + 1 : 1);
+	let attemptNumber = 0;
 	let lastError: Error | null = null;
 	let lastResponse: Response | null = null;
 
+	// Try each endpoint with retries
 	for (const endpoint of endpoints) {
-		try {
-			console.log(
-				`[${new Date().toISOString()}] [api] proxyRequest: ${endpoint}`,
-			);
-			const response = await fetch(endpoint, {
-				method,
-				headers: {
-					"Content-Type": "application/json",
-					"x-api-key": apiKey,
-				},
-				...(body && { body }),
-			});
-			console.log(
-				`[${new Date().toISOString()}] [api] proxyResponse ${endpoint}`,
-			);
+		for (let retry = 0; retry <= (isIdempotent ? maxRetries : 0); retry++) {
+			attemptNumber++;
+			const attemptStart = performance.now();
 
-			// Check if we should retry with next endpoint
-			if (shouldRetry?.(response)) {
-				lastResponse = response;
-				continue;
-			}
+			try {
+				// Log attempt start
+				console.log(
+					JSON.stringify({
+						type: "proxy_attempt_start",
+						requestId,
+						endpoint,
+						attempt: attemptNumber,
+						retry,
+						method,
+						timestamp: new Date().toISOString(),
+					}),
+				);
 
-			// Return the response
-			const data = await response.text();
-			return createProxyResponse(data, response.status, methods);
-		} catch (error) {
-			lastError = error instanceof Error ? error : new Error(String(error));
-			if (endpoints.indexOf(endpoint) === endpoints.length - 1) {
-				// Last endpoint, throw error
-				throw lastError;
+				// Make request with timing
+				const result = await fetchWithTiming({
+					url: endpoint,
+					init: {
+						method,
+						headers: {
+							"Content-Type": "application/json",
+							"x-api-key": apiKey,
+						},
+						...(body && { body }),
+					},
+					timeoutMs: 30000, // 30s overall timeout
+					dispatcher,
+				});
+
+				const elapsedMs = performance.now() - attemptStart;
+
+				// Log successful response
+				console.log(
+					JSON.stringify({
+						type: "proxy_attempt_success",
+						requestId,
+						endpoint,
+						attempt: attemptNumber,
+						retry,
+						ttfbMs: result.ttfbMs,
+						totalMs: result.totalMs,
+						status: result.status,
+						elapsedMs: Math.round(elapsedMs * 100) / 100,
+						timestamp: new Date().toISOString(),
+					}),
+				);
+
+				// Create a Response-like object for shouldRetry callback
+				const mockResponse = new Response(result.body, {
+					status: result.status,
+					statusText:
+						result.status >= 200 && result.status < 300 ? "OK" : "Error",
+				});
+
+				// Check if we should retry
+				if (shouldRetry?.(mockResponse)) {
+					lastResponse = mockResponse;
+					// Continue to next retry or endpoint
+					if (retry < maxRetries) {
+						// Exponential backoff with jitter
+						const backoffMs = Math.min(
+							1000 * 2 ** retry + Math.random() * 1000,
+							5000,
+						);
+						await new Promise((resolve) => setTimeout(resolve, backoffMs));
+						continue;
+					}
+					continue;
+				}
+
+				// Success - return immediately
+				return createProxyResponse(result.body, result.status, methods);
+			} catch (error) {
+				const elapsedMs = performance.now() - attemptStart;
+				const errorName =
+					error instanceof Error ? error.constructor.name : "UnknownError";
+				const errorMessage =
+					error instanceof Error ? error.message : String(error);
+
+				lastError = error instanceof Error ? error : new Error(String(error));
+
+				// Log error
+				console.log(
+					JSON.stringify({
+						type: "proxy_attempt_error",
+						requestId,
+						endpoint,
+						attempt: attemptNumber,
+						retry,
+						errorName,
+						errorMessage: errorMessage.substring(0, 200), // Limit message length
+						elapsedMs: Math.round(elapsedMs * 100) / 100,
+						timestamp: new Date().toISOString(),
+					}),
+				);
+
+				// If this is the last attempt, throw
+				if (attemptNumber >= totalAttempts) {
+					throw lastError;
+				}
+
+				// Exponential backoff with jitter before retry
+				if (retry < maxRetries) {
+					const backoffMs = Math.min(
+						1000 * 2 ** retry + Math.random() * 1000,
+						5000,
+					);
+					await new Promise((resolve) => setTimeout(resolve, backoffMs));
+				}
 			}
-			// Try next endpoint
 		}
 	}
 
 	// If we got here and have a last response, return it
 	if (lastResponse) {
-		const data = await lastResponse.text();
-		return createProxyResponse(data, lastResponse.status, methods);
+		const bodyText = await lastResponse.text();
+		return createProxyResponse(bodyText, lastResponse.status, methods);
 	}
 
 	throw lastError || new Error("Failed to proxy request");

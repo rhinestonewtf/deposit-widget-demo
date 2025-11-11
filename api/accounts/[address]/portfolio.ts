@@ -4,10 +4,13 @@ import {
 	createMethodNotAllowedResponse,
 	createProxyErrorResponse,
 	detectEnvironmentFromChainIds,
+	generateRequestId,
 	getApiKey,
 	handleCorsPreflight,
 	proxyRequest,
 } from "../../utils.js";
+
+export const maxDuration = 60;
 
 function extractChainIdsFromQueryParams(url: URL): number[] {
 	const chainIds: number[] = [];
@@ -94,12 +97,16 @@ export default {
 				return endpointUrl.toString();
 			});
 
+			// Generate request ID for logging
+			const requestId = generateRequestId();
+
 			// Proxy the request
 			return await proxyRequest({
 				endpoints,
 				method: "GET",
 				apiKey,
 				methods,
+				requestId,
 				shouldRetry: (response) => {
 					// Retry on server errors (500+) if we have multiple endpoints
 					// Otherwise return successful responses (200-299) or 404

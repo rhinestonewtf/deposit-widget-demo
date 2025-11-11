@@ -3,10 +3,13 @@ import {
 	createApiKeyMissingResponse,
 	createMethodNotAllowedResponse,
 	createProxyErrorResponse,
+	generateRequestId,
 	getApiKey,
 	handleCorsPreflight,
 	proxyRequest,
 } from "../utils.js";
+
+export const maxDuration = 60;
 
 export default {
 	async fetch(request: Request) {
@@ -48,12 +51,16 @@ export default {
 			// Try both endpoints since we can't detect env from GET request params
 			const endpoints = buildEndpoints(`/intent-operation/${id}`, null);
 
+			// Generate request ID for logging
+			const requestId = generateRequestId();
+
 			// Proxy the request
 			return await proxyRequest({
 				endpoints,
 				method: "GET",
 				apiKey,
 				methods,
+				requestId,
 				shouldRetry: (response) => {
 					// If 404, try next endpoint
 					if (response.status === 404) {

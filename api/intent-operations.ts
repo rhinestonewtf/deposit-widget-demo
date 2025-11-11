@@ -4,10 +4,13 @@ import {
 	createMethodNotAllowedResponse,
 	createProxyErrorResponse,
 	detectEnvironmentFromChainIds,
+	generateRequestId,
 	getApiKey,
 	handleCorsPreflight,
 	proxyRequest,
 } from "./utils.js";
+
+export const maxDuration = 60;
 
 function extractChainIdsFromSignedIntentOp(body: unknown): number[] {
 	const chainIds: number[] = [];
@@ -79,6 +82,9 @@ export default {
 			// Build endpoints based on detected environment
 			const endpoints = buildEndpoints("/intent-operations", env);
 
+			// Generate request ID for logging
+			const requestId = generateRequestId();
+
 			// Proxy the request
 			return await proxyRequest({
 				endpoints,
@@ -86,6 +92,7 @@ export default {
 				apiKey,
 				body: bodyText,
 				methods,
+				requestId,
 				shouldRetry: (response) => {
 					// Retry on server errors (500, 502, 503) if we have multiple endpoints
 					return (
