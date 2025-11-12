@@ -320,11 +320,7 @@ async function prepareTransactionData(companionAccount: RhinestoneAccount) {
         amount: outputToken.amount,
       },
     ],
-    recipient: {
-      address: recipient,
-      accountType: "EOA",
-      setupOps: [],
-    },
+    recipient,
     signers: {
       type: "owner",
       kind: "ecdsa",
