@@ -20,7 +20,9 @@
       <div class="route-container">
         <div
           class="path"
-          v-if="intentOp && inputTokens.length > 0 && outputToken"
+          v-if="
+            intentOp && inputTokens.length > 0 && outputToken && !isQuoteLoading
+          "
         >
           <div class="inputs">
             <div class="input-tokens">
@@ -95,6 +97,11 @@
               </div>
             </div>
           </div>
+        </div>
+        <div v-if="isQuoteLoading" class="loading-animation">
+          <div class="loading-dot"></div>
+          <div class="loading-dot"></div>
+          <div class="loading-dot"></div>
         </div>
         <button class="custom-route-button" @click="showBalances = true">
           Custom Route
@@ -198,6 +205,7 @@ async function fetchQuote(): Promise<void> {
   if (isAmountZeroish.value) {
     return;
   }
+  isQuoteLoading.value = true;
   const amount = inputAmount.value;
 
   const quote = await rhinestoneService.getQuote(
@@ -529,6 +537,38 @@ function formatTokenAmount(
       }
     }
 
+    .loading-animation {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      padding: 24px;
+      height: 60px;
+      position: relative;
+
+      .loading-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background-color: rgb(43, 156, 255);
+        position: relative;
+        animation: wave-dot 1.2s ease-in-out infinite;
+        will-change: transform;
+
+        &:nth-child(1) {
+          animation-delay: 0s;
+        }
+
+        &:nth-child(2) {
+          animation-delay: 0.2s;
+        }
+
+        &:nth-child(3) {
+          animation-delay: 0.4s;
+        }
+      }
+    }
+
     .custom-route-button {
       background: transparent;
       color: #6b6b6b;
@@ -566,5 +606,17 @@ function formatTokenAmount(
 
 .panel:focus {
   outline: none;
+}
+</style>
+
+<style>
+@keyframes wave-dot {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
 }
 </style>
