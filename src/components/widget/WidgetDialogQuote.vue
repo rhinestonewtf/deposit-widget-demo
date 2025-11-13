@@ -127,7 +127,13 @@
 <script setup lang="ts">
 import { chainRegistry, chains } from "@rhinestone/shared-configs";
 import { useIntervalFn, watchDebounced } from "@vueuse/core";
-import { type Address, type Chain, formatUnits, parseUnits } from "viem";
+import {
+  type Address,
+  type Chain,
+  formatUnits,
+  parseUnits,
+  zeroAddress,
+} from "viem";
 import { computed, onMounted, ref, watch } from "vue";
 
 import RhinestoneService, { type ApiError } from "../../services/rhinestone";
@@ -208,6 +214,21 @@ async function fetchQuote(): Promise<void> {
   isQuoteLoading.value = true;
   const amount = inputAmount.value;
 
+  // Convert native to wrapped for path selection
+  // Because Permit2 only supports ERC-20
+  let routeToken = inputToken.value;
+  if (inputToken.value?.toLowerCase() === zeroAddress && inputChain.value) {
+    const chainEntry = chainRegistry[inputChain.value.id.toString()];
+    if (chainEntry) {
+      const wethToken = chainEntry.tokens.find(
+        (t) => t.symbol === "WETH" || t.symbol === "WPOL"
+      );
+      if (wethToken) {
+        routeToken = wethToken.address as Address;
+      }
+    }
+  }
+
   const quote = await rhinestoneService.getQuote(
     userAddress,
     chain,
@@ -215,7 +236,7 @@ async function fetchQuote(): Promise<void> {
     inputAmount.value,
     recipient,
     inputChain.value || undefined,
-    inputToken.value || undefined
+    routeToken || undefined
   );
   isQuoteLoading.value = false;
 
@@ -244,31 +265,47 @@ async function fetchQuote(): Promise<void> {
   const isSameChain =
     Object.keys(quote.intentCost.tokensSpent).length === 1 &&
     Object.keys(quote.intentCost.tokensSpent)[0] === chain.id.toString();
-  inputTokens.value = isSameChain
-    ? [
-        {
-          chain: chain.id.toString(),
-          address: token,
-          amount: inputAmount.value,
-        },
-      ]
-    : Object.entries(quote.intentCost.tokensSpent).flatMap(
-        ([chainId, tokens]) =>
-          Object.entries(tokens).map(([tokenAddress, tokenData]) => ({
-            chain: chainId,
-            address: tokenAddress as Address,
-            amount: BigInt(tokenData.unlocked),
-          }))
-      );
+  const isSameToken =
+    Object.keys(quote.intentCost.tokensSpent).length === 1 &&
+    // biome-ignore lint/style/noNonNullAssertion: <explanation>
+    Object.keys(Object.values(quote.intentCost.tokensSpent)[0]!).length === 1 &&
+    // biome-ignore lint/style/noNonNullAssertion: <explanation>
+    Object.keys(
+      // biome-ignore lint/style/noNonNullAssertion: <explanation>
+      Object.values(quote.intentCost.tokensSpent)[0]!
+    )[0]!.toLowerCase() === token.toLowerCase();
+  inputTokens.value =
+    isSameChain && isSameToken
+      ? [
+          {
+            chain: chain.id.toString(),
+            address: token,
+            amount: inputAmount.value,
+          },
+        ]
+      : Object.entries(quote.intentCost.tokensSpent).flatMap(
+          ([chainId, tokens]) =>
+            Object.entries(tokens).map(([tokenAddress, tokenData]) => ({
+              chain: chainId,
+              address: tokenAddress as Address,
+              amount: BigInt(tokenData.unlocked),
+            }))
+        );
   intentOp.value = quote.intentOp;
   tokensSpent.value = Object.entries(quote.intentCost.tokensSpent).flatMap(
     ([chainId, tokens]) =>
       Object.entries(tokens).map(([tokenAddress, tokenData]) => ({
         chain: chainId,
-        address: tokenAddress as Address,
+        // Unwrap back to native
+        address:
+          routeToken !== inputToken.value
+            ? zeroAddress
+            : (tokenAddress as Address),
         amount: BigInt(tokenData.unlocked),
       }))
   );
+  console.log("routeToken", routeToken, token, routeToken !== token);
+  console.log("tokensSpent", tokensSpent.value);
 }
 
 watch([amount, inputChain, inputToken], ([amountValue]) => {
@@ -326,24 +363,6 @@ function handleTokenSelect(
     inputChain.value = null;
     showBalances.value = false;
     return;
-  }
-
-  // Convert ETH (zero address) to WETH
-  if (
-    selectedToken.toLowerCase() === "0x0000000000000000000000000000000000000000"
-  ) {
-    const chainEntry = chainRegistry[selectedChain.id.toString()];
-    if (chainEntry) {
-      const wethToken = chainEntry.tokens.find(
-        (t) => t.symbol === "WETH" || t.symbol === "WPOL"
-      );
-      if (wethToken) {
-        inputToken.value = wethToken.address as Address;
-        inputChain.value = selectedChain;
-        showBalances.value = false;
-        return;
-      }
-    }
   }
 
   inputToken.value = selectedToken;

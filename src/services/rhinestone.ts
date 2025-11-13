@@ -254,10 +254,6 @@ class Service {
 					[inputChain.id as SupportedChain]: [inputToken],
 				},
 			};
-		} else {
-			intentInput.accountAccessList = {
-				tokens: ["USDC"],
-			};
 		}
 
 		const response = await fetch(`${this.baseUrl}/intents/route`, {

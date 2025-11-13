@@ -91,6 +91,7 @@ import { chainRegistry } from "@rhinestone/shared-configs";
 import { useStorage } from "@vueuse/core";
 import {
   readContract,
+  sendTransaction,
   switchChain,
   waitForTransactionReceipt,
   writeContract,
@@ -106,6 +107,7 @@ import {
   parseEther,
   parseUnits,
   size,
+  zeroAddress,
 } from "viem";
 import { generatePrivateKey } from "viem/accounts";
 import { computed, onMounted, ref } from "vue";
@@ -174,8 +176,11 @@ const requirements = computed<Requirement[]>(() => {
   const isSameChain = tokensSpent.every(
     (token) => token.chain === outputToken.chain
   );
+  const isSameToken = tokensSpent.every(
+    (token) => token.address.toLowerCase() === outputToken.address.toLowerCase()
+  );
 
-  if (isSameChain) {
+  if (isSameChain && isSameToken) {
     // For same-chain, show just the transfer action
     return [
       {
@@ -187,7 +192,7 @@ const requirements = computed<Requirement[]>(() => {
     ];
   }
 
-  // For cross-chain, show token transfers to companion account
+  // For cross-chain or different tokens, show token transfers to companion account
   return tokensSpent.map((token) => ({
     chain: token.chain,
     address: token.address,
@@ -243,29 +248,43 @@ async function transferTokenToAccount(
     const tokenAmount = token.amount + priceImpactBuffer + deploymentBuffer;
 
     // Check the existing token balance of the companion account
-    const existingBalance = await readContract(wagmiConfig, {
-      address: token.address,
-      abi: erc20Abi,
-      functionName: "balanceOf",
-      args: [companionAccountAddress],
-    });
+    const existingBalance =
+      token.address === zeroAddress
+        ? await publicClient.getBalance({ address: companionAccountAddress })
+        : await readContract(wagmiConfig, {
+            address: token.address,
+            abi: erc20Abi,
+            functionName: "balanceOf",
+            args: [companionAccountAddress],
+          });
 
     const transferAmount =
       existingBalance > tokenAmount ? 0n : tokenAmount - existingBalance;
 
     if (transferAmount > 0n) {
-      // Make the transfer - this can throw if user rejects
-      const transferHash = await writeContract(wagmiConfig, {
-        address: token.address,
-        abi: erc20Abi,
-        functionName: "transfer",
-        args: [companionAccountAddress, transferAmount],
-      });
-
-      await waitForTransactionReceipt(wagmiConfig, {
-        hash: transferHash,
-        chainId: chain.id,
-      });
+      if (token.address === zeroAddress) {
+        // Native transfer
+        const transferHash = await sendTransaction(wagmiConfig, {
+          to: companionAccountAddress,
+          value: transferAmount,
+        });
+        await waitForTransactionReceipt(wagmiConfig, {
+          hash: transferHash,
+          chainId: chain.id,
+        });
+      } else {
+        // Make the transfer - this can throw if user rejects
+        const transferHash = await writeContract(wagmiConfig, {
+          address: token.address,
+          abi: erc20Abi,
+          functionName: "transfer",
+          args: [companionAccountAddress, transferAmount],
+        });
+        await waitForTransactionReceipt(wagmiConfig, {
+          hash: transferHash,
+          chainId: chain.id,
+        });
+      }
 
       // Wait for a few seconds for the balance to be indexed
       await sleep(5 * 1000);
@@ -386,8 +405,11 @@ async function executeNextStep(): Promise<void> {
   const isSameChain = tokensSpent.every(
     (token) => token.chain === outputToken.chain
   );
+  const isSameToken = tokensSpent.every(
+    (token) => token.address.toLowerCase() === outputToken.address.toLowerCase()
+  );
 
-  if (isSameChain) {
+  if (isSameChain && isSameToken) {
     // For same-chain, execute the single transfer step
     if (currentStep.value === 0) {
       const success = await executeDirectTransfer();
@@ -401,7 +423,7 @@ async function executeNextStep(): Promise<void> {
     return;
   }
 
-  // For cross-chain deposits
+  // For cross-chain or different tokens, deposit
   if (currentStep.value === 0) {
     // First step: create companion account
     try {
@@ -535,8 +557,10 @@ function getRequirementStep(requirementIndex: number): number {
   const isSameChain = tokensSpent.every(
     (token) => token.chain === outputToken.chain
   );
-
-  if (isSameChain) {
+  const isSameToken = tokensSpent.every(
+    (token) => token.address.toLowerCase() === outputToken.address.toLowerCase()
+  );
+  if (isSameChain && isSameToken) {
     return requirementIndex;
   }
 

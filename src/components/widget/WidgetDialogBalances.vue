@@ -124,11 +124,6 @@ async function fetchBalances(): Promise<void> {
       for (const chainBalance of tokenPortfolio.chains) {
         const totalBalance = chainBalance.locked + chainBalance.unlocked;
 
-        // Skip non USDC balances
-        if (tokenPortfolio.symbol !== "USDC") {
-          continue;
-        }
-
         // Skip if balance is zero
         if (totalBalance === 0n) {
           continue;
