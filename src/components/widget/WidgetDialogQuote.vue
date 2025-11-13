@@ -98,7 +98,7 @@
             </div>
           </div>
         </div>
-        <div v-if="isQuoteLoading" class="loading-animation">
+        <div v-show="isQuoteLoading" class="loading-animation">
           <div class="loading-dot"></div>
           <div class="loading-dot"></div>
           <div class="loading-dot"></div>
