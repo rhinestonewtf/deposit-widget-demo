@@ -23,6 +23,8 @@ const TOKENS: Record<string, { label: string; chain: number }> = {
   "0xaf88d065e77c8cC2239327C5EDb3A432268e5831": { label: "USDC", chain: 42161 },
 };
 
+const DEFAULT_RECIPIENT = "0x0197d7FaFCA118Bc91f6854B9A2ceea94E676585";
+
 const ACCENT_PRESETS = [
   { label: "Blue", value: "#0090ff" },
   { label: "Indigo", value: "#6e56cf" },
@@ -47,6 +49,7 @@ export default function Home() {
   const [borderRadius, setBorderRadius] = useState(14);
   const [brandTitle, setBrandTitle] = useState("Shrimp Pay");
   const [hideBranding, setHideBranding] = useState(false);
+  const [recipient, setRecipient] = useState(DEFAULT_RECIPIENT);
   const [prefilledAmount, setPrefilledAmount] = useState("");
   const [showCode, setShowCode] = useState(false);
 
@@ -66,7 +69,7 @@ export default function Home() {
   );
   const onError = useCallback((e: unknown) => console.log("error", e), []);
 
-  const widgetKey = `${targetChain}-${targetToken}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${hideBranding}-${prefilledAmount}`;
+  const widgetKey = `${targetChain}-${targetToken}-${recipient}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${hideBranding}-${prefilledAmount}`;
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
@@ -149,6 +152,16 @@ export default function Home() {
                   onChange={(e) => setPrefilledAmount(e.target.value)}
                   placeholder="Optional"
                   className="text-[13px] font-medium bg-transparent outline-none text-right w-20"
+                  style={{ color: "var(--text-primary)" }}
+                />
+              </Row>
+              <Row label="Recipient">
+                <input
+                  type="text"
+                  value={recipient}
+                  onChange={(e) => setRecipient(e.target.value)}
+                  placeholder="0x..."
+                  className="text-[13px] font-mono bg-transparent outline-none text-right w-[170px]"
                   style={{ color: "var(--text-primary)" }}
                 />
               </Row>
@@ -276,6 +289,7 @@ export default function Home() {
                   code={buildCodeString({
                     targetChain,
                     targetToken,
+                    recipient,
                     themeMode,
                     accent,
                     borderRadius,
@@ -300,6 +314,7 @@ export default function Home() {
                 key={widgetKey}
                 targetChain={targetChain}
                 targetToken={targetToken}
+                recipient={recipient || undefined}
                 amount={prefilledAmount || undefined}
                 theme={{ mode: themeMode, accent, borderRadius }}
                 branding={{
@@ -448,6 +463,7 @@ function Toggle({
 function buildCodeString(cfg: {
   targetChain: number;
   targetToken: string;
+  recipient: string;
   themeMode: string;
   accent: string;
   borderRadius: number;
@@ -460,6 +476,9 @@ function buildCodeString(cfg: {
     `  targetChain={${cfg.targetChain}}`,
     `  targetToken="${cfg.targetToken}"`,
   ];
+  if (cfg.recipient) {
+    lines.push(`  recipient="${cfg.recipient}"`);
+  }
   if (cfg.prefilledAmount) {
     lines.push(`  amount="${cfg.prefilledAmount}"`);
   }
