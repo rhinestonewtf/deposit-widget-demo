@@ -1,19 +1,12 @@
-# Rhinestone Deposit Widget Demo
+# Deposit Widget Demo
 
-A demo application showcasing the Rhinestone Deposit Widget.
+Interactive demo and configurator for the [`@rhinestone/deposit-widget`](https://www.npmjs.com/package/@rhinestone/deposit-widget) SDK.
 
 ## Setup
 
-1. Install dependencies:
-
 ```bash
 bun install
+bun run dev
 ```
 
-2. Set up environment variables in `.env`
-
-3. Start the development server:
-
-```bash
-bun run dev:vercel
-```
+Open [http://localhost:3000](http://localhost:3000).

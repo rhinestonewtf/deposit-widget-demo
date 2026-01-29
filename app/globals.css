@@ -1,0 +1,91 @@
+/* ABOUTME: Global styles and design tokens for the SDK demo app. */
+/* ABOUTME: Mirrors deposit-widget tokens with additions for the showcase layout. */
+
+@import "tailwindcss";
+
+:root {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f9f9fb;
+  --bg-surface: #f0f0f3;
+  --bg-surface-hover: #e8e8ec;
+  --bg-accent: #0090ff;
+  --bg-accent-hover: #0588f0;
+
+  --text-primary: #1a1a1a;
+  --text-secondary: #64646c;
+  --text-tertiary: #8b8b92;
+  --text-accent: #0090ff;
+
+  --border-primary: #e8e8ec;
+  --border-surface: #dcdce0;
+
+  --radius-full: 9999px;
+  --radius-lg: 14px;
+  --radius-md: 10px;
+  --radius-sm: 8px;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-widget: 0 8px 40px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+/* Dot-grid pattern for preview background */
+.dot-grid {
+  background-image: radial-gradient(circle, #d4d4d8 0.75px, transparent 0.75px);
+  background-size: 24px 24px;
+}
+
+/* Glow behind widget preview */
+.widget-glow {
+  position: relative;
+}
+.widget-glow::before {
+  content: "";
+  position: absolute;
+  inset: -40px;
+  background: radial-gradient(ellipse at center, rgba(0, 144, 255, 0.06) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+}
+.widget-glow > * {
+  position: relative;
+  z-index: 1;
+}
+
+
+/* Custom range slider */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--bg-surface);
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--bg-accent);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+/* Scrollbar styling for config panel */
+.config-panel::-webkit-scrollbar {
+  width: 0;
+}
