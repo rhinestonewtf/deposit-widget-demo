@@ -25,6 +25,20 @@ const TOKENS: Record<string, { label: string; chain: number }> = {
 
 const DEFAULT_RECIPIENT = "0x0197d7FaFCA118Bc91f6854B9A2ceea94E676585";
 
+function preventScrollJump(e: React.FocusEvent) {
+  const scrollPositions: [HTMLElement, number, number][] = [];
+  let el: HTMLElement | null = e.target as HTMLElement;
+  while ((el = el.parentElement)) {
+    scrollPositions.push([el, el.scrollTop, el.scrollLeft]);
+  }
+  requestAnimationFrame(() => {
+    for (const [node, top, left] of scrollPositions) {
+      node.scrollTop = top;
+      node.scrollLeft = left;
+    }
+  });
+}
+
 const ACCENT_PRESETS = [
   { label: "Blue", value: "#0090ff" },
   { label: "Indigo", value: "#6e56cf" },
@@ -48,7 +62,8 @@ export default function Home() {
   const [themeMode, setThemeMode] = useState<"light" | "dark">("light");
   const [borderRadius, setBorderRadius] = useState(14);
   const [brandTitle, setBrandTitle] = useState("Shrimp Pay");
-  const [hideBranding, setHideBranding] = useState(false);
+  const [logoUrl, setLogoUrl] = useState("https://github.com/rhinestonewtf.png");
+
   const [recipient, setRecipient] = useState(DEFAULT_RECIPIENT);
   const [prefilledAmount, setPrefilledAmount] = useState("");
   const [waitForFinalTx, setWaitForFinalTx] = useState(false);
@@ -85,7 +100,7 @@ export default function Home() {
   );
   const onError = useCallback((e: unknown) => console.log("error", e), []);
 
-  const widgetKey = `${targetChain}-${targetToken}-${recipient}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${hideBranding}-${prefilledAmount}-${waitForFinalTx}-${background}-${backgroundSecondary}-${surface}-${surfaceHover}-${textPrimary}-${textSecondary}-${textTertiary}-${borderPrimary}-${borderSurface}-${borderAccent}-${buttonBg}-${buttonHover}-${buttonText}-${buttonBorder}`;
+  const widgetKey = `${targetChain}-${targetToken}-${recipient}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${logoUrl}-${prefilledAmount}-${waitForFinalTx}-${background}-${backgroundSecondary}-${surface}-${surfaceHover}-${textPrimary}-${textSecondary}-${textTertiary}-${borderPrimary}-${borderSurface}-${borderAccent}-${buttonBg}-${buttonHover}-${buttonText}-${buttonBorder}`;
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
@@ -218,7 +233,7 @@ export default function Home() {
                     />
                   ))}
                   <label
-                    className="size-[18px] rounded-full shrink-0 flex items-center justify-center cursor-pointer transition-colors"
+                    className="relative size-[18px] rounded-full shrink-0 flex items-center justify-center cursor-pointer transition-colors"
                     style={{ border: "1.5px dashed var(--border-surface)" }}
                     onMouseEnter={(e) =>
                       (e.currentTarget.style.borderColor = "var(--text-tertiary)")
@@ -231,7 +246,9 @@ export default function Home() {
                       type="color"
                       value={accent}
                       onChange={(e) => setAccent(e.target.value)}
-                      className="sr-only"
+                      className="absolute inset-0 opacity-0 pointer-events-none"
+                      tabIndex={-1}
+                      onFocus={preventScrollJump}
                     />
                     <span
                       className="text-[8px] leading-none"
@@ -270,8 +287,15 @@ export default function Home() {
                   style={{ color: "var(--text-primary)" }}
                 />
               </Row>
-              <Row label="Hide branding">
-                <Toggle checked={hideBranding} onChange={setHideBranding} />
+              <Row label="Icon URL">
+                <input
+                  type="text"
+                  value={logoUrl}
+                  onChange={(e) => setLogoUrl(e.target.value)}
+                  placeholder="https://..."
+                  className="text-[13px] font-medium bg-transparent outline-none text-right w-[110px] text-ellipsis overflow-hidden"
+                  style={{ color: "var(--text-primary)" }}
+                />
               </Row>
             </Section>
 
@@ -331,7 +355,6 @@ export default function Home() {
                     accent,
                     borderRadius,
                     brandTitle,
-                    hideBranding,
                     prefilledAmount,
                     background,
                     backgroundSecondary,
@@ -389,7 +412,7 @@ export default function Home() {
                 waitForFinalTx={waitForFinalTx}
                 branding={{
                   title: brandTitle || undefined,
-                  hide: hideBranding,
+                  logoUrl: logoUrl || undefined,
                 }}
 
                 onReady={onReady}
@@ -562,7 +585,7 @@ function ColorRow({
           </button>
         )}
         <label
-          className="size-[22px] rounded-md shrink-0 cursor-pointer transition-all"
+          className="relative size-[22px] rounded-md shrink-0 cursor-pointer transition-all"
           style={{
             background: value || "var(--bg-surface)",
             border: value ? `1.5px solid ${value}` : "1.5px dashed var(--border-surface)",
@@ -573,7 +596,9 @@ function ColorRow({
             type="color"
             value={value || "#000000"}
             onChange={(e) => onChange(e.target.value)}
-            className="sr-only"
+            className="absolute inset-0 opacity-0 pointer-events-none"
+            tabIndex={-1}
+            onFocus={preventScrollJump}
           />
         </label>
       </div>
@@ -620,7 +645,6 @@ function buildCodeString(cfg: {
   accent: string;
   borderRadius: number;
   brandTitle: string;
-  hideBranding: boolean;
   prefilledAmount: string;
   background: string;
   backgroundSecondary: string;
@@ -673,11 +697,8 @@ function buildCodeString(cfg: {
     if (val) themeLines.push(`    ${key}: "${val}",`);
   }
   lines.push(`  theme={{`, ...themeLines, `  }}`);
-  if (cfg.brandTitle || cfg.hideBranding) {
-    const brandLines = [];
-    if (cfg.brandTitle) brandLines.push(`    title: "${cfg.brandTitle}",`);
-    if (cfg.hideBranding) brandLines.push(`    hide: true,`);
-    lines.push(`  branding={{`, ...brandLines, `  }}`);
+  if (cfg.brandTitle) {
+    lines.push(`  branding={{`, `    title: "${cfg.brandTitle}",`, `  }}`);
   }
   lines.push(`/>`);
   return lines.join("\n");

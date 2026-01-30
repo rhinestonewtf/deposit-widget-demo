@@ -4,7 +4,7 @@
     "": {
       "name": "test-sdk-app",
       "dependencies": {
-        "@rhinestone/deposit-widget": "^0.1.1",
+        "@rhinestone/deposit-widget": "^0.1.2",
         "next": "16.1.6",
         "react": "19.2.3",
         "react-dom": "19.2.3",
@@ -182,7 +182,7 @@
 
     "@nolyfill/is-core-module": ["@nolyfill/is-core-module@1.0.39", "", {}, "sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA=="],
 
-    "@rhinestone/deposit-widget": ["@rhinestone/deposit-widget@0.1.1", "", { "peerDependencies": { "react": ">=18" }, "optionalPeers": ["react"] }, "sha512-o31a325XPZraZ730L8I5Wgs3A39X0c3wLmBiu/RMgQydg4rA5dgICgNF0uRTaJk96mCh9vq9ZoO+tiwSGnc7+g=="],
+    "@rhinestone/deposit-widget": ["@rhinestone/deposit-widget@0.1.2", "", { "peerDependencies": { "react": ">=18" }, "optionalPeers": ["react"] }, "sha512-Hcepa/s5HycGjZY6t+cubGlLPeLF/Y+K1nioQVnbOVMoa+yGc1bol2QGq9nCgC+5frit0OmrUStv8kX9W99Lsw=="],
 
     "@rtsao/scc": ["@rtsao/scc@1.1.0", "", {}, "sha512-zt6OdqaDoOnJ1ZYsCYGt9YmWzDXl4vQdKTyJev62gFhRGKdx7mcT54V9KIjg+d2wi9EXsPvAPKe7i7WjfVWB8g=="],
 
