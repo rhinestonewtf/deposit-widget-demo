@@ -171,7 +171,7 @@ export default function Home() {
                   style={{ color: "var(--text-primary)" }}
                 />
               </Row>
-              <Row label="Recipient">
+              <Row label={<LabelWithInfo text="Recipient" tooltip="The address where deposited funds will be sent. Set this to your dApp's receiving address." />}>
                 <input
                   type="text"
                   value={recipient}
@@ -181,7 +181,7 @@ export default function Home() {
                   style={{ color: "var(--text-primary)" }}
                 />
               </Row>
-              <Row label="Wait for final tx">
+              <Row label={<LabelWithInfo text="Wait for final tx" tooltip="For faster transaction confirmation, Rhinestone marks an intent as complete when the solver delivers a pre-confirmation confirming they have put the intent onchain." />}>
                 <Toggle checked={waitForFinalTx} onChange={setWaitForFinalTx} />
               </Row>
             </Section>
@@ -428,11 +428,49 @@ function Section({
   );
 }
 
+function LabelWithInfo({ text, tooltip }: { text: string; tooltip: string }) {
+  const [show, setShow] = useState(false);
+  return (
+    <span className="relative flex items-center gap-1">
+      {text}
+      <button
+        type="button"
+        onClick={() => setShow(!show)}
+        onBlur={() => setShow(false)}
+        className="flex items-center justify-center size-[14px] rounded-full shrink-0 transition-colors"
+        style={{
+          background: show ? "var(--bg-surface-hover)" : "var(--bg-surface)",
+          color: "var(--text-tertiary)",
+        }}
+      >
+        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10" strokeWidth="0" />
+          <text x="12" y="17" textAnchor="middle" fontSize="16" fontWeight="700" fill="currentColor" stroke="none">i</text>
+        </svg>
+      </button>
+      {show && (
+        <div
+          className="absolute left-0 top-full mt-1.5 z-10 w-52 p-2 text-[11px] leading-[1.5] font-normal"
+          style={{
+            background: "var(--bg-primary)",
+            color: "var(--text-secondary)",
+            border: "1px solid var(--border-primary)",
+            borderRadius: "var(--radius-sm)",
+            boxShadow: "var(--shadow-md)",
+          }}
+        >
+          {tooltip}
+        </div>
+      )}
+    </span>
+  );
+}
+
 function Row({
   label,
   children,
 }: {
-  label: string;
+  label: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
