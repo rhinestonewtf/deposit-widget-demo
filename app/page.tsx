@@ -171,13 +171,13 @@ export default function Home() {
                   style={{ color: "var(--text-primary)" }}
                 />
               </Row>
-              <Row label={<LabelWithInfo text="Recipient" tooltip="The address where deposited funds will be sent. Set this to your dApp's receiving address." />}>
+              <Row label={<LabelWithInfo text="Recipient" tooltip="The address where deposited funds are sent. Set this to the user's address when installing the widget." />}>
                 <input
                   type="text"
                   value={recipient}
                   onChange={(e) => setRecipient(e.target.value)}
                   placeholder="0x..."
-                  className="text-[13px] font-mono bg-transparent outline-none text-right w-[170px]"
+                  className="text-[13px] font-mono bg-transparent outline-none text-right w-[110px] text-ellipsis overflow-hidden"
                   style={{ color: "var(--text-primary)" }}
                 />
               </Row>
@@ -259,6 +259,16 @@ export default function Home() {
                     {borderRadius}px
                   </span>
                 </div>
+              </Row>
+              <Row label="Title">
+                <input
+                  type="text"
+                  value={brandTitle}
+                  onChange={(e) => setBrandTitle(e.target.value)}
+                  placeholder="App name"
+                  className="text-[13px] font-medium bg-transparent outline-none text-right w-24"
+                  style={{ color: "var(--text-primary)" }}
+                />
               </Row>
               <Row label="Hide branding">
                 <Toggle checked={hideBranding} onChange={setHideBranding} />
@@ -429,39 +439,30 @@ function Section({
 }
 
 function LabelWithInfo({ text, tooltip }: { text: string; tooltip: string }) {
-  const [show, setShow] = useState(false);
   return (
-    <span className="relative flex items-center gap-1">
+    <span className="relative flex items-center gap-1.5 group/info">
       {text}
-      <button
-        type="button"
-        onClick={() => setShow(!show)}
-        onBlur={() => setShow(false)}
-        className="flex items-center justify-center size-[14px] rounded-full shrink-0 transition-colors"
+      <span
+        className="flex items-center justify-center size-[15px] rounded-full shrink-0"
         style={{
-          background: show ? "var(--bg-surface-hover)" : "var(--bg-surface)",
-          color: "var(--text-tertiary)",
+          background: "var(--border-surface)",
+          color: "var(--text-secondary)",
         }}
       >
-        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="10" strokeWidth="0" />
-          <text x="12" y="17" textAnchor="middle" fontSize="16" fontWeight="700" fill="currentColor" stroke="none">i</text>
-        </svg>
-      </button>
-      {show && (
-        <div
-          className="absolute left-0 top-full mt-1.5 z-10 w-52 p-2 text-[11px] leading-[1.5] font-normal"
-          style={{
-            background: "var(--bg-primary)",
-            color: "var(--text-secondary)",
-            border: "1px solid var(--border-primary)",
-            borderRadius: "var(--radius-sm)",
-            boxShadow: "var(--shadow-md)",
-          }}
-        >
-          {tooltip}
-        </div>
-      )}
+        <span className="text-[9px] font-bold leading-none" style={{ marginTop: "0.5px" }}>i</span>
+      </span>
+      <div
+        className="absolute left-0 top-full mt-1.5 z-10 w-52 p-2 text-[11px] leading-[1.5] font-normal opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-opacity"
+        style={{
+          background: "var(--bg-primary)",
+          color: "var(--text-secondary)",
+          border: "1px solid var(--border-primary)",
+          borderRadius: "var(--radius-sm)",
+          boxShadow: "var(--shadow-md)",
+        }}
+      >
+        {tooltip}
+      </div>
     </span>
   );
 }
