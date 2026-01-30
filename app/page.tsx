@@ -51,7 +51,23 @@ export default function Home() {
   const [hideBranding, setHideBranding] = useState(false);
   const [recipient, setRecipient] = useState(DEFAULT_RECIPIENT);
   const [prefilledAmount, setPrefilledAmount] = useState("");
+  const [waitForFinalTx, setWaitForFinalTx] = useState(false);
   const [showCode, setShowCode] = useState(false);
+
+  const [background, setBackground] = useState("");
+  const [backgroundSecondary, setBackgroundSecondary] = useState("");
+  const [surface, setSurface] = useState("");
+  const [surfaceHover, setSurfaceHover] = useState("");
+  const [textPrimary, setTextPrimary] = useState("");
+  const [textSecondary, setTextSecondary] = useState("");
+  const [textTertiary, setTextTertiary] = useState("");
+  const [borderPrimary, setBorderPrimary] = useState("");
+  const [borderSurface, setBorderSurface] = useState("");
+  const [borderAccent, setBorderAccent] = useState("");
+  const [buttonBg, setButtonBg] = useState("");
+  const [buttonHover, setButtonHover] = useState("");
+  const [buttonText, setButtonText] = useState("");
+  const [buttonBorder, setButtonBorder] = useState("");
 
   const handleChainChange = useCallback((chainId: number) => {
     setTargetChain(chainId);
@@ -69,7 +85,7 @@ export default function Home() {
   );
   const onError = useCallback((e: unknown) => console.log("error", e), []);
 
-  const widgetKey = `${targetChain}-${targetToken}-${recipient}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${hideBranding}-${prefilledAmount}`;
+  const widgetKey = `${targetChain}-${targetToken}-${recipient}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${hideBranding}-${prefilledAmount}-${waitForFinalTx}-${background}-${backgroundSecondary}-${surface}-${surfaceHover}-${textPrimary}-${textSecondary}-${textTertiary}-${borderPrimary}-${borderSurface}-${borderAccent}-${buttonBg}-${buttonHover}-${buttonText}-${buttonBorder}`;
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
@@ -165,6 +181,9 @@ export default function Home() {
                   style={{ color: "var(--text-primary)" }}
                 />
               </Row>
+              <Row label="Wait for final tx">
+                <Toggle checked={waitForFinalTx} onChange={setWaitForFinalTx} />
+              </Row>
             </Section>
 
             {/* Theme */}
@@ -241,23 +260,31 @@ export default function Home() {
                   </span>
                 </div>
               </Row>
-            </Section>
-
-            {/* Branding */}
-            <Section title="Branding">
-              <Row label="Title">
-                <input
-                  type="text"
-                  value={brandTitle}
-                  onChange={(e) => setBrandTitle(e.target.value)}
-                  placeholder="App name"
-                  className="text-[13px] font-medium bg-transparent outline-none text-right w-24"
-                  style={{ color: "var(--text-primary)" }}
-                />
-              </Row>
               <Row label="Hide branding">
                 <Toggle checked={hideBranding} onChange={setHideBranding} />
               </Row>
+            </Section>
+
+            {/* Theme Colors */}
+            <Section title="Colors">
+              <ColorRow label="Background" value={background} onChange={setBackground} />
+              <ColorRow label="Bg Secondary" value={backgroundSecondary} onChange={setBackgroundSecondary} />
+              <ColorRow label="Surface" value={surface} onChange={setSurface} />
+              <ColorRow label="Surface Hover" value={surfaceHover} onChange={setSurfaceHover} />
+              <ColorRow label="Text Primary" value={textPrimary} onChange={setTextPrimary} />
+              <ColorRow label="Text Secondary" value={textSecondary} onChange={setTextSecondary} />
+              <ColorRow label="Text Tertiary" value={textTertiary} onChange={setTextTertiary} />
+              <ColorRow label="Border" value={borderPrimary} onChange={setBorderPrimary} />
+              <ColorRow label="Border Surface" value={borderSurface} onChange={setBorderSurface} />
+              <ColorRow label="Border Accent" value={borderAccent} onChange={setBorderAccent} />
+            </Section>
+
+            {/* Button Colors */}
+            <Section title="Button">
+              <ColorRow label="Background" value={buttonBg} onChange={setButtonBg} />
+              <ColorRow label="Hover" value={buttonHover} onChange={setButtonHover} />
+              <ColorRow label="Text" value={buttonText} onChange={setButtonText} />
+              <ColorRow label="Border" value={buttonBorder} onChange={setButtonBorder} />
             </Section>
 
             {/* Code */}
@@ -296,6 +323,20 @@ export default function Home() {
                     brandTitle,
                     hideBranding,
                     prefilledAmount,
+                    background,
+                    backgroundSecondary,
+                    surface,
+                    surfaceHover,
+                    textPrimary,
+                    textSecondary,
+                    textTertiary,
+                    borderPrimary,
+                    borderSurface,
+                    borderAccent,
+                    buttonBg,
+                    buttonHover,
+                    buttonText,
+                    buttonBorder,
                   })}
                 />
               )}
@@ -305,22 +346,42 @@ export default function Home() {
 
         {/* ── Preview ─────────────────────────────────────── */}
         <main
-          className="flex-1 flex items-center justify-center dot-grid"
+          className="flex-1 flex items-center justify-center dot-grid overflow-hidden"
           style={{ background: "var(--bg-secondary)" }}
         >
           <div className="widget-glow">
-            <div style={{ width: 420, boxShadow: "var(--shadow-widget)", borderRadius: "var(--radius-lg)" }}>
+            <div style={{ width: 420, boxShadow: "var(--shadow-widget)", borderRadius: `${borderRadius}px`, overflow: "hidden" }}>
               <RhinestoneDeposit
                 key={widgetKey}
                 targetChain={targetChain}
                 targetToken={targetToken}
                 recipient={recipient || undefined}
                 amount={prefilledAmount || undefined}
-                theme={{ mode: themeMode, accent, borderRadius }}
+                theme={{
+                  mode: themeMode,
+                  accent,
+                  borderRadius,
+                  ...(background && { background }),
+                  ...(backgroundSecondary && { backgroundSecondary }),
+                  ...(surface && { surface }),
+                  ...(surfaceHover && { surfaceHover }),
+                  ...(textPrimary && { textPrimary }),
+                  ...(textSecondary && { textSecondary }),
+                  ...(textTertiary && { textTertiary }),
+                  ...(borderPrimary && { borderPrimary }),
+                  ...(borderSurface && { borderSurface }),
+                  ...(borderAccent && { borderAccent }),
+                  ...(buttonBg && { buttonBg }),
+                  ...(buttonHover && { buttonHover }),
+                  ...(buttonText && { buttonText }),
+                  ...(buttonBorder && { buttonBorder }),
+                }}
+                waitForFinalTx={waitForFinalTx}
                 branding={{
                   title: brandTitle || undefined,
                   hide: hideBranding,
                 }}
+
                 onReady={onReady}
                 onConnected={onConnected}
                 onDepositComplete={onDepositComplete}
@@ -429,6 +490,58 @@ function Pill({
   );
 }
 
+function ColorRow({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div
+      className="flex items-center justify-between h-[44px] px-3.5"
+      style={{ borderColor: "var(--border-primary)" }}
+    >
+      <span className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
+        {label}
+      </span>
+      <div className="flex items-center gap-2">
+        {value && (
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            className="text-[10px] font-medium px-1.5 py-0.5 transition-colors"
+            style={{
+              borderRadius: "var(--radius-sm)",
+              color: "var(--text-tertiary)",
+              background: "var(--bg-surface)",
+            }}
+          >
+            Reset
+          </button>
+        )}
+        <label
+          className="size-[22px] rounded-md shrink-0 cursor-pointer transition-all"
+          style={{
+            background: value || "var(--bg-surface)",
+            border: value ? `1.5px solid ${value}` : "1.5px dashed var(--border-surface)",
+            boxShadow: value ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+          }}
+        >
+          <input
+            type="color"
+            value={value || "#000000"}
+            onChange={(e) => onChange(e.target.value)}
+            className="sr-only"
+          />
+        </label>
+      </div>
+    </div>
+  );
+}
+
 function Toggle({
   checked,
   onChange,
@@ -470,6 +583,20 @@ function buildCodeString(cfg: {
   brandTitle: string;
   hideBranding: boolean;
   prefilledAmount: string;
+  background: string;
+  backgroundSecondary: string;
+  surface: string;
+  surfaceHover: string;
+  textPrimary: string;
+  textSecondary: string;
+  textTertiary: string;
+  borderPrimary: string;
+  borderSurface: string;
+  borderAccent: string;
+  buttonBg: string;
+  buttonHover: string;
+  buttonText: string;
+  buttonBorder: string;
 }): string {
   const lines = [
     `<RhinestoneDeposit`,
@@ -482,13 +609,31 @@ function buildCodeString(cfg: {
   if (cfg.prefilledAmount) {
     lines.push(`  amount="${cfg.prefilledAmount}"`);
   }
-  lines.push(
-    `  theme={{`,
+  const themeLines: string[] = [
     `    mode: "${cfg.themeMode}",`,
     `    accent: "${cfg.accent}",`,
     `    borderRadius: ${cfg.borderRadius},`,
-    `  }}`,
-  );
+  ];
+  const colorFields: [string, string][] = [
+    ["background", cfg.background],
+    ["backgroundSecondary", cfg.backgroundSecondary],
+    ["surface", cfg.surface],
+    ["surfaceHover", cfg.surfaceHover],
+    ["textPrimary", cfg.textPrimary],
+    ["textSecondary", cfg.textSecondary],
+    ["textTertiary", cfg.textTertiary],
+    ["borderPrimary", cfg.borderPrimary],
+    ["borderSurface", cfg.borderSurface],
+    ["borderAccent", cfg.borderAccent],
+    ["buttonBg", cfg.buttonBg],
+    ["buttonHover", cfg.buttonHover],
+    ["buttonText", cfg.buttonText],
+    ["buttonBorder", cfg.buttonBorder],
+  ];
+  for (const [key, val] of colorFields) {
+    if (val) themeLines.push(`    ${key}: "${val}",`);
+  }
+  lines.push(`  theme={{`, ...themeLines, `  }}`);
   if (cfg.brandTitle || cfg.hideBranding) {
     const brandLines = [];
     if (cfg.brandTitle) brandLines.push(`    title: "${cfg.brandTitle}",`);
