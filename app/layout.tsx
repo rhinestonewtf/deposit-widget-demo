@@ -1,5 +1,10 @@
+// ABOUTME: Root layout for the deposit demo app.
+// ABOUTME: Wraps app with wallet providers and imports global styles.
+
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Providers } from "./providers";
+import "@rhinestone/deposit-modal/styles.css";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,8 +18,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Rhinestone Deposit Widget — Demo",
-  description: "Interactive configurator for the Rhinestone Deposit Widget",
+  title: "Rhinestone Deposit — Demo",
+  description: "Interactive demo for Rhinestone Deposit Modal and Widget",
 };
 
 export default function RootLayout({
@@ -27,7 +32,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

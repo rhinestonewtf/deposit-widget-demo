@@ -1,15 +1,12 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useAccount, useWalletClient, usePublicClient, useSwitchChain, useDisconnect } from "wagmi";
+import { useAppKit } from "@reown/appkit/react";
+import { DepositModal } from "@rhinestone/deposit-modal";
+import type { Address } from "viem";
 
-const RhinestoneDeposit = dynamic(
-  () =>
-    import("@rhinestone/deposit-widget/react").then(
-      (m) => m.RhinestoneDeposit
-    ),
-  { ssr: false }
-);
+type DemoMode = "modal" | "iframe";
 
 const CHAINS: Record<number, string> = {
   8453: "Base",
@@ -24,6 +21,7 @@ const TOKENS: Record<string, { label: string; chain: number }> = {
 };
 
 const DEFAULT_RECIPIENT = "0x0197d7FaFCA118Bc91f6854B9A2ceea94E676585";
+const WIDGET_BASE_URL = "https://deposit.rhinestone.dev";
 
 function preventScrollJump(e: React.FocusEvent) {
   const scrollPositions: [HTMLElement, number, number][] = [];
@@ -54,6 +52,7 @@ function tokenForChain(chainId: number): string {
 }
 
 export default function Home() {
+  const [mode, setMode] = useState<DemoMode>("modal");
   const [targetChain, setTargetChain] = useState(8453);
   const [targetToken, setTargetToken] = useState(
     "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
@@ -61,46 +60,60 @@ export default function Home() {
   const [accent, setAccent] = useState("#0090ff");
   const [themeMode, setThemeMode] = useState<"light" | "dark">("light");
   const [borderRadius, setBorderRadius] = useState(14);
-  const [brandTitle, setBrandTitle] = useState("Shrimp Pay");
+  const [brandTitle, setBrandTitle] = useState("Deposit");
   const [logoUrl, setLogoUrl] = useState("https://github.com/rhinestonewtf.png");
 
   const [recipient, setRecipient] = useState(DEFAULT_RECIPIENT);
   const [prefilledAmount, setPrefilledAmount] = useState("");
   const [waitForFinalTx, setWaitForFinalTx] = useState(false);
   const [showCode, setShowCode] = useState(false);
+  const [showModal, setShowModal] = useState(true);
 
-  const [background, setBackground] = useState("");
-  const [backgroundSecondary, setBackgroundSecondary] = useState("");
-  const [surface, setSurface] = useState("");
-  const [surfaceHover, setSurfaceHover] = useState("");
-  const [textPrimary, setTextPrimary] = useState("");
-  const [textSecondary, setTextSecondary] = useState("");
-  const [textTertiary, setTextTertiary] = useState("");
-  const [borderPrimary, setBorderPrimary] = useState("");
-  const [borderSurface, setBorderSurface] = useState("");
-  const [borderAccent, setBorderAccent] = useState("");
-  const [buttonBg, setButtonBg] = useState("");
-  const [buttonHover, setButtonHover] = useState("");
-  const [buttonText, setButtonText] = useState("");
-  const [buttonBorder, setButtonBorder] = useState("");
+  // Wagmi hooks for modal mode
+  const { address, isConnected } = useAccount();
+  const { data: walletClient } = useWalletClient();
+  const publicClient = usePublicClient();
+  const { switchChainAsync } = useSwitchChain();
+  const { disconnect } = useDisconnect();
+  const { open: openAppKit } = useAppKit();
 
   const handleChainChange = useCallback((chainId: number) => {
     setTargetChain(chainId);
     setTargetToken(tokenForChain(chainId));
   }, []);
 
-  const onReady = useCallback(() => console.log("ready"), []);
-  const onConnected = useCallback(
-    (d: unknown) => console.log("connected", d),
-    []
+  const handleSwitchChain = useCallback(
+    async (chainId: number) => {
+      await switchChainAsync({ chainId });
+    },
+    [switchChainAsync]
   );
+
   const onDepositComplete = useCallback(
     (d: unknown) => console.log("complete", d),
     []
   );
   const onError = useCallback((e: unknown) => console.log("error", e), []);
 
-  const widgetKey = `${targetChain}-${targetToken}-${recipient}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${logoUrl}-${prefilledAmount}-${waitForFinalTx}-${background}-${backgroundSecondary}-${surface}-${surfaceHover}-${textPrimary}-${textSecondary}-${textTertiary}-${borderPrimary}-${borderSurface}-${borderAccent}-${buttonBg}-${buttonHover}-${buttonText}-${buttonBorder}`;
+  const componentKey = `${targetChain}-${targetToken}-${recipient}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${logoUrl}-${prefilledAmount}-${waitForFinalTx}`;
+
+  const truncatedAddress = address
+    ? `${address.slice(0, 6)}...${address.slice(-4)}`
+    : null;
+
+  // Build iframe URL with params
+  const iframeUrl = buildIframeUrl({
+    targetChain,
+    targetToken,
+    recipient,
+    amount: prefilledAmount,
+    themeMode,
+    accent,
+    borderRadius,
+    brandTitle,
+    logoUrl,
+    waitForFinalTx,
+  });
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
@@ -118,7 +131,7 @@ export default function Home() {
             className="text-[13px] font-semibold tracking-[-0.01em]"
             style={{ color: "var(--text-primary)" }}
           >
-            Deposit Widget
+            Deposit {mode === "modal" ? "Modal" : "Widget"}
           </span>
           <span
             className="text-[11px] font-medium px-2 py-0.5"
@@ -128,21 +141,55 @@ export default function Home() {
               borderRadius: "var(--radius-full)",
             }}
           >
-            SDK Demo
+            Demo
           </span>
         </div>
-        <a
-          href="https://docs.google.com/document/d/1uaOrXAEALpuXsn-jIdTI-DGIichypdeGSUpkE_qNruo/edit?usp=sharing"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1.5 text-[12px] font-medium transition-colors"
-          style={{ color: "var(--text-tertiary)" }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-secondary)")}
-          onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-tertiary)")}
-        >
-          <ExternalLinkIcon />
-          Documentation
-        </a>
+
+        <div className="flex items-center gap-3">
+          {mode === "modal" && (
+            <>
+              {isConnected ? (
+                <button
+                  onClick={() => disconnect()}
+                  className="flex items-center gap-1.5 text-[12px] font-medium px-2.5 py-1.5 transition-colors"
+                  style={{
+                    background: "var(--bg-surface)",
+                    color: "var(--text-secondary)",
+                    borderRadius: "var(--radius-sm)",
+                  }}
+                >
+                  <span>{truncatedAddress}</span>
+                  <span style={{ color: "var(--text-tertiary)" }}>·</span>
+                  <span style={{ color: "var(--text-error, #e5484d)" }}>Disconnect</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => openAppKit()}
+                  className="flex items-center gap-1.5 text-[12px] font-medium px-2.5 py-1.5 transition-colors"
+                  style={{
+                    background: "var(--bg-accent)",
+                    color: "white",
+                    borderRadius: "var(--radius-sm)",
+                  }}
+                >
+                  Connect Wallet
+                </button>
+              )}
+            </>
+          )}
+          <a
+            href="https://docs.rhinestone.wtf"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-[12px] font-medium transition-colors"
+            style={{ color: "var(--text-tertiary)" }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-secondary)")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-tertiary)")}
+          >
+            <ExternalLinkIcon />
+            Docs
+          </a>
+        </div>
       </header>
 
       <div className="flex-1 flex min-h-0">
@@ -155,6 +202,25 @@ export default function Home() {
           }}
         >
           <div className="p-5 flex flex-col gap-6">
+            {/* Mode Toggle */}
+            <Section title="Mode">
+              <Row label="Integration">
+                <Pill
+                  value={mode}
+                  onChange={(v) => setMode(v as DemoMode)}
+                  options={[
+                    { value: "modal", label: "Modal" },
+                    { value: "iframe", label: "Iframe" },
+                  ]}
+                />
+              </Row>
+              {mode === "modal" && (
+                <Row label="Show Modal">
+                  <Toggle checked={showModal} onChange={setShowModal} />
+                </Row>
+              )}
+            </Section>
+
             {/* Target */}
             <Section title="Destination">
               <Row label="Chain">
@@ -196,7 +262,7 @@ export default function Home() {
                   style={{ color: "var(--text-primary)" }}
                 />
               </Row>
-              <Row label={<LabelWithInfo text="Wait for final tx" tooltip="For faster transaction confirmation, Rhinestone marks an intent as complete when the solver delivers a pre-confirmation confirming they have put the intent onchain." />}>
+              <Row label={<LabelWithInfo text="Wait for final tx" tooltip="For faster transaction confirmation, Rhinestone marks an intent as complete when the solver delivers a pre-confirmation." />}>
                 <Toggle checked={waitForFinalTx} onChange={setWaitForFinalTx} />
               </Row>
             </Section>
@@ -299,28 +365,6 @@ export default function Home() {
               </Row>
             </Section>
 
-            {/* Theme Colors */}
-            <Section title="Colors">
-              <ColorRow label="Background" value={background} onChange={setBackground} />
-              <ColorRow label="Bg Secondary" value={backgroundSecondary} onChange={setBackgroundSecondary} />
-              <ColorRow label="Surface" value={surface} onChange={setSurface} />
-              <ColorRow label="Surface Hover" value={surfaceHover} onChange={setSurfaceHover} />
-              <ColorRow label="Text Primary" value={textPrimary} onChange={setTextPrimary} />
-              <ColorRow label="Text Secondary" value={textSecondary} onChange={setTextSecondary} />
-              <ColorRow label="Text Tertiary" value={textTertiary} onChange={setTextTertiary} />
-              <ColorRow label="Border" value={borderPrimary} onChange={setBorderPrimary} />
-              <ColorRow label="Border Surface" value={borderSurface} onChange={setBorderSurface} />
-              <ColorRow label="Border Accent" value={borderAccent} onChange={setBorderAccent} />
-            </Section>
-
-            {/* Button Colors */}
-            <Section title="Button">
-              <ColorRow label="Background" value={buttonBg} onChange={setButtonBg} />
-              <ColorRow label="Hover" value={buttonHover} onChange={setButtonHover} />
-              <ColorRow label="Text" value={buttonText} onChange={setButtonText} />
-              <ColorRow label="Border" value={buttonBorder} onChange={setButtonBorder} />
-            </Section>
-
             {/* Code */}
             <div className="flex flex-col gap-2">
               <button
@@ -347,30 +391,22 @@ export default function Home() {
 
               {showCode && (
                 <CodeBlock
-                  code={buildCodeString({
-                    targetChain,
-                    targetToken,
-                    recipient,
-                    themeMode,
-                    accent,
-                    borderRadius,
-                    brandTitle,
-                    prefilledAmount,
-                    background,
-                    backgroundSecondary,
-                    surface,
-                    surfaceHover,
-                    textPrimary,
-                    textSecondary,
-                    textTertiary,
-                    borderPrimary,
-                    borderSurface,
-                    borderAccent,
-                    buttonBg,
-                    buttonHover,
-                    buttonText,
-                    buttonBorder,
-                  })}
+                  code={
+                    mode === "modal"
+                      ? buildModalCodeString({
+                          targetChain,
+                          targetToken,
+                          recipient,
+                          themeMode,
+                          accent,
+                          borderRadius,
+                          brandTitle,
+                          logoUrl,
+                          prefilledAmount,
+                          waitForFinalTx,
+                        })
+                      : buildIframeCodeString(iframeUrl)
+                  }
                 />
               )}
             </div>
@@ -384,47 +420,94 @@ export default function Home() {
         >
           <div className="widget-glow">
             <div style={{ width: 420, boxShadow: "var(--shadow-widget)", borderRadius: `${borderRadius}px`, overflow: "hidden" }}>
-              <RhinestoneDeposit
-                key={widgetKey}
-                targetChain={targetChain}
-                targetToken={targetToken}
-                recipient={recipient || undefined}
-                amount={prefilledAmount || undefined}
-                theme={{
-                  mode: themeMode,
-                  accent,
-                  borderRadius,
-                  ...(background && { background }),
-                  ...(backgroundSecondary && { backgroundSecondary }),
-                  ...(surface && { surface }),
-                  ...(surfaceHover && { surfaceHover }),
-                  ...(textPrimary && { textPrimary }),
-                  ...(textSecondary && { textSecondary }),
-                  ...(textTertiary && { textTertiary }),
-                  ...(borderPrimary && { borderPrimary }),
-                  ...(borderSurface && { borderSurface }),
-                  ...(borderAccent && { borderAccent }),
-                  ...(buttonBg && { buttonBg }),
-                  ...(buttonHover && { buttonHover }),
-                  ...(buttonText && { buttonText }),
-                  ...(buttonBorder && { buttonBorder }),
-                }}
-                waitForFinalTx={waitForFinalTx}
-                branding={{
-                  title: brandTitle || undefined,
-                  logoUrl: logoUrl || undefined,
-                }}
-
-                onReady={onReady}
-                onConnected={onConnected}
-                onDepositComplete={onDepositComplete}
-                onError={onError}
-                style={{ width: "100%" }}
-              />
+              {mode === "modal" ? (
+                showModal ? (
+                  <DepositModal
+                    key={componentKey}
+                    isOpen={true}
+                    onClose={() => setShowModal(false)}
+                    walletClient={walletClient}
+                    publicClient={publicClient}
+                    address={address}
+                    switchChain={handleSwitchChain}
+                    targetChain={targetChain}
+                    targetToken={targetToken as Address}
+                    recipient={recipient as Address || undefined}
+                    defaultAmount={prefilledAmount || undefined}
+                    waitForFinalTx={waitForFinalTx}
+                    theme={{
+                      mode: themeMode,
+                      primary: accent,
+                      radius: borderRadius <= 4 ? "sm" : borderRadius <= 10 ? "md" : "lg",
+                    }}
+                    branding={{
+                      title: brandTitle || undefined,
+                      logoUrl: logoUrl || undefined,
+                    }}
+                    onRequestConnect={() => openAppKit()}
+                    onDepositComplete={onDepositComplete}
+                    onError={onError}
+                    inline={true}
+                  />
+                ) : (
+                  <ModalPlaceholder onOpen={() => setShowModal(true)} />
+                )
+              ) : (
+                <iframe
+                  key={componentKey}
+                  src={iframeUrl}
+                  style={{
+                    width: "100%",
+                    height: 500,
+                    border: "none",
+                  }}
+                  allow="clipboard-write"
+                />
+              )}
             </div>
           </div>
         </main>
       </div>
+    </div>
+  );
+}
+
+/* ── Placeholder for Modal ──────────────────────────────── */
+
+function ModalPlaceholder({ onOpen }: { onOpen: () => void }) {
+  return (
+    <div
+      className="flex flex-col items-center justify-center gap-4 p-8"
+      style={{
+        background: "var(--bg-primary)",
+        minHeight: 300,
+      }}
+    >
+      <div
+        className="flex items-center justify-center size-16 rounded-full"
+        style={{ background: "var(--bg-surface)" }}
+      >
+        <WalletIcon />
+      </div>
+      <div className="text-center">
+        <div className="text-[15px] font-medium" style={{ color: "var(--text-primary)" }}>
+          Modal is closed
+        </div>
+        <div className="text-[13px] mt-1" style={{ color: "var(--text-secondary)" }}>
+          Toggle &quot;Show Modal&quot; or click below to open
+        </div>
+      </div>
+      <button
+        onClick={onOpen}
+        className="text-[13px] font-medium px-4 py-2 transition-colors"
+        style={{
+          background: "var(--bg-accent)",
+          color: "white",
+          borderRadius: "var(--radius-sm)",
+        }}
+      >
+        Open Modal
+      </button>
     </div>
   );
 }
@@ -552,60 +635,6 @@ function Pill({
   );
 }
 
-function ColorRow({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <div
-      className="flex items-center justify-between h-[44px] px-3.5"
-      style={{ borderColor: "var(--border-primary)" }}
-    >
-      <span className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
-        {label}
-      </span>
-      <div className="flex items-center gap-2">
-        {value && (
-          <button
-            type="button"
-            onClick={() => onChange("")}
-            className="text-[10px] font-medium px-1.5 py-0.5 transition-colors"
-            style={{
-              borderRadius: "var(--radius-sm)",
-              color: "var(--text-tertiary)",
-              background: "var(--bg-surface)",
-            }}
-          >
-            Reset
-          </button>
-        )}
-        <label
-          className="relative size-[22px] rounded-md shrink-0 cursor-pointer transition-all"
-          style={{
-            background: value || "var(--bg-surface)",
-            border: value ? `1.5px solid ${value}` : "1.5px dashed var(--border-surface)",
-            boxShadow: value ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
-          }}
-        >
-          <input
-            type="color"
-            value={value || "#000000"}
-            onChange={(e) => onChange(e.target.value)}
-            className="absolute inset-0 opacity-0 pointer-events-none"
-            tabIndex={-1}
-            onFocus={preventScrollJump}
-          />
-        </label>
-      </div>
-    </div>
-  );
-}
-
 function Toggle({
   checked,
   onChange,
@@ -635,9 +664,35 @@ function Toggle({
   );
 }
 
-/* ── Code Block ──────────────────────────────────────────── */
+/* ── Code Generation ─────────────────────────────────────── */
 
-function buildCodeString(cfg: {
+function buildIframeUrl(cfg: {
+  targetChain: number;
+  targetToken: string;
+  recipient: string;
+  amount: string;
+  themeMode: string;
+  accent: string;
+  borderRadius: number;
+  brandTitle: string;
+  logoUrl: string;
+  waitForFinalTx: boolean;
+}): string {
+  const params = new URLSearchParams();
+  params.set("targetChain", String(cfg.targetChain));
+  params.set("targetToken", cfg.targetToken);
+  if (cfg.recipient) params.set("recipient", cfg.recipient);
+  if (cfg.amount) params.set("amount", cfg.amount);
+  if (cfg.themeMode === "dark") params.set("theme", "dark");
+  if (cfg.accent) params.set("accent", cfg.accent);
+  if (cfg.borderRadius) params.set("borderRadius", String(cfg.borderRadius));
+  if (cfg.brandTitle) params.set("brandTitle", cfg.brandTitle);
+  if (cfg.logoUrl) params.set("logoUrl", cfg.logoUrl);
+  if (!cfg.waitForFinalTx) params.set("waitForFinalTx", "false");
+  return `${WIDGET_BASE_URL}?${params.toString()}`;
+}
+
+function buildModalCodeString(cfg: {
   targetChain: number;
   targetToken: string;
   recipient: string;
@@ -645,24 +700,25 @@ function buildCodeString(cfg: {
   accent: string;
   borderRadius: number;
   brandTitle: string;
+  logoUrl: string;
   prefilledAmount: string;
-  background: string;
-  backgroundSecondary: string;
-  surface: string;
-  surfaceHover: string;
-  textPrimary: string;
-  textSecondary: string;
-  textTertiary: string;
-  borderPrimary: string;
-  borderSurface: string;
-  borderAccent: string;
-  buttonBg: string;
-  buttonHover: string;
-  buttonText: string;
-  buttonBorder: string;
+  waitForFinalTx: boolean;
 }): string {
   const lines = [
-    `<RhinestoneDeposit`,
+    `import { DepositModal } from "@rhinestone/deposit-modal";`,
+    `import "@rhinestone/deposit-modal/styles.css";`,
+    ``,
+    `// In your component with wagmi hooks:`,
+    `// const { address } = useAccount();`,
+    `// const { data: walletClient } = useWalletClient();`,
+    `// const publicClient = usePublicClient();`,
+    ``,
+    `<DepositModal`,
+    `  isOpen={isOpen}`,
+    `  onClose={() => setIsOpen(false)}`,
+    `  walletClient={walletClient}`,
+    `  publicClient={publicClient}`,
+    `  address={address}`,
     `  targetChain={${cfg.targetChain}}`,
     `  targetToken="${cfg.targetToken}"`,
   ];
@@ -670,39 +726,55 @@ function buildCodeString(cfg: {
     lines.push(`  recipient="${cfg.recipient}"`);
   }
   if (cfg.prefilledAmount) {
-    lines.push(`  amount="${cfg.prefilledAmount}"`);
+    lines.push(`  defaultAmount="${cfg.prefilledAmount}"`);
   }
-  const themeLines: string[] = [
-    `    mode: "${cfg.themeMode}",`,
-    `    accent: "${cfg.accent}",`,
-    `    borderRadius: ${cfg.borderRadius},`,
-  ];
-  const colorFields: [string, string][] = [
-    ["background", cfg.background],
-    ["backgroundSecondary", cfg.backgroundSecondary],
-    ["surface", cfg.surface],
-    ["surfaceHover", cfg.surfaceHover],
-    ["textPrimary", cfg.textPrimary],
-    ["textSecondary", cfg.textSecondary],
-    ["textTertiary", cfg.textTertiary],
-    ["borderPrimary", cfg.borderPrimary],
-    ["borderSurface", cfg.borderSurface],
-    ["borderAccent", cfg.borderAccent],
-    ["buttonBg", cfg.buttonBg],
-    ["buttonHover", cfg.buttonHover],
-    ["buttonText", cfg.buttonText],
-    ["buttonBorder", cfg.buttonBorder],
-  ];
-  for (const [key, val] of colorFields) {
-    if (val) themeLines.push(`    ${key}: "${val}",`);
+  if (!cfg.waitForFinalTx) {
+    lines.push(`  waitForFinalTx={false}`);
   }
-  lines.push(`  theme={{`, ...themeLines, `  }}`);
-  if (cfg.brandTitle) {
-    lines.push(`  branding={{`, `    title: "${cfg.brandTitle}",`, `  }}`);
+  lines.push(`  theme={{`);
+  lines.push(`    mode: "${cfg.themeMode}",`);
+  lines.push(`    primary: "${cfg.accent}",`);
+  const radius = cfg.borderRadius <= 4 ? "sm" : cfg.borderRadius <= 10 ? "md" : "lg";
+  lines.push(`    radius: "${radius}",`);
+  lines.push(`  }}`);
+  if (cfg.brandTitle || cfg.logoUrl) {
+    lines.push(`  branding={{`);
+    if (cfg.brandTitle) lines.push(`    title: "${cfg.brandTitle}",`);
+    if (cfg.logoUrl) lines.push(`    logoUrl: "${cfg.logoUrl}",`);
+    lines.push(`  }}`);
   }
+  lines.push(`  onDepositComplete={(data) => console.log("Complete", data)}`);
   lines.push(`/>`);
   return lines.join("\n");
 }
+
+function buildIframeCodeString(url: string): string {
+  return `<!-- Embed the Rhinestone Deposit Widget -->
+<iframe
+  src="${url}"
+  width="420"
+  height="500"
+  frameborder="0"
+  allow="clipboard-write"
+></iframe>
+
+<!-- Listen for events from the widget -->
+<script>
+window.addEventListener("message", (event) => {
+  if (event.data?.type?.startsWith("rhinestone:")) {
+    console.log(event.data.type, event.data.data);
+    // Handle events:
+    // - rhinestone:ready
+    // - rhinestone:connected
+    // - rhinestone:deposit-submitted
+    // - rhinestone:deposit-complete
+    // - rhinestone:deposit-failed
+  }
+});
+</script>`;
+}
+
+/* ── Code Block ──────────────────────────────────────────── */
 
 function CodeBlock({ code }: { code: string }) {
   const [copied, setCopied] = useState(false);
@@ -797,6 +869,25 @@ function ExternalLinkIcon() {
       <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
       <polyline points="15 3 21 3 21 9" />
       <line x1="10" y1="14" x2="21" y2="3" />
+    </svg>
+  );
+}
+
+function WalletIcon() {
+  return (
+    <svg
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="var(--text-tertiary)"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M21 12V7H5a2 2 0 010-4h14v4" />
+      <path d="M3 5v14a2 2 0 002 2h16v-5" />
+      <path d="M18 12a2 2 0 100 4h4v-4h-4z" />
     </svg>
   );
 }

@@ -9,10 +9,15 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@rhinestone/deposit-widget": "^0.1.2",
+    "@reown/appkit": "^1.8.17",
+    "@reown/appkit-adapter-wagmi": "^1.8.17",
+    "@rhinestone/deposit-modal": "0.1.2",
+    "@tanstack/react-query": "^5.90.20",
     "next": "16.1.6",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "viem": "^2.45.1",
+    "wagmi": "^3.4.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
