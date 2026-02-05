@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { useAccount, useWalletClient, usePublicClient, useSwitchChain, useDisconnect } from "wagmi";
-import { useAppKit } from "@reown/appkit/react";
-import { DepositModal } from "@rhinestone/deposit-modal";
-import type { Address } from "viem";
+import { useAccount, useWalletClient, usePublicClient, useSwitchChain } from "wagmi";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { useSetActiveWallet } from "@privy-io/wagmi";
+import { DepositModal, WithdrawModal } from "@rhinestone/deposit-modal";
+import { isAddress, type Address } from "viem";
 
-type DemoMode = "modal" | "iframe";
+type FlowMode = "deposit" | "withdraw";
 
 const CHAINS: Record<number, string> = {
   8453: "Base",
@@ -21,7 +22,6 @@ const TOKENS: Record<string, { label: string; chain: number }> = {
 };
 
 const DEFAULT_RECIPIENT = "0x0197d7FaFCA118Bc91f6854B9A2ceea94E676585";
-const WIDGET_BASE_URL = "https://deposit.rhinestone.dev";
 
 function preventScrollJump(e: React.FocusEvent) {
   const scrollPositions: [HTMLElement, number, number][] = [];
@@ -52,16 +52,34 @@ function tokenForChain(chainId: number): string {
 }
 
 export default function Home() {
-  const [mode, setMode] = useState<DemoMode>("modal");
+  const [flow, setFlow] = useState<FlowMode>("deposit");
   const [targetChain, setTargetChain] = useState(8453);
   const [targetToken, setTargetToken] = useState(
     "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
   );
+  const [sourceChain, setSourceChain] = useState(8453);
+  const [sourceToken, setSourceToken] = useState(
+    "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+  );
+  const [safeAddress, setSafeAddress] = useState("");
   const [accent, setAccent] = useState("#0090ff");
   const [themeMode, setThemeMode] = useState<"light" | "dark">("light");
   const [borderRadius, setBorderRadius] = useState(14);
   const [brandTitle, setBrandTitle] = useState("Deposit");
   const [logoUrl, setLogoUrl] = useState("https://github.com/rhinestonewtf.png");
+
+  // UI Config
+  const [showLogo, setShowLogo] = useState(false);
+  const [showStepper, setShowStepper] = useState(false);
+  const [balanceTitle, setBalanceTitle] = useState("Nexus balance");
+  const [maxDepositUsd, setMaxDepositUsd] = useState<number | undefined>(100);
+
+  // Theme colors
+  const [fontColor, setFontColor] = useState("");
+  const [iconColor, setIconColor] = useState("");
+  const [ctaHoverColor, setCtaHoverColor] = useState("");
+  const [borderColor, setBorderColor] = useState("");
+  const [backgroundColor, setBackgroundColor] = useState("");
 
   const [recipient, setRecipient] = useState(DEFAULT_RECIPIENT);
   const [prefilledAmount, setPrefilledAmount] = useState("");
@@ -74,12 +92,25 @@ export default function Home() {
   const { data: walletClient } = useWalletClient();
   const publicClient = usePublicClient();
   const { switchChainAsync } = useSwitchChain();
-  const { disconnect } = useDisconnect();
-  const { open: openAppKit } = useAppKit();
+  const { login, logout, authenticated, ready } = usePrivy();
+  const { wallets } = useWallets();
+  const { setActiveWallet } = useSetActiveWallet();
+
+  // Sync Privy wallet with wagmi
+  useEffect(() => {
+    if (wallets.length > 0 && authenticated) {
+      setActiveWallet(wallets[0]);
+    }
+  }, [wallets, authenticated, setActiveWallet]);
 
   const handleChainChange = useCallback((chainId: number) => {
     setTargetChain(chainId);
     setTargetToken(tokenForChain(chainId));
+  }, []);
+
+  const handleSourceChainChange = useCallback((chainId: number) => {
+    setSourceChain(chainId);
+    setSourceToken(tokenForChain(chainId));
   }, []);
 
   const handleSwitchChain = useCallback(
@@ -95,25 +126,21 @@ export default function Home() {
   );
   const onError = useCallback((e: unknown) => console.log("error", e), []);
 
-  const componentKey = `${targetChain}-${targetToken}-${recipient}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${logoUrl}-${prefilledAmount}-${waitForFinalTx}`;
+  const componentKey = `${flow}-${targetChain}-${targetToken}-${sourceChain}-${sourceToken}-${safeAddress}-${recipient}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${logoUrl}-${prefilledAmount}-${waitForFinalTx}-${showLogo}-${showStepper}-${balanceTitle}-${maxDepositUsd}-${fontColor}-${iconColor}-${ctaHoverColor}-${borderColor}-${backgroundColor}`;
+
 
   const truncatedAddress = address
     ? `${address.slice(0, 6)}...${address.slice(-4)}`
     : null;
 
-  // Build iframe URL with params
-  const iframeUrl = buildIframeUrl({
-    targetChain,
-    targetToken,
-    recipient,
-    amount: prefilledAmount,
-    themeMode,
-    accent,
-    borderRadius,
-    brandTitle,
-    logoUrl,
-    waitForFinalTx,
-  });
+  const recipientTooltip =
+    flow === "withdraw"
+      ? "The address that will receive withdrawn funds on the destination chain."
+      : "The address where deposited funds are sent. Set this to the user's address when installing the widget.";
+
+  const isSafeAddressValid =
+    flow !== "withdraw" ||
+    (safeAddress.length > 0 && isAddress(safeAddress, { strict: false }));
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
@@ -131,7 +158,7 @@ export default function Home() {
             className="text-[13px] font-semibold tracking-[-0.01em]"
             style={{ color: "var(--text-primary)" }}
           >
-            Deposit {mode === "modal" ? "Modal" : "Widget"}
+            {flow === "withdraw" ? "Withdraw" : "Deposit"} Modal
           </span>
           <span
             className="text-[11px] font-medium px-2 py-0.5"
@@ -146,36 +173,32 @@ export default function Home() {
         </div>
 
         <div className="flex items-center gap-3">
-          {mode === "modal" && (
-            <>
-              {isConnected ? (
-                <button
-                  onClick={() => disconnect()}
-                  className="flex items-center gap-1.5 text-[12px] font-medium px-2.5 py-1.5 transition-colors"
-                  style={{
-                    background: "var(--bg-surface)",
-                    color: "var(--text-secondary)",
-                    borderRadius: "var(--radius-sm)",
-                  }}
-                >
-                  <span>{truncatedAddress}</span>
-                  <span style={{ color: "var(--text-tertiary)" }}>·</span>
-                  <span style={{ color: "var(--text-error, #e5484d)" }}>Disconnect</span>
-                </button>
-              ) : (
-                <button
-                  onClick={() => openAppKit()}
-                  className="flex items-center gap-1.5 text-[12px] font-medium px-2.5 py-1.5 transition-colors"
-                  style={{
-                    background: "var(--bg-accent)",
-                    color: "white",
-                    borderRadius: "var(--radius-sm)",
-                  }}
-                >
-                  Connect Wallet
-                </button>
-              )}
-            </>
+          {authenticated && isConnected ? (
+            <button
+              onClick={() => logout()}
+              className="flex items-center gap-1.5 text-[12px] font-medium px-2.5 py-1.5 transition-colors"
+              style={{
+                background: "var(--bg-surface)",
+                color: "var(--text-secondary)",
+                borderRadius: "var(--radius-sm)",
+              }}
+            >
+              <span>{truncatedAddress}</span>
+              <span style={{ color: "var(--text-tertiary)" }}>·</span>
+              <span style={{ color: "var(--text-error, #e5484d)" }}>Disconnect</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => login()}
+              className="flex items-center gap-1.5 text-[12px] font-medium px-2.5 py-1.5 transition-colors"
+              style={{
+                background: "var(--bg-accent)",
+                color: "white",
+                borderRadius: "var(--radius-sm)",
+              }}
+            >
+              Connect Wallet
+            </button>
           )}
           <a
             href="https://docs.rhinestone.wtf"
@@ -202,24 +225,54 @@ export default function Home() {
           }}
         >
           <div className="p-5 flex flex-col gap-6">
-            {/* Mode Toggle */}
             <Section title="Mode">
-              <Row label="Integration">
+              <Row label="Flow">
                 <Pill
-                  value={mode}
-                  onChange={(v) => setMode(v as DemoMode)}
+                  value={flow}
+                  onChange={(v) => setFlow(v as FlowMode)}
                   options={[
-                    { value: "modal", label: "Modal" },
-                    { value: "iframe", label: "Iframe" },
+                    { value: "deposit", label: "Deposit" },
+                    { value: "withdraw", label: "Withdraw" },
                   ]}
                 />
               </Row>
-              {mode === "modal" && (
-                <Row label="Show Modal">
-                  <Toggle checked={showModal} onChange={setShowModal} />
-                </Row>
-              )}
+              <Row label="Show Modal">
+                <Toggle checked={showModal} onChange={setShowModal} />
+              </Row>
             </Section>
+
+            {flow === "withdraw" && (
+              <Section title="Source (Safe)">
+                <Row label="Safe address">
+                  <input
+                    type="text"
+                    value={safeAddress}
+                    onChange={(e) => setSafeAddress(e.target.value.trim())}
+                    placeholder="0x..."
+                    className="text-[13px] font-mono bg-transparent outline-none text-right w-[140px] text-ellipsis overflow-hidden"
+                    style={{ color: "var(--text-primary)" }}
+                  />
+                </Row>
+                <Row label="Chain">
+                  <Pill
+                    value={String(sourceChain)}
+                    onChange={(v) => handleSourceChainChange(Number(v))}
+                    options={Object.entries(CHAINS).map(([id, name]) => ({
+                      value: id,
+                      label: name,
+                    }))}
+                  />
+                </Row>
+                <Row label="Token">
+                  <span
+                    className="text-[13px] font-medium"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    {TOKENS[sourceToken]?.label ?? "USDC"} · {CHAINS[sourceChain]}
+                  </span>
+                </Row>
+              </Section>
+            )}
 
             {/* Target */}
             <Section title="Destination">
@@ -252,7 +305,7 @@ export default function Home() {
                   style={{ color: "var(--text-primary)" }}
                 />
               </Row>
-              <Row label={<LabelWithInfo text="Recipient" tooltip="The address where deposited funds are sent. Set this to the user's address when installing the widget." />}>
+              <Row label={<LabelWithInfo text="Recipient" tooltip={recipientTooltip} />}>
                 <input
                   type="text"
                   value={recipient}
@@ -363,6 +416,51 @@ export default function Home() {
                   style={{ color: "var(--text-primary)" }}
                 />
               </Row>
+              <Row label="Font Color">
+                <ColorInput value={fontColor} onChange={setFontColor} placeholder="Auto" />
+              </Row>
+              <Row label="Icon Color">
+                <ColorInput value={iconColor} onChange={setIconColor} placeholder="Auto" />
+              </Row>
+              <Row label="CTA Hover">
+                <ColorInput value={ctaHoverColor} onChange={setCtaHoverColor} placeholder="Auto" />
+              </Row>
+              <Row label="Border Color">
+                <ColorInput value={borderColor} onChange={setBorderColor} placeholder="Auto" />
+              </Row>
+              <Row label="Background">
+                <ColorInput value={backgroundColor} onChange={setBackgroundColor} placeholder="Auto" />
+              </Row>
+            </Section>
+
+            {/* UI Config */}
+            <Section title="UI Config">
+              <Row label="Show Logo">
+                <Toggle checked={showLogo} onChange={setShowLogo} />
+              </Row>
+              <Row label="Show Stepper">
+                <Toggle checked={showStepper} onChange={setShowStepper} />
+              </Row>
+              <Row label="Balance Title">
+                <input
+                  type="text"
+                  value={balanceTitle}
+                  onChange={(e) => setBalanceTitle(e.target.value)}
+                  placeholder="e.g. Rhinestone Balance"
+                  className="text-[13px] font-medium bg-transparent outline-none text-right w-[110px] text-ellipsis overflow-hidden"
+                  style={{ color: "var(--text-primary)" }}
+                />
+              </Row>
+              <Row label="Max Deposit USD">
+                <input
+                  type="number"
+                  value={maxDepositUsd ?? ""}
+                  onChange={(e) => setMaxDepositUsd(e.target.value ? Number(e.target.value) : undefined)}
+                  placeholder="No limit"
+                  className="text-[13px] font-medium bg-transparent outline-none text-right w-20"
+                  style={{ color: "var(--text-primary)" }}
+                />
+              </Row>
             </Section>
 
             {/* Code */}
@@ -392,20 +490,52 @@ export default function Home() {
               {showCode && (
                 <CodeBlock
                   code={
-                    mode === "modal"
-                      ? buildModalCodeString({
+                    flow === "withdraw"
+                      ? buildWithdrawCodeString({
+                          safeAddress,
+                          sourceChain,
+                          sourceToken,
                           targetChain,
                           targetToken,
                           recipient,
                           themeMode,
-                          accent,
                           borderRadius,
                           brandTitle,
                           logoUrl,
                           prefilledAmount,
                           waitForFinalTx,
+                          showLogo,
+                          showStepper,
+                          balanceTitle,
+                          maxDepositUsd,
+                          fontColor,
+                          iconColor,
+                          ctaColor: accent,
+                          ctaHoverColor,
+                          borderColor,
+                          backgroundColor,
                         })
-                      : buildIframeCodeString(iframeUrl)
+                      : buildModalCodeString({
+                          targetChain,
+                          targetToken,
+                          recipient,
+                          themeMode,
+                          borderRadius,
+                          brandTitle,
+                          logoUrl,
+                          prefilledAmount,
+                          waitForFinalTx,
+                          showLogo,
+                          showStepper,
+                          balanceTitle,
+                          maxDepositUsd,
+                          fontColor,
+                          iconColor,
+                          ctaColor: accent,
+                          ctaHoverColor,
+                          borderColor,
+                          backgroundColor,
+                        })
                   }
                 />
               )}
@@ -420,15 +550,66 @@ export default function Home() {
         >
           <div className="widget-glow">
             <div style={{ width: 420, boxShadow: "var(--shadow-widget)", borderRadius: `${borderRadius}px`, overflow: "hidden" }}>
-              {mode === "modal" ? (
-                showModal ? (
+              {showModal ? (
+                flow === "withdraw" ? (
+                  isSafeAddressValid ? (
+                    <WithdrawModal
+                      key={componentKey}
+                      isOpen={true}
+                      onClose={() => setShowModal(false)}
+                      walletClient={authenticated ? walletClient : undefined}
+                      publicClient={authenticated ? publicClient : undefined}
+                      address={authenticated ? address : undefined}
+                      switchChain={handleSwitchChain}
+                      safeAddress={safeAddress as Address}
+                      sourceChain={sourceChain}
+                      sourceToken={sourceToken as Address}
+                      targetChain={targetChain}
+                      targetToken={targetToken as Address}
+                      recipient={recipient as Address || undefined}
+                      defaultAmount={prefilledAmount || undefined}
+                      waitForFinalTx={waitForFinalTx}
+                      theme={{
+                        mode: themeMode,
+                        radius: borderRadius <= 4 ? "sm" : borderRadius <= 10 ? "md" : "lg",
+                        fontColor: fontColor || undefined,
+                        iconColor: iconColor || undefined,
+                        ctaColor: accent,
+                        ctaHoverColor: ctaHoverColor || undefined,
+                        borderColor: borderColor || undefined,
+                        backgroundColor: backgroundColor || undefined,
+                      }}
+                      branding={{
+                        title: brandTitle || undefined,
+                        logoUrl: logoUrl || undefined,
+                      }}
+                      uiConfig={{
+                        showLogo,
+                        showStepper,
+                        balanceTitle: balanceTitle || undefined,
+                        maxDepositUsd,
+                      }}
+                      onRequestConnect={() => login()}
+                      onWithdrawComplete={onDepositComplete}
+                      onError={onError}
+                      inline={true}
+                    />
+                  ) : (
+                    <div
+                      className="flex items-center justify-center text-[13px]"
+                      style={{ color: "var(--text-tertiary)", height: 500 }}
+                    >
+                      Enter a valid Safe address to preview withdraw.
+                    </div>
+                  )
+                ) : (
                   <DepositModal
                     key={componentKey}
                     isOpen={true}
                     onClose={() => setShowModal(false)}
-                    walletClient={walletClient}
-                    publicClient={publicClient}
-                    address={address}
+                    walletClient={authenticated ? walletClient : undefined}
+                    publicClient={authenticated ? publicClient : undefined}
+                    address={authenticated ? address : undefined}
                     switchChain={handleSwitchChain}
                     targetChain={targetChain}
                     targetToken={targetToken as Address}
@@ -437,32 +618,32 @@ export default function Home() {
                     waitForFinalTx={waitForFinalTx}
                     theme={{
                       mode: themeMode,
-                      primary: accent,
                       radius: borderRadius <= 4 ? "sm" : borderRadius <= 10 ? "md" : "lg",
+                      fontColor: fontColor || undefined,
+                      iconColor: iconColor || undefined,
+                      ctaColor: accent,
+                      ctaHoverColor: ctaHoverColor || undefined,
+                      borderColor: borderColor || undefined,
+                      backgroundColor: backgroundColor || undefined,
                     }}
                     branding={{
                       title: brandTitle || undefined,
                       logoUrl: logoUrl || undefined,
                     }}
-                    onRequestConnect={() => openAppKit()}
+                    uiConfig={{
+                      showLogo,
+                      showStepper,
+                      balanceTitle: balanceTitle || undefined,
+                      maxDepositUsd,
+                    }}
+                    onRequestConnect={() => login()}
                     onDepositComplete={onDepositComplete}
                     onError={onError}
                     inline={true}
                   />
-                ) : (
-                  <ModalPlaceholder onOpen={() => setShowModal(true)} />
                 )
               ) : (
-                <iframe
-                  key={componentKey}
-                  src={iframeUrl}
-                  style={{
-                    width: "100%",
-                    height: 500,
-                    border: "none",
-                  }}
-                  allow="clipboard-write"
-                />
+                <ModalPlaceholder onOpen={() => setShowModal(true)} />
               )}
             </div>
           </div>
@@ -664,45 +845,76 @@ function Toggle({
   );
 }
 
-/* ── Code Generation ─────────────────────────────────────── */
-
-function buildIframeUrl(cfg: {
-  targetChain: number;
-  targetToken: string;
-  recipient: string;
-  amount: string;
-  themeMode: string;
-  accent: string;
-  borderRadius: number;
-  brandTitle: string;
-  logoUrl: string;
-  waitForFinalTx: boolean;
-}): string {
-  const params = new URLSearchParams();
-  params.set("targetChain", String(cfg.targetChain));
-  params.set("targetToken", cfg.targetToken);
-  if (cfg.recipient) params.set("recipient", cfg.recipient);
-  if (cfg.amount) params.set("amount", cfg.amount);
-  if (cfg.themeMode === "dark") params.set("theme", "dark");
-  if (cfg.accent) params.set("accent", cfg.accent);
-  if (cfg.borderRadius) params.set("borderRadius", String(cfg.borderRadius));
-  if (cfg.brandTitle) params.set("brandTitle", cfg.brandTitle);
-  if (cfg.logoUrl) params.set("logoUrl", cfg.logoUrl);
-  if (!cfg.waitForFinalTx) params.set("waitForFinalTx", "false");
-  return `${WIDGET_BASE_URL}?${params.toString()}`;
+function ColorInput({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="text-[13px] font-medium bg-transparent outline-none text-right w-[80px] text-ellipsis"
+        style={{ color: "var(--text-primary)" }}
+      />
+      <label
+        className="relative size-[18px] rounded shrink-0 flex items-center justify-center cursor-pointer overflow-hidden"
+        style={{
+          background: value || "var(--bg-surface)",
+          border: "1px solid var(--border-surface)",
+        }}
+      >
+        <input
+          type="color"
+          value={value || "#888888"}
+          onChange={(e) => onChange(e.target.value)}
+          className="absolute inset-0 opacity-0 cursor-pointer"
+          onFocus={preventScrollJump}
+        />
+      </label>
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          className="text-[10px] px-1 py-0.5 rounded"
+          style={{ background: "var(--bg-surface)", color: "var(--text-tertiary)" }}
+        >
+          ×
+        </button>
+      )}
+    </div>
+  );
 }
+
+/* ── Code Generation ─────────────────────────────────────── */
 
 function buildModalCodeString(cfg: {
   targetChain: number;
   targetToken: string;
   recipient: string;
   themeMode: string;
-  accent: string;
   borderRadius: number;
   brandTitle: string;
   logoUrl: string;
   prefilledAmount: string;
   waitForFinalTx: boolean;
+  showLogo: boolean;
+  showStepper: boolean;
+  balanceTitle: string;
+  maxDepositUsd?: number;
+  fontColor: string;
+  iconColor: string;
+  ctaColor: string;
+  ctaHoverColor: string;
+  borderColor: string;
+  backgroundColor: string;
 }): string {
   const lines = [
     `import { DepositModal } from "@rhinestone/deposit-modal";`,
@@ -731,16 +943,33 @@ function buildModalCodeString(cfg: {
   if (!cfg.waitForFinalTx) {
     lines.push(`  waitForFinalTx={false}`);
   }
+  // Theme
   lines.push(`  theme={{`);
   lines.push(`    mode: "${cfg.themeMode}",`);
-  lines.push(`    primary: "${cfg.accent}",`);
   const radius = cfg.borderRadius <= 4 ? "sm" : cfg.borderRadius <= 10 ? "md" : "lg";
   lines.push(`    radius: "${radius}",`);
+  if (cfg.fontColor) lines.push(`    fontColor: "${cfg.fontColor}",`);
+  if (cfg.iconColor) lines.push(`    iconColor: "${cfg.iconColor}",`);
+  lines.push(`    ctaColor: "${cfg.ctaColor}",`);
+  if (cfg.ctaHoverColor) lines.push(`    ctaHoverColor: "${cfg.ctaHoverColor}",`);
+  if (cfg.borderColor) lines.push(`    borderColor: "${cfg.borderColor}",`);
+  if (cfg.backgroundColor) lines.push(`    backgroundColor: "${cfg.backgroundColor}",`);
   lines.push(`  }}`);
+  // Branding
   if (cfg.brandTitle || cfg.logoUrl) {
     lines.push(`  branding={{`);
     if (cfg.brandTitle) lines.push(`    title: "${cfg.brandTitle}",`);
     if (cfg.logoUrl) lines.push(`    logoUrl: "${cfg.logoUrl}",`);
+    lines.push(`  }}`);
+  }
+  // UI Config - only show if non-default values
+  const hasUiConfig = cfg.showLogo || cfg.showStepper || cfg.balanceTitle || cfg.maxDepositUsd !== undefined;
+  if (hasUiConfig) {
+    lines.push(`  uiConfig={{`);
+    if (cfg.showLogo) lines.push(`    showLogo: true,`);
+    if (cfg.showStepper) lines.push(`    showStepper: true,`);
+    if (cfg.balanceTitle) lines.push(`    balanceTitle: "${cfg.balanceTitle}",`);
+    if (cfg.maxDepositUsd !== undefined) lines.push(`    maxDepositUsd: ${cfg.maxDepositUsd},`);
     lines.push(`  }}`);
   }
   lines.push(`  onDepositComplete={(data) => console.log("Complete", data)}`);
@@ -748,30 +977,89 @@ function buildModalCodeString(cfg: {
   return lines.join("\n");
 }
 
-function buildIframeCodeString(url: string): string {
-  return `<!-- Embed the Rhinestone Deposit Widget -->
-<iframe
-  src="${url}"
-  width="420"
-  height="500"
-  frameborder="0"
-  allow="clipboard-write"
-></iframe>
-
-<!-- Listen for events from the widget -->
-<script>
-window.addEventListener("message", (event) => {
-  if (event.data?.type?.startsWith("rhinestone:")) {
-    console.log(event.data.type, event.data.data);
-    // Handle events:
-    // - rhinestone:ready
-    // - rhinestone:connected
-    // - rhinestone:deposit-submitted
-    // - rhinestone:deposit-complete
-    // - rhinestone:deposit-failed
+function buildWithdrawCodeString(cfg: {
+  safeAddress: string;
+  sourceChain: number;
+  sourceToken: string;
+  targetChain: number;
+  targetToken: string;
+  recipient: string;
+  themeMode: string;
+  borderRadius: number;
+  brandTitle: string;
+  logoUrl: string;
+  prefilledAmount: string;
+  waitForFinalTx: boolean;
+  showLogo: boolean;
+  showStepper: boolean;
+  balanceTitle: string;
+  maxDepositUsd?: number;
+  fontColor: string;
+  iconColor: string;
+  ctaColor: string;
+  ctaHoverColor: string;
+  borderColor: string;
+  backgroundColor: string;
+}): string {
+  const lines = [
+    `import { WithdrawModal } from "@rhinestone/deposit-modal";`,
+    `import "@rhinestone/deposit-modal/styles.css";`,
+    ``,
+    `// In your component with wagmi hooks:`,
+    `// const { address } = useAccount();`,
+    `// const { data: walletClient } = useWalletClient();`,
+    `// const publicClient = usePublicClient();`,
+    ``,
+    `<WithdrawModal`,
+    `  isOpen={isOpen}`,
+    `  onClose={() => setIsOpen(false)}`,
+    `  walletClient={walletClient}`,
+    `  publicClient={publicClient}`,
+    `  address={address}`,
+    `  safeAddress="${cfg.safeAddress}"`,
+    `  sourceChain={${cfg.sourceChain}}`,
+    `  sourceToken="${cfg.sourceToken}"`,
+    `  targetChain={${cfg.targetChain}}`,
+    `  targetToken="${cfg.targetToken}"`,
+  ];
+  if (cfg.recipient) {
+    lines.push(`  recipient="${cfg.recipient}"`);
   }
-});
-</script>`;
+  if (cfg.prefilledAmount) {
+    lines.push(`  defaultAmount="${cfg.prefilledAmount}"`);
+  }
+  if (!cfg.waitForFinalTx) {
+    lines.push(`  waitForFinalTx={false}`);
+  }
+  lines.push(`  theme={{`);
+  lines.push(`    mode: "${cfg.themeMode}",`);
+  const radius = cfg.borderRadius <= 4 ? "sm" : cfg.borderRadius <= 10 ? "md" : "lg";
+  lines.push(`    radius: "${radius}",`);
+  if (cfg.fontColor) lines.push(`    fontColor: "${cfg.fontColor}",`);
+  if (cfg.iconColor) lines.push(`    iconColor: "${cfg.iconColor}",`);
+  lines.push(`    ctaColor: "${cfg.ctaColor}",`);
+  if (cfg.ctaHoverColor) lines.push(`    ctaHoverColor: "${cfg.ctaHoverColor}",`);
+  if (cfg.borderColor) lines.push(`    borderColor: "${cfg.borderColor}",`);
+  if (cfg.backgroundColor) lines.push(`    backgroundColor: "${cfg.backgroundColor}",`);
+  lines.push(`  }}`);
+  if (cfg.brandTitle || cfg.logoUrl) {
+    lines.push(`  branding={{`);
+    if (cfg.brandTitle) lines.push(`    title: "${cfg.brandTitle}",`);
+    if (cfg.logoUrl) lines.push(`    logoUrl: "${cfg.logoUrl}",`);
+    lines.push(`  }}`);
+  }
+  const hasUiConfig = cfg.showLogo || cfg.showStepper || cfg.balanceTitle || cfg.maxDepositUsd !== undefined;
+  if (hasUiConfig) {
+    lines.push(`  uiConfig={{`);
+    if (cfg.showLogo) lines.push(`    showLogo: true,`);
+    if (cfg.showStepper) lines.push(`    showStepper: true,`);
+    if (cfg.balanceTitle) lines.push(`    balanceTitle: "${cfg.balanceTitle}",`);
+    if (cfg.maxDepositUsd !== undefined) lines.push(`    maxDepositUsd: ${cfg.maxDepositUsd},`);
+    lines.push(`  }}`);
+  }
+  lines.push(`  onWithdrawComplete={(data) => console.log("Complete", data)}`);
+  lines.push(`/>`);
+  return lines.join("\n");
 }
 
 /* ── Code Block ──────────────────────────────────────────── */

@@ -4,14 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
-    "@reown/appkit": "^1.8.17",
-    "@reown/appkit-adapter-wagmi": "^1.8.17",
-    "@rhinestone/deposit-modal": "0.1.2",
+    "@privy-io/react-auth": "^3.13.1",
+    "@privy-io/wagmi": "^4.0.1",
+    "@rhinestone/deposit-modal": "0.1.3",
     "@tanstack/react-query": "^5.90.20",
     "next": "16.1.6",
     "react": "19.2.3",
