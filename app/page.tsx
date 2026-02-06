@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import {
   useAccount,
   useWalletClient,
@@ -116,6 +116,12 @@ export default function Home() {
   const [recipient, setRecipient] = useState(DEFAULT_RECIPIENT);
   const [prefilledAmount, setPrefilledAmount] = useState("");
   const [waitForFinalTx, setWaitForFinalTx] = useState(false);
+  const [useCustomSessionChains, setUseCustomSessionChains] = useState(false);
+  const [customSessionChainIds, setCustomSessionChainIds] = useState<number[]>([
+    8453,
+    42161,
+    10,
+  ]);
   const [showCode, setShowCode] = useState(false);
   const [showModal, setShowModal] = useState(true);
 
@@ -168,7 +174,39 @@ export default function Home() {
   );
   const onError = useCallback((e: unknown) => console.log("error", e), []);
 
-  const componentKey = `${flow}-${targetChain}-${targetToken}-${sourceChain}-${sourceToken}-${safeAddress}-${recipient}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${logoUrl}-${prefilledAmount}-${waitForFinalTx}-${showLogo}-${showStepper}-${balanceTitle}-${maxDepositUsd}-${fontColor}-${iconColor}-${ctaHoverColor}-${borderColor}-${backgroundColor}`;
+  const availableSessionChainIds = useMemo(
+    () => CHAIN_OPTIONS.map((chain) => chain.id),
+    [],
+  );
+
+  const sessionChainIds = useMemo(() => {
+    if (!useCustomSessionChains) {
+      return undefined;
+    }
+    const allowed = new Set(availableSessionChainIds);
+    const filtered = customSessionChainIds.filter((chainId) =>
+      allowed.has(chainId),
+    );
+    if (filtered.length > 0) {
+      return filtered;
+    }
+    return [targetChain];
+  }, [
+    useCustomSessionChains,
+    availableSessionChainIds,
+    customSessionChainIds,
+    targetChain,
+  ]);
+
+  const toggleSessionChain = useCallback((chainId: number) => {
+    setCustomSessionChainIds((prev) =>
+      prev.includes(chainId)
+        ? prev.filter((id) => id !== chainId)
+        : [...prev, chainId],
+    );
+  }, []);
+
+  const componentKey = `${flow}-${targetChain}-${targetToken}-${sourceChain}-${sourceToken}-${safeAddress}-${recipient}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${logoUrl}-${prefilledAmount}-${waitForFinalTx}-${useCustomSessionChains}-${customSessionChainIds.join(",")}-${showLogo}-${showStepper}-${balanceTitle}-${maxDepositUsd}-${fontColor}-${iconColor}-${ctaHoverColor}-${borderColor}-${backgroundColor}`;
 
   const truncatedAddress = address
     ? `${address.slice(0, 6)}...${address.slice(-4)}`
@@ -393,6 +431,55 @@ export default function Home() {
               </Row>
             </Section>
 
+            <Section title="Session Signing">
+              <Row
+                label={
+                  <LabelWithInfo
+                    text="Scope"
+                    tooltip="Auto uses modal defaults. Custom signs sessions only for selected chains, plus the target chain."
+                  />
+                }
+              >
+                <Pill
+                  value={useCustomSessionChains ? "custom" : "auto"}
+                  onChange={(value) =>
+                    setUseCustomSessionChains(value === "custom")
+                  }
+                  options={[
+                    { value: "auto", label: "Auto" },
+                    { value: "custom", label: "Custom" },
+                  ]}
+                />
+              </Row>
+              {useCustomSessionChains && (
+                <div className="p-2.5">
+                  <div className="flex flex-wrap gap-1.5">
+                    {CHAIN_OPTIONS.map((chain) => {
+                      const selected = customSessionChainIds.includes(chain.id);
+                      return (
+                        <button
+                          key={chain.id}
+                          type="button"
+                          onClick={() => toggleSessionChain(chain.id)}
+                          className="px-2 py-1 text-[11px] font-medium transition-colors"
+                          style={{
+                            borderRadius: "var(--radius-full)",
+                            border: "1px solid var(--border-surface)",
+                            background: selected
+                              ? "var(--bg-accent)"
+                              : "var(--bg-surface)",
+                            color: selected ? "white" : "var(--text-secondary)",
+                          }}
+                        >
+                          {chain.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </Section>
+
             {/* Theme */}
             <Section title="Appearance">
               <Row label="Mode">
@@ -606,6 +693,7 @@ export default function Home() {
                           logoUrl,
                           prefilledAmount,
                           waitForFinalTx,
+                          sessionChainIds,
                           showLogo,
                           showStepper,
                           balanceTitle,
@@ -627,6 +715,7 @@ export default function Home() {
                           logoUrl,
                           prefilledAmount,
                           waitForFinalTx,
+                          sessionChainIds,
                           showLogo,
                           showStepper,
                           balanceTitle,
@@ -677,6 +766,7 @@ export default function Home() {
                       targetToken={targetToken as Address}
                       recipient={(recipient as Address) || undefined}
                       defaultAmount={prefilledAmount || undefined}
+                      sessionChainIds={sessionChainIds}
                       waitForFinalTx={waitForFinalTx}
                       theme={{
                         mode: themeMode,
@@ -729,7 +819,7 @@ export default function Home() {
                     targetToken={targetToken as Address}
                     recipient={(recipient as Address) || undefined}
                     defaultAmount={prefilledAmount || undefined}
-                    forceRegister={true}
+                    sessionChainIds={sessionChainIds}
                     waitForFinalTx={waitForFinalTx}
                     theme={{
                       mode: themeMode,
@@ -1154,6 +1244,7 @@ function buildModalCodeString(cfg: {
   logoUrl: string;
   prefilledAmount: string;
   waitForFinalTx: boolean;
+  sessionChainIds?: number[];
   showLogo: boolean;
   showStepper: boolean;
   balanceTitle: string;
@@ -1191,6 +1282,9 @@ function buildModalCodeString(cfg: {
   }
   if (!cfg.waitForFinalTx) {
     lines.push(`  waitForFinalTx={false}`);
+  }
+  if (cfg.sessionChainIds && cfg.sessionChainIds.length > 0) {
+    lines.push(`  sessionChainIds={[${cfg.sessionChainIds.join(", ")}]}`);
   }
   // Theme
   lines.push(`  theme={{`);
@@ -1248,6 +1342,7 @@ function buildWithdrawCodeString(cfg: {
   logoUrl: string;
   prefilledAmount: string;
   waitForFinalTx: boolean;
+  sessionChainIds?: number[];
   showLogo: boolean;
   showStepper: boolean;
   balanceTitle: string;
@@ -1288,6 +1383,9 @@ function buildWithdrawCodeString(cfg: {
   }
   if (!cfg.waitForFinalTx) {
     lines.push(`  waitForFinalTx={false}`);
+  }
+  if (cfg.sessionChainIds && cfg.sessionChainIds.length > 0) {
+    lines.push(`  sessionChainIds={[${cfg.sessionChainIds.join(", ")}]}`);
   }
   lines.push(`  theme={{`);
   lines.push(`    mode: "${cfg.themeMode}",`);
