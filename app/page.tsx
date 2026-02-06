@@ -1,9 +1,14 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { useAccount, useWalletClient, usePublicClient, useSwitchChain } from "wagmi";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { useSetActiveWallet } from "@privy-io/wagmi";
+import {
+  useAccount,
+  useWalletClient,
+  usePublicClient,
+  useSwitchChain,
+  useDisconnect,
+} from "wagmi";
+import { useAppKit } from "@reown/appkit/react";
 import { DepositModal, WithdrawModal } from "@rhinestone/deposit-modal";
 import { isAddress, type Address } from "viem";
 
@@ -14,6 +19,8 @@ const CHAINS: Record<number, string> = {
   10: "Optimism",
   42161: "Arbitrum",
 };
+
+const NATIVE_TOKEN_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 const TOKENS: Record<string, { label: string; chain: number }> = {
   "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913": { label: "USDC", chain: 8453 },
@@ -55,18 +62,20 @@ export default function Home() {
   const [flow, setFlow] = useState<FlowMode>("deposit");
   const [targetChain, setTargetChain] = useState(8453);
   const [targetToken, setTargetToken] = useState(
-    "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+    "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
   );
   const [sourceChain, setSourceChain] = useState(8453);
   const [sourceToken, setSourceToken] = useState(
-    "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+    "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
   );
   const [safeAddress, setSafeAddress] = useState("");
   const [accent, setAccent] = useState("#0090ff");
   const [themeMode, setThemeMode] = useState<"light" | "dark">("light");
   const [borderRadius, setBorderRadius] = useState(14);
   const [brandTitle, setBrandTitle] = useState("Deposit");
-  const [logoUrl, setLogoUrl] = useState("https://github.com/rhinestonewtf.png");
+  const [logoUrl, setLogoUrl] = useState(
+    "https://github.com/rhinestonewtf.png",
+  );
 
   // UI Config
   const [showLogo, setShowLogo] = useState(false);
@@ -92,42 +101,41 @@ export default function Home() {
   const { data: walletClient } = useWalletClient();
   const publicClient = usePublicClient();
   const { switchChainAsync } = useSwitchChain();
-  const { login, logout, authenticated, ready } = usePrivy();
-  const { wallets } = useWallets();
-  const { setActiveWallet } = useSetActiveWallet();
-
-  // Sync Privy wallet with wagmi
-  useEffect(() => {
-    if (wallets.length > 0 && authenticated) {
-      setActiveWallet(wallets[0]);
-    }
-  }, [wallets, authenticated, setActiveWallet]);
+  const { disconnect } = useDisconnect();
+  const { open } = useAppKit();
 
   const handleChainChange = useCallback((chainId: number) => {
     setTargetChain(chainId);
-    setTargetToken(tokenForChain(chainId));
+    setTargetToken((prev) =>
+      prev.toLowerCase() === NATIVE_TOKEN_ADDRESS
+        ? NATIVE_TOKEN_ADDRESS
+        : tokenForChain(chainId),
+    );
   }, []);
 
   const handleSourceChainChange = useCallback((chainId: number) => {
     setSourceChain(chainId);
-    setSourceToken(tokenForChain(chainId));
+    setSourceToken((prev) =>
+      prev.toLowerCase() === NATIVE_TOKEN_ADDRESS
+        ? NATIVE_TOKEN_ADDRESS
+        : tokenForChain(chainId),
+    );
   }, []);
 
   const handleSwitchChain = useCallback(
     async (chainId: number) => {
       await switchChainAsync({ chainId });
     },
-    [switchChainAsync]
+    [switchChainAsync],
   );
 
   const onDepositComplete = useCallback(
     (d: unknown) => console.log("complete", d),
-    []
+    [],
   );
   const onError = useCallback((e: unknown) => console.log("error", e), []);
 
   const componentKey = `${flow}-${targetChain}-${targetToken}-${sourceChain}-${sourceToken}-${safeAddress}-${recipient}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${logoUrl}-${prefilledAmount}-${waitForFinalTx}-${showLogo}-${showStepper}-${balanceTitle}-${maxDepositUsd}-${fontColor}-${iconColor}-${ctaHoverColor}-${borderColor}-${backgroundColor}`;
-
 
   const truncatedAddress = address
     ? `${address.slice(0, 6)}...${address.slice(-4)}`
@@ -173,9 +181,9 @@ export default function Home() {
         </div>
 
         <div className="flex items-center gap-3">
-          {authenticated && isConnected ? (
+          {isConnected ? (
             <button
-              onClick={() => logout()}
+              onClick={() => disconnect()}
               className="flex items-center gap-1.5 text-[12px] font-medium px-2.5 py-1.5 transition-colors"
               style={{
                 background: "var(--bg-surface)",
@@ -185,11 +193,13 @@ export default function Home() {
             >
               <span>{truncatedAddress}</span>
               <span style={{ color: "var(--text-tertiary)" }}>·</span>
-              <span style={{ color: "var(--text-error, #e5484d)" }}>Disconnect</span>
+              <span style={{ color: "var(--text-error, #e5484d)" }}>
+                Disconnect
+              </span>
             </button>
           ) : (
             <button
-              onClick={() => login()}
+              onClick={() => open()}
               className="flex items-center gap-1.5 text-[12px] font-medium px-2.5 py-1.5 transition-colors"
               style={{
                 background: "var(--bg-accent)",
@@ -201,13 +211,17 @@ export default function Home() {
             </button>
           )}
           <a
-            href="https://docs.rhinestone.wtf"
+            href="https://docs.google.com/document/d/1uaOrXAEALpuXsn-jIdTI-DGIichypdeGSUpkE_qNruo/edit?usp=sharing"
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1.5 text-[12px] font-medium transition-colors"
             style={{ color: "var(--text-tertiary)" }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-secondary)")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-tertiary)")}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.color = "var(--text-secondary)")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.color = "var(--text-tertiary)")
+            }
           >
             <ExternalLinkIcon />
             Docs
@@ -229,7 +243,10 @@ export default function Home() {
               <Row label="Flow">
                 <Pill
                   value={flow}
-                  onChange={(v) => setFlow(v as FlowMode)}
+                  onChange={(v) => {
+                    setFlow(v as FlowMode);
+                    setBrandTitle(v === "withdraw" ? "Withdraw" : "Deposit");
+                  }}
                   options={[
                     { value: "deposit", label: "Deposit" },
                     { value: "withdraw", label: "Withdraw" },
@@ -264,12 +281,24 @@ export default function Home() {
                   />
                 </Row>
                 <Row label="Token">
-                  <span
-                    className="text-[13px] font-medium"
-                    style={{ color: "var(--text-primary)" }}
-                  >
-                    {TOKENS[sourceToken]?.label ?? "USDC"} · {CHAINS[sourceChain]}
-                  </span>
+                  <Pill
+                    value={
+                      sourceToken.toLowerCase() === NATIVE_TOKEN_ADDRESS
+                        ? "ETH"
+                        : "USDC"
+                    }
+                    onChange={(value) => {
+                      if (value === "ETH") {
+                        setSourceToken(NATIVE_TOKEN_ADDRESS);
+                        return;
+                      }
+                      setSourceToken(tokenForChain(sourceChain));
+                    }}
+                    options={[
+                      { value: "USDC", label: "USDC" },
+                      { value: "ETH", label: "ETH" },
+                    ]}
+                  />
                 </Row>
               </Section>
             )}
@@ -287,12 +316,24 @@ export default function Home() {
                 />
               </Row>
               <Row label="Token">
-                <span
-                  className="text-[13px] font-medium"
-                  style={{ color: "var(--text-primary)" }}
-                >
-                  {TOKENS[targetToken]?.label ?? "USDC"} · {CHAINS[targetChain]}
-                </span>
+                <Pill
+                  value={
+                    targetToken.toLowerCase() === NATIVE_TOKEN_ADDRESS
+                      ? "ETH"
+                      : "USDC"
+                  }
+                  onChange={(value) => {
+                    if (value === "ETH") {
+                      setTargetToken(NATIVE_TOKEN_ADDRESS);
+                      return;
+                    }
+                    setTargetToken(tokenForChain(targetChain));
+                  }}
+                  options={[
+                    { value: "USDC", label: "USDC" },
+                    { value: "ETH", label: "ETH" },
+                  ]}
+                />
               </Row>
               <Row label="Amount">
                 <input
@@ -305,7 +346,11 @@ export default function Home() {
                   style={{ color: "var(--text-primary)" }}
                 />
               </Row>
-              <Row label={<LabelWithInfo text="Recipient" tooltip={recipientTooltip} />}>
+              <Row
+                label={
+                  <LabelWithInfo text="Recipient" tooltip={recipientTooltip} />
+                }
+              >
                 <input
                   type="text"
                   value={recipient}
@@ -315,7 +360,14 @@ export default function Home() {
                   style={{ color: "var(--text-primary)" }}
                 />
               </Row>
-              <Row label={<LabelWithInfo text="Wait for final tx" tooltip="For faster transaction confirmation, Rhinestone marks an intent as complete when the solver delivers a pre-confirmation." />}>
+              <Row
+                label={
+                  <LabelWithInfo
+                    text="Wait for final tx"
+                    tooltip="For faster transaction confirmation, Rhinestone marks an intent as complete when the solver delivers a pre-confirmation."
+                  />
+                }
+              >
                 <Toggle checked={waitForFinalTx} onChange={setWaitForFinalTx} />
               </Row>
             </Section>
@@ -347,7 +399,8 @@ export default function Home() {
                           accent === p.value
                             ? `0 0 0 1.5px var(--bg-primary), 0 0 0 3px ${p.value}`
                             : "none",
-                        transform: accent === p.value ? "scale(1.15)" : "scale(1)",
+                        transform:
+                          accent === p.value ? "scale(1.15)" : "scale(1)",
                       }}
                     />
                   ))}
@@ -355,10 +408,12 @@ export default function Home() {
                     className="relative size-[18px] rounded-full shrink-0 flex items-center justify-center cursor-pointer transition-colors"
                     style={{ border: "1.5px dashed var(--border-surface)" }}
                     onMouseEnter={(e) =>
-                      (e.currentTarget.style.borderColor = "var(--text-tertiary)")
+                      (e.currentTarget.style.borderColor =
+                        "var(--text-tertiary)")
                     }
                     onMouseLeave={(e) =>
-                      (e.currentTarget.style.borderColor = "var(--border-surface)")
+                      (e.currentTarget.style.borderColor =
+                        "var(--border-surface)")
                     }
                   >
                     <input
@@ -417,19 +472,39 @@ export default function Home() {
                 />
               </Row>
               <Row label="Font Color">
-                <ColorInput value={fontColor} onChange={setFontColor} placeholder="Auto" />
+                <ColorInput
+                  value={fontColor}
+                  onChange={setFontColor}
+                  placeholder="Auto"
+                />
               </Row>
               <Row label="Icon Color">
-                <ColorInput value={iconColor} onChange={setIconColor} placeholder="Auto" />
+                <ColorInput
+                  value={iconColor}
+                  onChange={setIconColor}
+                  placeholder="Auto"
+                />
               </Row>
               <Row label="CTA Hover">
-                <ColorInput value={ctaHoverColor} onChange={setCtaHoverColor} placeholder="Auto" />
+                <ColorInput
+                  value={ctaHoverColor}
+                  onChange={setCtaHoverColor}
+                  placeholder="Auto"
+                />
               </Row>
               <Row label="Border Color">
-                <ColorInput value={borderColor} onChange={setBorderColor} placeholder="Auto" />
+                <ColorInput
+                  value={borderColor}
+                  onChange={setBorderColor}
+                  placeholder="Auto"
+                />
               </Row>
               <Row label="Background">
-                <ColorInput value={backgroundColor} onChange={setBackgroundColor} placeholder="Auto" />
+                <ColorInput
+                  value={backgroundColor}
+                  onChange={setBackgroundColor}
+                  placeholder="Auto"
+                />
               </Row>
             </Section>
 
@@ -455,7 +530,11 @@ export default function Home() {
                 <input
                   type="number"
                   value={maxDepositUsd ?? ""}
-                  onChange={(e) => setMaxDepositUsd(e.target.value ? Number(e.target.value) : undefined)}
+                  onChange={(e) =>
+                    setMaxDepositUsd(
+                      e.target.value ? Number(e.target.value) : undefined,
+                    )
+                  }
                   placeholder="No limit"
                   className="text-[13px] font-medium bg-transparent outline-none text-right w-20"
                   style={{ color: "var(--text-primary)" }}
@@ -471,7 +550,9 @@ export default function Home() {
                 className="flex items-center justify-center gap-1.5 h-8 text-[12px] font-medium transition-colors"
                 style={{
                   borderRadius: "var(--radius-sm)",
-                  background: showCode ? "var(--bg-surface-hover)" : "var(--bg-surface)",
+                  background: showCode
+                    ? "var(--bg-surface-hover)"
+                    : "var(--bg-surface)",
                   color: "var(--text-secondary)",
                 }}
                 onMouseEnter={(e) =>
@@ -549,7 +630,14 @@ export default function Home() {
           style={{ background: "var(--bg-secondary)" }}
         >
           <div className="widget-glow">
-            <div style={{ width: 420, boxShadow: "var(--shadow-widget)", borderRadius: `${borderRadius}px`, overflow: "hidden" }}>
+            <div
+              style={{
+                width: 420,
+                boxShadow: "var(--shadow-widget)",
+                borderRadius: `${borderRadius}px`,
+                overflow: "hidden",
+              }}
+            >
               {showModal ? (
                 flow === "withdraw" ? (
                   isSafeAddressValid ? (
@@ -557,21 +645,26 @@ export default function Home() {
                       key={componentKey}
                       isOpen={true}
                       onClose={() => setShowModal(false)}
-                      walletClient={authenticated ? walletClient : undefined}
-                      publicClient={authenticated ? publicClient : undefined}
-                      address={authenticated ? address : undefined}
+                      walletClient={isConnected ? walletClient : undefined}
+                      publicClient={isConnected ? publicClient : undefined}
+                      address={isConnected ? address : undefined}
                       switchChain={handleSwitchChain}
                       safeAddress={safeAddress as Address}
                       sourceChain={sourceChain}
                       sourceToken={sourceToken as Address}
                       targetChain={targetChain}
                       targetToken={targetToken as Address}
-                      recipient={recipient as Address || undefined}
+                      recipient={(recipient as Address) || undefined}
                       defaultAmount={prefilledAmount || undefined}
                       waitForFinalTx={waitForFinalTx}
                       theme={{
                         mode: themeMode,
-                        radius: borderRadius <= 4 ? "sm" : borderRadius <= 10 ? "md" : "lg",
+                        radius:
+                          borderRadius <= 4
+                            ? "sm"
+                            : borderRadius <= 10
+                              ? "md"
+                              : "lg",
                         fontColor: fontColor || undefined,
                         iconColor: iconColor || undefined,
                         ctaColor: accent,
@@ -589,7 +682,7 @@ export default function Home() {
                         balanceTitle: balanceTitle || undefined,
                         maxDepositUsd,
                       }}
-                      onRequestConnect={() => login()}
+                      onRequestConnect={() => open()}
                       onWithdrawComplete={onDepositComplete}
                       onError={onError}
                       inline={true}
@@ -607,18 +700,24 @@ export default function Home() {
                     key={componentKey}
                     isOpen={true}
                     onClose={() => setShowModal(false)}
-                    walletClient={authenticated ? walletClient : undefined}
-                    publicClient={authenticated ? publicClient : undefined}
-                    address={authenticated ? address : undefined}
+                    walletClient={isConnected ? walletClient : undefined}
+                    publicClient={isConnected ? publicClient : undefined}
+                    address={isConnected ? address : undefined}
                     switchChain={handleSwitchChain}
                     targetChain={targetChain}
                     targetToken={targetToken as Address}
-                    recipient={recipient as Address || undefined}
+                    recipient={(recipient as Address) || undefined}
                     defaultAmount={prefilledAmount || undefined}
+                    forceRegister={true}
                     waitForFinalTx={waitForFinalTx}
                     theme={{
                       mode: themeMode,
-                      radius: borderRadius <= 4 ? "sm" : borderRadius <= 10 ? "md" : "lg",
+                      radius:
+                        borderRadius <= 4
+                          ? "sm"
+                          : borderRadius <= 10
+                            ? "md"
+                            : "lg",
                       fontColor: fontColor || undefined,
                       iconColor: iconColor || undefined,
                       ctaColor: accent,
@@ -636,7 +735,7 @@ export default function Home() {
                       balanceTitle: balanceTitle || undefined,
                       maxDepositUsd,
                     }}
-                    onRequestConnect={() => login()}
+                    onRequestConnect={() => open()}
                     onDepositComplete={onDepositComplete}
                     onError={onError}
                     inline={true}
@@ -671,10 +770,16 @@ function ModalPlaceholder({ onOpen }: { onOpen: () => void }) {
         <WalletIcon />
       </div>
       <div className="text-center">
-        <div className="text-[15px] font-medium" style={{ color: "var(--text-primary)" }}>
+        <div
+          className="text-[15px] font-medium"
+          style={{ color: "var(--text-primary)" }}
+        >
           Modal is closed
         </div>
-        <div className="text-[13px] mt-1" style={{ color: "var(--text-secondary)" }}>
+        <div
+          className="text-[13px] mt-1"
+          style={{ color: "var(--text-secondary)" }}
+        >
           Toggle &quot;Show Modal&quot; or click below to open
         </div>
       </div>
@@ -736,7 +841,12 @@ function LabelWithInfo({ text, tooltip }: { text: string; tooltip: string }) {
           color: "var(--text-secondary)",
         }}
       >
-        <span className="text-[9px] font-bold leading-none" style={{ marginTop: "0.5px" }}>i</span>
+        <span
+          className="text-[9px] font-bold leading-none"
+          style={{ marginTop: "0.5px" }}
+        >
+          i
+        </span>
       </span>
       <div
         className="absolute left-0 top-full mt-1.5 z-10 w-52 p-2 text-[11px] leading-[1.5] font-normal opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-opacity"
@@ -799,8 +909,7 @@ function Pill({
           className="text-[12px] font-medium px-2.5 py-[5px] transition-all"
           style={{
             borderRadius: "calc(var(--radius-sm) - 2px)",
-            background:
-              value === o.value ? "var(--bg-primary)" : "transparent",
+            background: value === o.value ? "var(--bg-primary)" : "transparent",
             color:
               value === o.value
                 ? "var(--text-primary)"
@@ -884,7 +993,10 @@ function ColorInput({
           type="button"
           onClick={() => onChange("")}
           className="text-[10px] px-1 py-0.5 rounded"
-          style={{ background: "var(--bg-surface)", color: "var(--text-tertiary)" }}
+          style={{
+            background: "var(--bg-surface)",
+            color: "var(--text-tertiary)",
+          }}
         >
           ×
         </button>
@@ -946,14 +1058,17 @@ function buildModalCodeString(cfg: {
   // Theme
   lines.push(`  theme={{`);
   lines.push(`    mode: "${cfg.themeMode}",`);
-  const radius = cfg.borderRadius <= 4 ? "sm" : cfg.borderRadius <= 10 ? "md" : "lg";
+  const radius =
+    cfg.borderRadius <= 4 ? "sm" : cfg.borderRadius <= 10 ? "md" : "lg";
   lines.push(`    radius: "${radius}",`);
   if (cfg.fontColor) lines.push(`    fontColor: "${cfg.fontColor}",`);
   if (cfg.iconColor) lines.push(`    iconColor: "${cfg.iconColor}",`);
   lines.push(`    ctaColor: "${cfg.ctaColor}",`);
-  if (cfg.ctaHoverColor) lines.push(`    ctaHoverColor: "${cfg.ctaHoverColor}",`);
+  if (cfg.ctaHoverColor)
+    lines.push(`    ctaHoverColor: "${cfg.ctaHoverColor}",`);
   if (cfg.borderColor) lines.push(`    borderColor: "${cfg.borderColor}",`);
-  if (cfg.backgroundColor) lines.push(`    backgroundColor: "${cfg.backgroundColor}",`);
+  if (cfg.backgroundColor)
+    lines.push(`    backgroundColor: "${cfg.backgroundColor}",`);
   lines.push(`  }}`);
   // Branding
   if (cfg.brandTitle || cfg.logoUrl) {
@@ -963,13 +1078,19 @@ function buildModalCodeString(cfg: {
     lines.push(`  }}`);
   }
   // UI Config - only show if non-default values
-  const hasUiConfig = cfg.showLogo || cfg.showStepper || cfg.balanceTitle || cfg.maxDepositUsd !== undefined;
+  const hasUiConfig =
+    cfg.showLogo ||
+    cfg.showStepper ||
+    cfg.balanceTitle ||
+    cfg.maxDepositUsd !== undefined;
   if (hasUiConfig) {
     lines.push(`  uiConfig={{`);
     if (cfg.showLogo) lines.push(`    showLogo: true,`);
     if (cfg.showStepper) lines.push(`    showStepper: true,`);
-    if (cfg.balanceTitle) lines.push(`    balanceTitle: "${cfg.balanceTitle}",`);
-    if (cfg.maxDepositUsd !== undefined) lines.push(`    maxDepositUsd: ${cfg.maxDepositUsd},`);
+    if (cfg.balanceTitle)
+      lines.push(`    balanceTitle: "${cfg.balanceTitle}",`);
+    if (cfg.maxDepositUsd !== undefined)
+      lines.push(`    maxDepositUsd: ${cfg.maxDepositUsd},`);
     lines.push(`  }}`);
   }
   lines.push(`  onDepositComplete={(data) => console.log("Complete", data)}`);
@@ -1033,14 +1154,17 @@ function buildWithdrawCodeString(cfg: {
   }
   lines.push(`  theme={{`);
   lines.push(`    mode: "${cfg.themeMode}",`);
-  const radius = cfg.borderRadius <= 4 ? "sm" : cfg.borderRadius <= 10 ? "md" : "lg";
+  const radius =
+    cfg.borderRadius <= 4 ? "sm" : cfg.borderRadius <= 10 ? "md" : "lg";
   lines.push(`    radius: "${radius}",`);
   if (cfg.fontColor) lines.push(`    fontColor: "${cfg.fontColor}",`);
   if (cfg.iconColor) lines.push(`    iconColor: "${cfg.iconColor}",`);
   lines.push(`    ctaColor: "${cfg.ctaColor}",`);
-  if (cfg.ctaHoverColor) lines.push(`    ctaHoverColor: "${cfg.ctaHoverColor}",`);
+  if (cfg.ctaHoverColor)
+    lines.push(`    ctaHoverColor: "${cfg.ctaHoverColor}",`);
   if (cfg.borderColor) lines.push(`    borderColor: "${cfg.borderColor}",`);
-  if (cfg.backgroundColor) lines.push(`    backgroundColor: "${cfg.backgroundColor}",`);
+  if (cfg.backgroundColor)
+    lines.push(`    backgroundColor: "${cfg.backgroundColor}",`);
   lines.push(`  }}`);
   if (cfg.brandTitle || cfg.logoUrl) {
     lines.push(`  branding={{`);
@@ -1048,13 +1172,19 @@ function buildWithdrawCodeString(cfg: {
     if (cfg.logoUrl) lines.push(`    logoUrl: "${cfg.logoUrl}",`);
     lines.push(`  }}`);
   }
-  const hasUiConfig = cfg.showLogo || cfg.showStepper || cfg.balanceTitle || cfg.maxDepositUsd !== undefined;
+  const hasUiConfig =
+    cfg.showLogo ||
+    cfg.showStepper ||
+    cfg.balanceTitle ||
+    cfg.maxDepositUsd !== undefined;
   if (hasUiConfig) {
     lines.push(`  uiConfig={{`);
     if (cfg.showLogo) lines.push(`    showLogo: true,`);
     if (cfg.showStepper) lines.push(`    showStepper: true,`);
-    if (cfg.balanceTitle) lines.push(`    balanceTitle: "${cfg.balanceTitle}",`);
-    if (cfg.maxDepositUsd !== undefined) lines.push(`    maxDepositUsd: ${cfg.maxDepositUsd},`);
+    if (cfg.balanceTitle)
+      lines.push(`    balanceTitle: "${cfg.balanceTitle}",`);
+    if (cfg.maxDepositUsd !== undefined)
+      lines.push(`    maxDepositUsd: ${cfg.maxDepositUsd},`);
     lines.push(`  }}`);
   }
   lines.push(`  onWithdrawComplete={(data) => console.log("Complete", data)}`);
@@ -1182,7 +1312,16 @@ function WalletIcon() {
 
 function CopyIcon() {
   return (
-    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="10"
+      height="10"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
       <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
     </svg>
@@ -1191,7 +1330,16 @@ function CopyIcon() {
 
 function CheckIcon() {
   return (
-    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="10"
+      height="10"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <polyline points="20 6 9 17 4 12" />
     </svg>
   );
