@@ -766,6 +766,7 @@ export default function Home() {
                       targetToken={targetToken as Address}
                       recipient={(recipient as Address) || undefined}
                       defaultAmount={prefilledAmount || undefined}
+                      forceRegister={true}
                       sessionChainIds={sessionChainIds}
                       waitForFinalTx={waitForFinalTx}
                       theme={{
@@ -819,6 +820,7 @@ export default function Home() {
                     targetToken={targetToken as Address}
                     recipient={(recipient as Address) || undefined}
                     defaultAmount={prefilledAmount || undefined}
+                    forceRegister={true}
                     sessionChainIds={sessionChainIds}
                     waitForFinalTx={waitForFinalTx}
                     theme={{
@@ -1273,6 +1275,7 @@ function buildModalCodeString(cfg: {
     `  address={address}`,
     `  targetChain={${cfg.targetChain}}`,
     `  targetToken="${cfg.targetToken}"`,
+    `  forceRegister={true}`,
   ];
   if (cfg.recipient) {
     lines.push(`  recipient="${cfg.recipient}"`);
@@ -1374,6 +1377,7 @@ function buildWithdrawCodeString(cfg: {
     `  sourceToken="${cfg.sourceToken}"`,
     `  targetChain={${cfg.targetChain}}`,
     `  targetToken="${cfg.targetToken}"`,
+    `  forceRegister={true}`,
   ];
   if (cfg.recipient) {
     lines.push(`  recipient="${cfg.recipient}"`);

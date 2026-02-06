@@ -11,7 +11,7 @@
   "dependencies": {
     "@reown/appkit": "1.8.17",
     "@reown/appkit-adapter-wagmi": "1.8.17",
-    "@rhinestone/deposit-modal": "0.1.9",
+    "@rhinestone/deposit-modal": "0.1.10",
     "@tanstack/react-query": "^5.90.20",
     "next": "16.1.6",
     "react": "19.2.3",
