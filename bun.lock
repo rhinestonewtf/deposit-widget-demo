@@ -6,7 +6,7 @@
       "dependencies": {
         "@reown/appkit": "1.8.17",
         "@reown/appkit-adapter-wagmi": "1.8.17",
-        "@rhinestone/deposit-modal": "0.1.7",
+        "@rhinestone/deposit-modal": "0.1.9",
         "@tanstack/react-query": "^5.90.20",
         "next": "16.1.6",
         "react": "19.2.3",
@@ -273,7 +273,7 @@
 
     "@reown/appkit-wallet": ["@reown/appkit-wallet@1.8.17", "", { "dependencies": { "@reown/appkit-common": "1.8.17", "@reown/appkit-polyfills": "1.8.17", "@walletconnect/logger": "3.0.2", "zod": "3.22.4" } }, "sha512-khuQqHGtCyKSTUlcCnB1Evy1ZLmrU5cUXjP6/zrFYW3m+THnNfr+w6Tp49OfnW1wYsoe53GHzlgTuGASwXYloQ=="],
 
-    "@rhinestone/deposit-modal": ["@rhinestone/deposit-modal@0.1.7", "", { "dependencies": { "@rhinestone/sdk": "^1.2.10", "@rhinestone/shared-configs": "^1.4.93" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18", "viem": ">=2.0.0" } }, "sha512-LiMwlOhtCF2j7yh5Ge4s74oJrFt20eXQw8q916yYMHOZW7sbWcaEabHWZeaGxtb2KN+SN3arv/MWdpubh7Y2bA=="],
+    "@rhinestone/deposit-modal": ["@rhinestone/deposit-modal@0.1.9", "", { "dependencies": { "@rhinestone/sdk": "^1.2.10", "@rhinestone/shared-configs": "^1.4.93" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18", "viem": ">=2.0.0" } }, "sha512-Ep53VVcWRQFA2Y0PHKnqP91e/ngWn+JC0UxNg/jkd3bNDxMsU64lsT77ot8HgAf0rs2gJJX53Lam/OMkkqql6A=="],
 
     "@rhinestone/sdk": ["@rhinestone/sdk@1.2.10", "", { "dependencies": { "@rhinestone/shared-configs": "1.4.91", "ox": "^0.11.3", "solady": "^0.1.26" }, "peerDependencies": { "viem": "^2.38.0" } }, "sha512-pGs0GC5iQGgFu7vI9t8ZBjscK9MSlaFzn/vvxPJLPYActBaFD9+Gt8+0459h8Q8HN8p9/9ZdZ6P9CQ2YrwIMug=="],
 
