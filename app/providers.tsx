@@ -4,18 +4,32 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createAppKit } from "@reown/appkit/react";
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 import {
+  mainnet,
   base,
-  optimism,
   arbitrum,
+  optimism,
+  polygon,
+  bsc,
+  sepolia,
+  baseSepolia,
+  optimismSepolia,
+  arbitrumSepolia,
   type AppKitNetwork,
 } from "@reown/appkit/networks";
 import { WagmiProvider } from "wagmi";
 import { useState, useSyncExternalStore, type ReactNode } from "react";
 
 const networks: [AppKitNetwork, ...AppKitNetwork[]] = [
+  mainnet,
   base,
-  optimism,
   arbitrum,
+  optimism,
+  polygon,
+  bsc,
+  sepolia,
+  baseSepolia,
+  optimismSepolia,
+  arbitrumSepolia,
 ];
 
 let cachedAdapter: WagmiAdapter | null = null;
@@ -59,7 +73,11 @@ function getOrCreateAdapter(): WagmiAdapter | null {
 const emptySubscribe = () => () => {};
 
 function useHydrated() {
-  return useSyncExternalStore(emptySubscribe, () => true, () => false);
+  return useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false,
+  );
 }
 
 function LoadingScreen() {

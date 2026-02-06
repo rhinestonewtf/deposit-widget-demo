@@ -9,26 +9,37 @@ import {
   useDisconnect,
 } from "wagmi";
 import { useAppKit } from "@reown/appkit/react";
-import { DepositModal, WithdrawModal } from "@rhinestone/deposit-modal";
+import {
+  DepositModal,
+  WithdrawModal,
+  NATIVE_TOKEN_ADDRESS,
+  SOURCE_CHAINS,
+  getTokenAddress,
+  getSupportedTokenSymbolsForChain,
+} from "@rhinestone/deposit-modal";
 import { isAddress, type Address } from "viem";
 
 type FlowMode = "deposit" | "withdraw";
 
-const CHAINS: Record<number, string> = {
-  8453: "Base",
-  10: "Optimism",
-  42161: "Arbitrum",
-};
-
-const NATIVE_TOKEN_ADDRESS = "0x0000000000000000000000000000000000000000";
-
-const TOKENS: Record<string, { label: string; chain: number }> = {
-  "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913": { label: "USDC", chain: 8453 },
-  "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85": { label: "USDC", chain: 10 },
-  "0xaf88d065e77c8cC2239327C5EDb3A432268e5831": { label: "USDC", chain: 42161 },
-};
-
 const DEFAULT_RECIPIENT = "0x0197d7FaFCA118Bc91f6854B9A2ceea94E676585";
+
+const MAINNET_CHAIN_IDS = new Set([1, 8453, 42161, 10, 137, 56]);
+
+function getSelectableSymbolsForChain(chainId: number): string[] {
+  return getSupportedTokenSymbolsForChain(chainId).filter((symbol) => {
+    if (symbol.toUpperCase() === "ETH") return true;
+    return Boolean(getTokenAddress(symbol, chainId));
+  });
+}
+
+const CHAIN_OPTIONS = SOURCE_CHAINS.filter(
+  (chain) =>
+    MAINNET_CHAIN_IDS.has(chain.id) &&
+    getSelectableSymbolsForChain(chain.id).length > 0,
+).map((chain) => ({
+  id: chain.id,
+  label: chain.name,
+}));
 
 function preventScrollJump(e: React.FocusEvent) {
   const scrollPositions: [HTMLElement, number, number][] = [];
@@ -53,21 +64,33 @@ const ACCENT_PRESETS = [
   { label: "Neutral", value: "#18181b" },
 ];
 
+function resolveTokenAddress(chainId: number, symbol: string): string {
+  if (symbol.toUpperCase() === "ETH") return NATIVE_TOKEN_ADDRESS;
+  return getTokenAddress(symbol, chainId) ?? NATIVE_TOKEN_ADDRESS;
+}
+
 function tokenForChain(chainId: number): string {
-  const entry = Object.entries(TOKENS).find(([, t]) => t.chain === chainId);
-  return entry ? entry[0] : Object.keys(TOKENS)[0];
+  const symbol = getSelectableSymbolsForChain(chainId)[0] ?? "USDC";
+  return resolveTokenAddress(chainId, symbol);
+}
+
+function symbolForToken(chainId: number, token: string): string {
+  if (token.toLowerCase() === NATIVE_TOKEN_ADDRESS.toLowerCase()) return "ETH";
+  const symbols = getSelectableSymbolsForChain(chainId);
+  const matched = symbols.find(
+    (symbol) =>
+      resolveTokenAddress(chainId, symbol).toLowerCase() ===
+      token.toLowerCase(),
+  );
+  return matched ?? symbols[0] ?? "USDC";
 }
 
 export default function Home() {
   const [flow, setFlow] = useState<FlowMode>("deposit");
   const [targetChain, setTargetChain] = useState(8453);
-  const [targetToken, setTargetToken] = useState(
-    "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-  );
+  const [targetToken, setTargetToken] = useState(tokenForChain(8453));
   const [sourceChain, setSourceChain] = useState(8453);
-  const [sourceToken, setSourceToken] = useState(
-    "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-  );
+  const [sourceToken, setSourceToken] = useState(tokenForChain(8453));
   const [safeAddress, setSafeAddress] = useState("");
   const [accent, setAccent] = useState("#0090ff");
   const [themeMode, setThemeMode] = useState<"light" | "dark">("light");
@@ -104,23 +127,33 @@ export default function Home() {
   const { disconnect } = useDisconnect();
   const { open } = useAppKit();
 
-  const handleChainChange = useCallback((chainId: number) => {
-    setTargetChain(chainId);
-    setTargetToken((prev) =>
-      prev.toLowerCase() === NATIVE_TOKEN_ADDRESS
-        ? NATIVE_TOKEN_ADDRESS
-        : tokenForChain(chainId),
-    );
-  }, []);
+  const handleChainChange = useCallback(
+    (chainId: number) => {
+      const nextSymbols = getSelectableSymbolsForChain(chainId);
+      if (nextSymbols.length === 0) return;
+      const previousSymbol = symbolForToken(targetChain, targetToken);
+      const nextSymbol = nextSymbols.includes(previousSymbol)
+        ? previousSymbol
+        : nextSymbols[0];
+      setTargetChain(chainId);
+      setTargetToken(resolveTokenAddress(chainId, nextSymbol));
+    },
+    [targetChain, targetToken],
+  );
 
-  const handleSourceChainChange = useCallback((chainId: number) => {
-    setSourceChain(chainId);
-    setSourceToken((prev) =>
-      prev.toLowerCase() === NATIVE_TOKEN_ADDRESS
-        ? NATIVE_TOKEN_ADDRESS
-        : tokenForChain(chainId),
-    );
-  }, []);
+  const handleSourceChainChange = useCallback(
+    (chainId: number) => {
+      const nextSymbols = getSelectableSymbolsForChain(chainId);
+      if (nextSymbols.length === 0) return;
+      const previousSymbol = symbolForToken(sourceChain, sourceToken);
+      const nextSymbol = nextSymbols.includes(previousSymbol)
+        ? previousSymbol
+        : nextSymbols[0];
+      setSourceChain(chainId);
+      setSourceToken(resolveTokenAddress(chainId, nextSymbol));
+    },
+    [sourceChain, sourceToken],
+  );
 
   const handleSwitchChain = useCallback(
     async (chainId: number) => {
@@ -271,33 +304,27 @@ export default function Home() {
                   />
                 </Row>
                 <Row label="Chain">
-                  <Pill
+                  <Select
                     value={String(sourceChain)}
                     onChange={(v) => handleSourceChainChange(Number(v))}
-                    options={Object.entries(CHAINS).map(([id, name]) => ({
-                      value: id,
-                      label: name,
+                    options={CHAIN_OPTIONS.map((chain) => ({
+                      value: String(chain.id),
+                      label: chain.label,
                     }))}
                   />
                 </Row>
                 <Row label="Token">
-                  <Pill
-                    value={
-                      sourceToken.toLowerCase() === NATIVE_TOKEN_ADDRESS
-                        ? "ETH"
-                        : "USDC"
+                  <Select
+                    value={symbolForToken(sourceChain, sourceToken)}
+                    onChange={(value) =>
+                      setSourceToken(resolveTokenAddress(sourceChain, value))
                     }
-                    onChange={(value) => {
-                      if (value === "ETH") {
-                        setSourceToken(NATIVE_TOKEN_ADDRESS);
-                        return;
-                      }
-                      setSourceToken(tokenForChain(sourceChain));
-                    }}
-                    options={[
-                      { value: "USDC", label: "USDC" },
-                      { value: "ETH", label: "ETH" },
-                    ]}
+                    options={getSelectableSymbolsForChain(sourceChain).map(
+                      (symbol) => ({
+                        value: symbol,
+                        label: symbol,
+                      }),
+                    )}
                   />
                 </Row>
               </Section>
@@ -306,33 +333,27 @@ export default function Home() {
             {/* Target */}
             <Section title="Destination">
               <Row label="Chain">
-                <Pill
+                <Select
                   value={String(targetChain)}
                   onChange={(v) => handleChainChange(Number(v))}
-                  options={Object.entries(CHAINS).map(([id, name]) => ({
-                    value: id,
-                    label: name,
+                  options={CHAIN_OPTIONS.map((chain) => ({
+                    value: String(chain.id),
+                    label: chain.label,
                   }))}
                 />
               </Row>
               <Row label="Token">
-                <Pill
-                  value={
-                    targetToken.toLowerCase() === NATIVE_TOKEN_ADDRESS
-                      ? "ETH"
-                      : "USDC"
+                <Select
+                  value={symbolForToken(targetChain, targetToken)}
+                  onChange={(value) =>
+                    setTargetToken(resolveTokenAddress(targetChain, value))
                   }
-                  onChange={(value) => {
-                    if (value === "ETH") {
-                      setTargetToken(NATIVE_TOKEN_ADDRESS);
-                      return;
-                    }
-                    setTargetToken(tokenForChain(targetChain));
-                  }}
-                  options={[
-                    { value: "USDC", label: "USDC" },
-                    { value: "ETH", label: "ETH" },
-                  ]}
+                  options={getSelectableSymbolsForChain(targetChain).map(
+                    (symbol) => ({
+                      value: symbol,
+                      label: symbol,
+                    }),
+                  )}
                 />
               </Row>
               <Row label="Amount">
@@ -921,6 +942,122 @@ function Pill({
           {o.label}
         </button>
       ))}
+    </div>
+  );
+}
+
+function Select({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  const selected = options.find((o) => o.value === value);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1.5 text-[12px] font-medium px-2.5 py-[5px] transition-all"
+        style={{
+          borderRadius: "var(--radius-sm)",
+          background: "var(--bg-surface)",
+          color: "var(--text-primary)",
+        }}
+      >
+        <span className="truncate max-w-[100px]">
+          {selected?.label ?? value}
+        </span>
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="shrink-0 transition-transform"
+          style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {open && (
+        <div
+          className="absolute right-0 top-full mt-1 z-50 min-w-[140px] py-1 overflow-hidden"
+          style={{
+            borderRadius: "var(--radius-sm)",
+            background: "var(--bg-primary)",
+            border: "1px solid var(--border-primary)",
+            boxShadow: "var(--shadow-md)",
+          }}
+        >
+          {options.map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => {
+                onChange(o.value);
+                setOpen(false);
+              }}
+              className="flex items-center w-full text-left px-3 py-[7px] text-[12px] font-medium transition-colors"
+              style={{
+                background:
+                  value === o.value ? "var(--bg-surface)" : "transparent",
+                color:
+                  value === o.value
+                    ? "var(--text-primary)"
+                    : "var(--text-secondary)",
+              }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.background = "var(--bg-surface)")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.background =
+                  value === o.value ? "var(--bg-surface)" : "transparent")
+              }
+            >
+              {o.label}
+              {value === o.value && (
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="ml-auto shrink-0"
+                  style={{ color: "var(--bg-accent)" }}
+                >
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
