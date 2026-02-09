@@ -1,74 +1,16 @@
 "use client";
 
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createAppKit } from "@reown/appkit/react";
-import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
+import { PrivyProvider, usePrivy } from "@privy-io/react-auth";
 import {
-  mainnet,
-  base,
-  arbitrum,
-  optimism,
-  polygon,
-  bsc,
-  sepolia,
-  baseSepolia,
-  optimismSepolia,
-  arbitrumSepolia,
-  type AppKitNetwork,
-} from "@reown/appkit/networks";
-import { WagmiProvider } from "wagmi";
-import { useState, useSyncExternalStore, type ReactNode } from "react";
-
-const networks: [AppKitNetwork, ...AppKitNetwork[]] = [
-  mainnet,
-  base,
-  arbitrum,
-  optimism,
-  polygon,
-  bsc,
-  sepolia,
-  baseSepolia,
-  optimismSepolia,
-  arbitrumSepolia,
-];
-
-let cachedAdapter: WagmiAdapter | null = null;
-let appKitInitialized = false;
-
-function getOrCreateAdapter(): WagmiAdapter | null {
-  if (cachedAdapter) return cachedAdapter;
-
-  const projectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID;
-  if (!projectId) {
-    console.error("NEXT_PUBLIC_REOWN_PROJECT_ID is not set");
-    return null;
-  }
-
-  cachedAdapter = new WagmiAdapter({
-    networks,
-    projectId,
-  });
-
-  if (!appKitInitialized) {
-    createAppKit({
-      adapters: [cachedAdapter],
-      networks,
-      projectId,
-      metadata: {
-        name: "Rhinestone Deposit Demo",
-        description: "Demo app for Rhinestone Deposit Modal and Widget",
-        url: typeof window !== "undefined" ? window.location.origin : "",
-        icons: ["https://avatars.githubusercontent.com/u/179229932"],
-      },
-      features: {
-        analytics: false,
-      },
-    });
-    appKitInitialized = true;
-  }
-
-  return cachedAdapter;
-}
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 
 const emptySubscribe = () => () => {};
 
@@ -82,31 +24,87 @@ function useHydrated() {
 
 function LoadingScreen() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg)]">
-      <div className="text-[var(--color-text-secondary)]">Loading...</div>
+    <div className="min-h-screen flex items-center justify-center bg-(--color-bg)">
+      <div className="text-(--color-text-secondary)">Loading...</div>
     </div>
   );
 }
 
+const EmbeddedModeContext = createContext<{
+  embeddedMode: boolean;
+  setEmbeddedMode: (v: boolean) => void;
+  privyAvailable: boolean;
+  requestLogin: () => void;
+}>({
+  embeddedMode: false,
+  setEmbeddedMode: () => {},
+  privyAvailable: false,
+  requestLogin: () => {},
+});
+
+export function useEmbeddedMode() {
+  return useContext(EmbeddedModeContext);
+}
+
+function PrivyLoginBridge({
+  children,
+  loginRef,
+}: {
+  children: ReactNode;
+  loginRef: React.RefObject<(() => void) | null>;
+}) {
+  const { login } = usePrivy();
+
+  useEffect(() => {
+    loginRef.current = login;
+  });
+
+  return <>{children}</>;
+}
+
 export function Providers({ children }: { children: ReactNode }) {
-  const [queryClient] = useState(() => new QueryClient());
+  const [embeddedMode, setEmbeddedMode] = useState(false);
+  const loginRef = useRef<(() => void) | null>(null);
   const hydrated = useHydrated();
+
+  const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+
+  const contextValue = useMemo(
+    () => ({
+      embeddedMode,
+      setEmbeddedMode,
+      privyAvailable: !!privyAppId,
+      requestLogin: () => loginRef.current?.(),
+    }),
+    [embeddedMode, setEmbeddedMode, privyAppId],
+  );
 
   if (!hydrated) {
     return <LoadingScreen />;
   }
 
-  const adapter = getOrCreateAdapter();
-  if (!adapter) {
-    return <LoadingScreen />;
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const config = adapter.wagmiConfig as any;
-
-  return (
-    <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    </WagmiProvider>
+  const inner = (
+    <EmbeddedModeContext.Provider value={contextValue}>
+      {children}
+    </EmbeddedModeContext.Provider>
   );
+
+  const wrapped = privyAppId ? (
+    <PrivyProvider
+      appId={privyAppId}
+      config={{
+        embeddedWallets: {
+          ethereum: {
+            createOnLogin: "users-without-wallets",
+          },
+        },
+      }}
+    >
+      <PrivyLoginBridge loginRef={loginRef}>{inner}</PrivyLoginBridge>
+    </PrivyProvider>
+  ) : (
+    inner
+  );
+
+  return wrapped;
 }

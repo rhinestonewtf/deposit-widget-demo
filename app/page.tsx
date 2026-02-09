@@ -1,14 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
-import {
-  useAccount,
-  useWalletClient,
-  usePublicClient,
-  useSwitchChain,
-  useDisconnect,
-} from "wagmi";
-import { useAppKit } from "@reown/appkit/react";
+import { useState, useCallback, useRef, useEffect, useMemo, lazy, Suspense } from "react";
 import {
   DepositModal,
   WithdrawModal,
@@ -17,7 +9,10 @@ import {
   getTokenAddress,
   getSupportedTokenSymbolsForChain,
 } from "@rhinestone/deposit-modal";
-import { isAddress, type Address } from "viem";
+import type { WithdrawSignParams } from "@rhinestone/deposit-modal";
+import { isAddress, type Address, type Hex } from "viem";
+import { useEmbeddedMode } from "./providers";
+import type { PrivyWalletState } from "./privy-wallet-bridge";
 
 type FlowMode = "deposit" | "withdraw";
 
@@ -85,6 +80,24 @@ function symbolForToken(chainId: number, token: string): string {
   return matched ?? symbols[0] ?? "USDC";
 }
 
+const LazyEmbeddedWithdrawHandler = lazy(() =>
+  import("./embedded-withdraw-handler").then((m) => ({
+    default: m.EmbeddedWithdrawHandler,
+  })),
+);
+
+const LazyEmbeddedLoginButton = lazy(() =>
+  import("./embedded-login-button").then((m) => ({
+    default: m.EmbeddedLoginButton,
+  })),
+);
+
+const LazyPrivyWalletBridge = lazy(() =>
+  import("./privy-wallet-bridge").then((m) => ({
+    default: m.PrivyWalletBridge,
+  })),
+);
+
 export default function Home() {
   const [flow, setFlow] = useState<FlowMode>("deposit");
   const [targetChain, setTargetChain] = useState(8453);
@@ -125,13 +138,28 @@ export default function Home() {
   const [showCode, setShowCode] = useState(false);
   const [showModal, setShowModal] = useState(true);
 
-  // Wagmi hooks for modal mode
-  const { address, isConnected } = useAccount();
-  const { data: walletClient } = useWalletClient();
-  const publicClient = usePublicClient();
-  const { switchChainAsync } = useSwitchChain();
-  const { disconnect } = useDisconnect();
-  const { open } = useAppKit();
+  // Privy wallet state (for non-embedded mode)
+  const {
+    embeddedMode,
+    setEmbeddedMode,
+    privyAvailable,
+    requestLogin,
+  } = useEmbeddedMode();
+  const [privyWallet, setPrivyWallet] = useState<PrivyWalletState | null>(null);
+  const withdrawSignRef = useRef<((params: WithdrawSignParams) => Promise<{ txHash: Hex }>) | null>(null);
+  const [embeddedAddress, setEmbeddedAddress] = useState<Address | null>(null);
+
+  const reownProjectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID;
+
+  const handleWithdrawSign = useCallback(
+    async (params: WithdrawSignParams): Promise<{ txHash: Hex }> => {
+      if (!withdrawSignRef.current) {
+        throw new Error("Privy embedded wallet not available");
+      }
+      return withdrawSignRef.current(params);
+    },
+    [],
+  );
 
   const handleChainChange = useCallback(
     (chainId: number) => {
@@ -159,13 +187,6 @@ export default function Home() {
       setSourceToken(resolveTokenAddress(chainId, nextSymbol));
     },
     [sourceChain, sourceToken],
-  );
-
-  const handleSwitchChain = useCallback(
-    async (chainId: number) => {
-      await switchChainAsync({ chainId });
-    },
-    [switchChainAsync],
   );
 
   const onDepositComplete = useCallback(
@@ -206,11 +227,7 @@ export default function Home() {
     );
   }, []);
 
-  const componentKey = `${flow}-${targetChain}-${targetToken}-${sourceChain}-${sourceToken}-${safeAddress}-${recipient}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${logoUrl}-${prefilledAmount}-${waitForFinalTx}-${useCustomSessionChains}-${customSessionChainIds.join(",")}-${showLogo}-${showStepper}-${balanceTitle}-${maxDepositUsd}-${fontColor}-${iconColor}-${ctaHoverColor}-${borderColor}-${backgroundColor}`;
-
-  const truncatedAddress = address
-    ? `${address.slice(0, 6)}...${address.slice(-4)}`
-    : null;
+  const componentKey = `${flow}-${targetChain}-${targetToken}-${sourceChain}-${sourceToken}-${safeAddress}-${recipient}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${logoUrl}-${prefilledAmount}-${waitForFinalTx}-${useCustomSessionChains}-${customSessionChainIds.join(",")}-${showLogo}-${showStepper}-${balanceTitle}-${maxDepositUsd}-${fontColor}-${iconColor}-${ctaHoverColor}-${borderColor}-${backgroundColor}-${embeddedMode}`;
 
   const recipientTooltip =
     flow === "withdraw"
@@ -223,6 +240,19 @@ export default function Home() {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
+      {embeddedMode && (
+        <Suspense fallback={null}>
+          <LazyEmbeddedWithdrawHandler
+            signRef={withdrawSignRef}
+            onAddressChange={setEmbeddedAddress}
+          />
+        </Suspense>
+      )}
+      {privyAvailable && !embeddedMode && (
+        <Suspense fallback={null}>
+          <LazyPrivyWalletBridge onChange={setPrivyWallet} />
+        </Suspense>
+      )}
       {/* ── Header ──────────────────────────────────────── */}
       <header
         className="h-12 flex items-center justify-between px-5 shrink-0"
@@ -252,34 +282,10 @@ export default function Home() {
         </div>
 
         <div className="flex items-center gap-3">
-          {isConnected ? (
-            <button
-              onClick={() => disconnect()}
-              className="flex items-center gap-1.5 text-[12px] font-medium px-2.5 py-1.5 transition-colors"
-              style={{
-                background: "var(--bg-surface)",
-                color: "var(--text-secondary)",
-                borderRadius: "var(--radius-sm)",
-              }}
-            >
-              <span>{truncatedAddress}</span>
-              <span style={{ color: "var(--text-tertiary)" }}>·</span>
-              <span style={{ color: "var(--text-error, #e5484d)" }}>
-                Disconnect
-              </span>
-            </button>
-          ) : (
-            <button
-              onClick={() => open()}
-              className="flex items-center gap-1.5 text-[12px] font-medium px-2.5 py-1.5 transition-colors"
-              style={{
-                background: "var(--bg-accent)",
-                color: "white",
-                borderRadius: "var(--radius-sm)",
-              }}
-            >
-              Connect Wallet
-            </button>
+          {privyAvailable && (
+            <Suspense fallback={null}>
+              <LazyEmbeddedLoginButton />
+            </Suspense>
           )}
           <a
             href="https://docs.google.com/document/d/1uaOrXAEALpuXsn-jIdTI-DGIichypdeGSUpkE_qNruo/edit?usp=sharing"
@@ -327,6 +333,11 @@ export default function Home() {
               <Row label="Show Modal">
                 <Toggle checked={showModal} onChange={setShowModal} />
               </Row>
+              {privyAvailable && (
+                <Row label="Embedded Signer">
+                  <Toggle checked={embeddedMode} onChange={setEmbeddedMode} />
+                </Row>
+              )}
             </Section>
 
             {flow === "withdraw" && (
@@ -337,7 +348,7 @@ export default function Home() {
                     value={safeAddress}
                     onChange={(e) => setSafeAddress(e.target.value.trim())}
                     placeholder="0x..."
-                    className="text-[13px] font-mono bg-transparent outline-none text-right w-[140px] text-ellipsis overflow-hidden"
+                    className="text-[13px] font-mono bg-transparent outline-none text-right w-35 text-ellipsis overflow-hidden"
                     style={{ color: "var(--text-primary)" }}
                   />
                 </Row>
@@ -415,7 +426,7 @@ export default function Home() {
                   value={recipient}
                   onChange={(e) => setRecipient(e.target.value)}
                   placeholder="0x..."
-                  className="text-[13px] font-mono bg-transparent outline-none text-right w-[110px] text-ellipsis overflow-hidden"
+                  className="text-[13px] font-mono bg-transparent outline-none text-right w-27.5 text-ellipsis overflow-hidden"
                   style={{ color: "var(--text-primary)" }}
                 />
               </Row>
@@ -500,7 +511,7 @@ export default function Home() {
                       type="button"
                       onClick={() => setAccent(p.value)}
                       title={p.label}
-                      className="size-[18px] rounded-full shrink-0 transition-all"
+                      className="size-4.5 rounded-full shrink-0 transition-all"
                       style={{
                         background: p.value,
                         boxShadow:
@@ -513,7 +524,7 @@ export default function Home() {
                     />
                   ))}
                   <label
-                    className="relative size-[18px] rounded-full shrink-0 flex items-center justify-center cursor-pointer transition-colors"
+                    className="relative size-4.5 rounded-full shrink-0 flex items-center justify-center cursor-pointer transition-colors"
                     style={{ border: "1.5px dashed var(--border-surface)" }}
                     onMouseEnter={(e) =>
                       (e.currentTarget.style.borderColor =
@@ -552,7 +563,7 @@ export default function Home() {
                     className="w-16"
                   />
                   <span
-                    className="text-[11px] font-mono w-[26px] text-right tabular-nums"
+                    className="text-[11px] font-mono w-6.5 text-right tabular-nums"
                     style={{ color: "var(--text-tertiary)" }}
                   >
                     {borderRadius}px
@@ -575,7 +586,7 @@ export default function Home() {
                   value={logoUrl}
                   onChange={(e) => setLogoUrl(e.target.value)}
                   placeholder="https://..."
-                  className="text-[13px] font-medium bg-transparent outline-none text-right w-[110px] text-ellipsis overflow-hidden"
+                  className="text-[13px] font-medium bg-transparent outline-none text-right w-27.5 text-ellipsis overflow-hidden"
                   style={{ color: "var(--text-primary)" }}
                 />
               </Row>
@@ -630,7 +641,7 @@ export default function Home() {
                   value={balanceTitle}
                   onChange={(e) => setBalanceTitle(e.target.value)}
                   placeholder="e.g. Rhinestone Balance"
-                  className="text-[13px] font-medium bg-transparent outline-none text-right w-[110px] text-ellipsis overflow-hidden"
+                  className="text-[13px] font-medium bg-transparent outline-none text-right w-27.5 text-ellipsis overflow-hidden"
                   style={{ color: "var(--text-primary)" }}
                 />
               </Row>
@@ -755,10 +766,12 @@ export default function Home() {
                       key={componentKey}
                       isOpen={true}
                       onClose={() => setShowModal(false)}
-                      walletClient={isConnected ? walletClient : undefined}
-                      publicClient={isConnected ? publicClient : undefined}
-                      address={isConnected ? address : undefined}
-                      switchChain={handleSwitchChain}
+                      walletClient={embeddedMode ? undefined : privyWallet?.walletClient ?? undefined}
+                      publicClient={embeddedMode ? undefined : privyWallet?.publicClient ?? undefined}
+                      address={embeddedMode ? embeddedAddress ?? undefined : privyWallet?.address ?? undefined}
+                      switchChain={embeddedMode ? undefined : privyWallet?.switchChain ?? undefined}
+                      reownAppId={reownProjectId}
+                      onWithdrawSign={embeddedMode ? handleWithdrawSign : undefined}
                       safeAddress={safeAddress as Address}
                       sourceChain={sourceChain}
                       sourceToken={sourceToken as Address}
@@ -794,7 +807,8 @@ export default function Home() {
                         balanceTitle: balanceTitle || undefined,
                         maxDepositUsd,
                       }}
-                      onRequestConnect={() => open()}
+                      onRequestConnect={privyAvailable ? requestLogin : undefined}
+                      connectButtonLabel={embeddedMode ? "Connect with Privy" : "Connect Wallet"}
                       onWithdrawComplete={onDepositComplete}
                       onError={onError}
                       inline={true}
@@ -812,10 +826,11 @@ export default function Home() {
                     key={componentKey}
                     isOpen={true}
                     onClose={() => setShowModal(false)}
-                    walletClient={isConnected ? walletClient : undefined}
-                    publicClient={isConnected ? publicClient : undefined}
-                    address={isConnected ? address : undefined}
-                    switchChain={handleSwitchChain}
+                    walletClient={embeddedMode ? undefined : privyWallet?.walletClient ?? undefined}
+                    publicClient={embeddedMode ? undefined : privyWallet?.publicClient ?? undefined}
+                    address={embeddedMode ? embeddedAddress ?? undefined : privyWallet?.address ?? undefined}
+                    switchChain={embeddedMode ? undefined : privyWallet?.switchChain ?? undefined}
+                    reownAppId={reownProjectId}
                     targetChain={targetChain}
                     targetToken={targetToken as Address}
                     recipient={(recipient as Address) || undefined}
@@ -848,7 +863,8 @@ export default function Home() {
                       balanceTitle: balanceTitle || undefined,
                       maxDepositUsd,
                     }}
-                    onRequestConnect={() => open()}
+                    onRequestConnect={privyAvailable ? requestLogin : undefined}
+                    connectButtonLabel={embeddedMode ? "Connect with Privy" : "Connect Wallet"}
                     onDepositComplete={onDepositComplete}
                     onError={onError}
                     inline={true}
@@ -948,7 +964,7 @@ function LabelWithInfo({ text, tooltip }: { text: string; tooltip: string }) {
     <span className="relative flex items-center gap-1.5 group/info">
       {text}
       <span
-        className="flex items-center justify-center size-[15px] rounded-full shrink-0"
+        className="flex items-center justify-center size-3.75 rounded-full shrink-0"
         style={{
           background: "var(--border-surface)",
           color: "var(--text-secondary)",
@@ -962,7 +978,7 @@ function LabelWithInfo({ text, tooltip }: { text: string; tooltip: string }) {
         </span>
       </span>
       <div
-        className="absolute left-0 top-full mt-1.5 z-10 w-52 p-2 text-[11px] leading-[1.5] font-normal opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-opacity"
+        className="absolute left-0 top-full mt-1.5 z-10 w-52 p-2 text-[11px] leading-normal font-normal opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-opacity"
         style={{
           background: "var(--bg-primary)",
           color: "var(--text-secondary)",
@@ -986,7 +1002,7 @@ function Row({
 }) {
   return (
     <div
-      className="flex items-center justify-between h-[44px] px-3.5"
+      className="flex items-center justify-between h-11 px-3.5"
       style={{ borderColor: "var(--border-primary)" }}
     >
       <span className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
@@ -1019,7 +1035,7 @@ function Pill({
           key={o.value}
           type="button"
           onClick={() => onChange(o.value)}
-          className="text-[12px] font-medium px-2.5 py-[5px] transition-all"
+          className="text-[12px] font-medium px-2.5 py-1.25 transition-all"
           style={{
             borderRadius: "calc(var(--radius-sm) - 2px)",
             background: value === o.value ? "var(--bg-primary)" : "transparent",
@@ -1068,14 +1084,14 @@ function Select({
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 text-[12px] font-medium px-2.5 py-[5px] transition-all"
+        className="flex items-center gap-1.5 text-[12px] font-medium px-2.5 py-1.25 transition-all"
         style={{
           borderRadius: "var(--radius-sm)",
           background: "var(--bg-surface)",
           color: "var(--text-primary)",
         }}
       >
-        <span className="truncate max-w-[100px]">
+        <span className="truncate max-w-25">
           {selected?.label ?? value}
         </span>
         <svg
@@ -1096,7 +1112,7 @@ function Select({
 
       {open && (
         <div
-          className="absolute right-0 top-full mt-1 z-50 min-w-[140px] py-1 overflow-hidden"
+          className="absolute right-0 top-full mt-1 z-50 min-w-35 py-1 overflow-hidden"
           style={{
             borderRadius: "var(--radius-sm)",
             background: "var(--bg-primary)",
