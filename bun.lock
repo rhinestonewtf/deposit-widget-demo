@@ -5,7 +5,7 @@
       "name": "deposit-widget-demo",
       "dependencies": {
         "@privy-io/react-auth": "^3.13.1",
-        "@rhinestone/deposit-modal": "0.1.12",
+        "@rhinestone/deposit-modal": "^0.1.13",
         "next": "16.1.6",
         "react": "19.2.3",
         "react-dom": "19.2.3",
@@ -330,7 +330,7 @@
 
     "@reown/appkit-wallet": ["@reown/appkit-wallet@1.8.17", "", { "dependencies": { "@reown/appkit-common": "1.8.17", "@reown/appkit-polyfills": "1.8.17", "@walletconnect/logger": "3.0.2", "zod": "3.22.4" } }, "sha512-khuQqHGtCyKSTUlcCnB1Evy1ZLmrU5cUXjP6/zrFYW3m+THnNfr+w6Tp49OfnW1wYsoe53GHzlgTuGASwXYloQ=="],
 
-    "@rhinestone/deposit-modal": ["@rhinestone/deposit-modal@0.1.12", "", { "dependencies": { "@reown/appkit": "^1.8.17", "@reown/appkit-adapter-wagmi": "^1.8.17", "@rhinestone/sdk": "^1.2.10", "@rhinestone/shared-configs": "^1.4.93", "@tanstack/react-query": "^5.0.0", "qrcode-generator": "^2.0.4", "viem": "^2.0.0", "wagmi": "^3.4.2" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18" } }, "sha512-mE6Zz8Zsdg+HYEqJvVJ9nVOq9hMfthv5i/j2Kyope6CRfSWbjzDzE5aIivEFNJEzVK7GY0b+x0NdFr/92VbKUg=="],
+    "@rhinestone/deposit-modal": ["@rhinestone/deposit-modal@0.1.13", "", { "dependencies": { "@reown/appkit": "^1.8.17", "@reown/appkit-adapter-wagmi": "^1.8.17", "@rhinestone/sdk": "^1.2.10", "@rhinestone/shared-configs": "^1.4.93", "@tanstack/react-query": "^5.0.0", "qrcode-generator": "^2.0.4", "viem": "^2.0.0", "wagmi": "^3.4.2" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18" } }, "sha512-KUFbjXR7oVKW0FAhxkarss9V7jBz/zJml2Zs6xmKqHOhBAJD38vL0RL3vdtfDAhJfdKxcPV32MmkMk6T1GNXqw=="],
 
     "@rhinestone/sdk": ["@rhinestone/sdk@1.2.10", "", { "dependencies": { "@rhinestone/shared-configs": "1.4.91", "ox": "^0.11.3", "solady": "^0.1.26" }, "peerDependencies": { "viem": "^2.38.0" } }, "sha512-pGs0GC5iQGgFu7vI9t8ZBjscK9MSlaFzn/vvxPJLPYActBaFD9+Gt8+0459h8Q8HN8p9/9ZdZ6P9CQ2YrwIMug=="],
 
