@@ -150,6 +150,7 @@ export default function Home() {
   const [embeddedAddress, setEmbeddedAddress] = useState<Address | null>(null);
 
   const reownProjectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID;
+  const withdrawReownAppId = embeddedMode ? undefined : reownProjectId;
 
   const handleWithdrawSign = useCallback(
     async (params: WithdrawSignParams): Promise<{ txHash: Hex }> => {
@@ -766,11 +767,11 @@ export default function Home() {
                       key={componentKey}
                       isOpen={true}
                       onClose={() => setShowModal(false)}
-                      walletClient={embeddedMode ? undefined : privyWallet?.walletClient ?? undefined}
-                      publicClient={embeddedMode ? undefined : privyWallet?.publicClient ?? undefined}
+                      walletClient={undefined}
+                      publicClient={undefined}
                       address={embeddedMode ? embeddedAddress ?? undefined : privyWallet?.address ?? undefined}
-                      switchChain={embeddedMode ? undefined : privyWallet?.switchChain ?? undefined}
-                      reownAppId={reownProjectId}
+                      switchChain={undefined}
+                      reownAppId={withdrawReownAppId}
                       onWithdrawSign={embeddedMode ? handleWithdrawSign : undefined}
                       safeAddress={safeAddress as Address}
                       sourceChain={sourceChain}
