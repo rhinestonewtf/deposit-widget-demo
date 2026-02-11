@@ -1,8 +1,14 @@
 "use client";
 
-import { PrivyProvider, usePrivy } from "@privy-io/react-auth";
+import {
+  PrivyProvider,
+  usePrivy,
+  useWallets,
+  getEmbeddedConnectedWallet,
+} from "@privy-io/react-auth";
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -11,6 +17,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
+import type { Address } from "viem";
 
 const emptySubscribe = () => () => {};
 
@@ -30,14 +37,16 @@ function LoadingScreen() {
   );
 }
 
-const EmbeddedModeContext = createContext<{
-  embeddedMode: boolean;
-  setEmbeddedMode: (v: boolean) => void;
+type EmbeddedModeContextValue = {
+  isEmbedded: boolean;
+  embeddedAddress: Address | null;
   privyAvailable: boolean;
   requestLogin: () => void;
-}>({
-  embeddedMode: false,
-  setEmbeddedMode: () => {},
+};
+
+const EmbeddedModeContext = createContext<EmbeddedModeContextValue>({
+  isEmbedded: false,
+  embeddedAddress: null,
   privyAvailable: false,
   requestLogin: () => {},
 });
@@ -49,34 +58,76 @@ export function useEmbeddedMode() {
 function PrivyLoginBridge({
   children,
   loginRef,
+  onEmbeddedStateChange,
 }: {
   children: ReactNode;
   loginRef: React.RefObject<(() => void) | null>;
+  onEmbeddedStateChange: (state: {
+    isEmbedded: boolean;
+    embeddedAddress: Address | null;
+  }) => void;
 }) {
   const { login } = usePrivy();
+  const { wallets } = useWallets();
 
   useEffect(() => {
     loginRef.current = login;
-  });
+  }, [login, loginRef]);
+
+  useEffect(() => {
+    const embeddedWallet = getEmbeddedConnectedWallet(wallets);
+    onEmbeddedStateChange({
+      isEmbedded: Boolean(embeddedWallet),
+      embeddedAddress:
+        (embeddedWallet?.address as Address | undefined) ?? null,
+    });
+  }, [wallets, onEmbeddedStateChange]);
+
+  useEffect(() => {
+    return () => {
+      onEmbeddedStateChange({ isEmbedded: false, embeddedAddress: null });
+    };
+  }, [onEmbeddedStateChange]);
 
   return <>{children}</>;
 }
 
 export function Providers({ children }: { children: ReactNode }) {
-  const [embeddedMode, setEmbeddedMode] = useState(false);
+  const [embeddedState, setEmbeddedState] = useState<{
+    isEmbedded: boolean;
+    embeddedAddress: Address | null;
+  }>({
+    isEmbedded: false,
+    embeddedAddress: null,
+  });
   const loginRef = useRef<(() => void) | null>(null);
   const hydrated = useHydrated();
 
   const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
 
+  const handleEmbeddedStateChange = useCallback(
+    (next: { isEmbedded: boolean; embeddedAddress: Address | null }) => {
+      setEmbeddedState((prev) => {
+        if (
+          prev.isEmbedded === next.isEmbedded &&
+          prev.embeddedAddress === next.embeddedAddress
+        ) {
+          return prev;
+        }
+        return next;
+      });
+    },
+    [],
+  );
+
   const contextValue = useMemo(
     () => ({
-      embeddedMode,
-      setEmbeddedMode,
+      isEmbedded: embeddedState.isEmbedded,
+      embeddedAddress: embeddedState.embeddedAddress,
       privyAvailable: !!privyAppId,
       requestLogin: () => loginRef.current?.(),
     }),
-    [embeddedMode, setEmbeddedMode, privyAppId],
+    [embeddedState, privyAppId],
   );
 
   if (!hydrated) {
@@ -100,7 +151,12 @@ export function Providers({ children }: { children: ReactNode }) {
         },
       }}
     >
-      <PrivyLoginBridge loginRef={loginRef}>{inner}</PrivyLoginBridge>
+      <PrivyLoginBridge
+        loginRef={loginRef}
+        onEmbeddedStateChange={handleEmbeddedStateChange}
+      >
+        {inner}
+      </PrivyLoginBridge>
     </PrivyProvider>
   ) : (
     inner

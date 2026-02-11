@@ -1,6 +1,14 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, useMemo, lazy, Suspense } from "react";
+import {
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  useMemo,
+  lazy,
+  Suspense,
+} from "react";
 import {
   DepositModal,
   WithdrawModal,
@@ -12,7 +20,6 @@ import {
 import type { WithdrawSignParams } from "@rhinestone/deposit-modal";
 import { isAddress, type Address, type Hex } from "viem";
 import { useEmbeddedMode } from "./providers";
-import type { PrivyWalletState } from "./privy-wallet-bridge";
 
 type FlowMode = "deposit" | "withdraw";
 
@@ -51,6 +58,7 @@ function preventScrollJump(e: React.FocusEvent) {
 }
 
 const ACCENT_PRESETS = [
+  { label: "Default", value: "" },
   { label: "Blue", value: "#0090ff" },
   { label: "Indigo", value: "#6e56cf" },
   { label: "Emerald", value: "#30a46c" },
@@ -92,12 +100,6 @@ const LazyEmbeddedLoginButton = lazy(() =>
   })),
 );
 
-const LazyPrivyWalletBridge = lazy(() =>
-  import("./privy-wallet-bridge").then((m) => ({
-    default: m.PrivyWalletBridge,
-  })),
-);
-
 export default function Home() {
   const [flow, setFlow] = useState<FlowMode>("deposit");
   const [targetChain, setTargetChain] = useState(8453);
@@ -105,7 +107,7 @@ export default function Home() {
   const [sourceChain, setSourceChain] = useState(8453);
   const [sourceToken, setSourceToken] = useState(tokenForChain(8453));
   const [safeAddress, setSafeAddress] = useState("");
-  const [accent, setAccent] = useState("#0090ff");
+  const [accent, setAccent] = useState("");
   const [themeMode, setThemeMode] = useState<"light" | "dark">("light");
   const [borderRadius, setBorderRadius] = useState(14);
   const [brandTitle, setBrandTitle] = useState("Deposit");
@@ -131,26 +133,20 @@ export default function Home() {
   const [waitForFinalTx, setWaitForFinalTx] = useState(false);
   const [useCustomSessionChains, setUseCustomSessionChains] = useState(false);
   const [customSessionChainIds, setCustomSessionChainIds] = useState<number[]>([
-    8453,
-    42161,
-    10,
+    8453, 42161, 10,
   ]);
   const [showCode, setShowCode] = useState(false);
   const [showModal, setShowModal] = useState(true);
 
-  // Privy wallet state (for non-embedded mode)
-  const {
-    embeddedMode,
-    setEmbeddedMode,
-    privyAvailable,
-    requestLogin,
-  } = useEmbeddedMode();
-  const [privyWallet, setPrivyWallet] = useState<PrivyWalletState | null>(null);
-  const withdrawSignRef = useRef<((params: WithdrawSignParams) => Promise<{ txHash: Hex }>) | null>(null);
-  const [embeddedAddress, setEmbeddedAddress] = useState<Address | null>(null);
+  const { isEmbedded, embeddedAddress, privyAvailable, requestLogin } =
+    useEmbeddedMode();
+  const withdrawSignRef = useRef<
+    ((params: WithdrawSignParams) => Promise<{ txHash: Hex }>) | null
+  >(null);
 
   const reownProjectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID;
-  const withdrawReownAppId = embeddedMode ? undefined : reownProjectId;
+  const rhinestoneApiKey = process.env.NEXT_PUBLIC_RHINESTONE_API_KEY;
+  const withdrawReownAppId = isEmbedded ? undefined : reownProjectId;
 
   const handleWithdrawSign = useCallback(
     async (params: WithdrawSignParams): Promise<{ txHash: Hex }> => {
@@ -228,7 +224,7 @@ export default function Home() {
     );
   }, []);
 
-  const componentKey = `${flow}-${targetChain}-${targetToken}-${sourceChain}-${sourceToken}-${safeAddress}-${recipient}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${logoUrl}-${prefilledAmount}-${waitForFinalTx}-${useCustomSessionChains}-${customSessionChainIds.join(",")}-${showLogo}-${showStepper}-${balanceTitle}-${maxDepositUsd}-${fontColor}-${iconColor}-${ctaHoverColor}-${borderColor}-${backgroundColor}-${embeddedMode}`;
+  const componentKey = `${flow}-${targetChain}-${targetToken}-${sourceChain}-${sourceToken}-${safeAddress}-${recipient}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${logoUrl}-${prefilledAmount}-${waitForFinalTx}-${useCustomSessionChains}-${customSessionChainIds.join(",")}-${showLogo}-${showStepper}-${balanceTitle}-${maxDepositUsd}-${fontColor}-${iconColor}-${ctaHoverColor}-${borderColor}-${backgroundColor}-${isEmbedded}-${embeddedAddress ?? ""}`;
 
   const recipientTooltip =
     flow === "withdraw"
@@ -241,17 +237,9 @@ export default function Home() {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
-      {embeddedMode && (
+      {isEmbedded && (
         <Suspense fallback={null}>
-          <LazyEmbeddedWithdrawHandler
-            signRef={withdrawSignRef}
-            onAddressChange={setEmbeddedAddress}
-          />
-        </Suspense>
-      )}
-      {privyAvailable && !embeddedMode && (
-        <Suspense fallback={null}>
-          <LazyPrivyWalletBridge onChange={setPrivyWallet} />
+          <LazyEmbeddedWithdrawHandler signRef={withdrawSignRef} />
         </Suspense>
       )}
       {/* ── Header ──────────────────────────────────────── */}
@@ -334,11 +322,6 @@ export default function Home() {
               <Row label="Show Modal">
                 <Toggle checked={showModal} onChange={setShowModal} />
               </Row>
-              {privyAvailable && (
-                <Row label="Embedded Signer">
-                  <Toggle checked={embeddedMode} onChange={setEmbeddedMode} />
-                </Row>
-              )}
             </Section>
 
             {flow === "withdraw" && (
@@ -508,16 +491,19 @@ export default function Home() {
                 <div className="flex items-center gap-1.5">
                   {ACCENT_PRESETS.map((p) => (
                     <button
-                      key={p.value}
+                      key={p.value || "default"}
                       type="button"
                       onClick={() => setAccent(p.value)}
                       title={p.label}
                       className="size-4.5 rounded-full shrink-0 transition-all"
                       style={{
-                        background: p.value,
+                        background: p.value || "var(--bg-surface)",
+                        border: !p.value
+                          ? "1.5px solid var(--border-surface)"
+                          : "none",
                         boxShadow:
                           accent === p.value
-                            ? `0 0 0 1.5px var(--bg-primary), 0 0 0 3px ${p.value}`
+                            ? `0 0 0 1.5px var(--bg-primary), 0 0 0 3px ${p.value || "var(--text-tertiary)"}`
                             : "none",
                         transform:
                           accent === p.value ? "scale(1.15)" : "scale(1)",
@@ -699,6 +685,7 @@ export default function Home() {
                           targetChain,
                           targetToken,
                           recipient,
+                          rhinestoneApiKey,
                           themeMode,
                           borderRadius,
                           brandTitle,
@@ -721,6 +708,7 @@ export default function Home() {
                           targetChain,
                           targetToken,
                           recipient,
+                          rhinestoneApiKey,
                           themeMode,
                           borderRadius,
                           brandTitle,
@@ -767,12 +755,11 @@ export default function Home() {
                       key={componentKey}
                       isOpen={true}
                       onClose={() => setShowModal(false)}
-                      walletClient={undefined}
-                      publicClient={undefined}
-                      address={embeddedMode ? embeddedAddress ?? undefined : privyWallet?.address ?? undefined}
-                      switchChain={undefined}
+                      dappAddress={embeddedAddress ?? undefined}
                       reownAppId={withdrawReownAppId}
-                      onWithdrawSign={embeddedMode ? handleWithdrawSign : undefined}
+                      onWithdrawSign={
+                        isEmbedded ? handleWithdrawSign : undefined
+                      }
                       safeAddress={safeAddress as Address}
                       sourceChain={sourceChain}
                       sourceToken={sourceToken as Address}
@@ -793,7 +780,7 @@ export default function Home() {
                               : "lg",
                         fontColor: fontColor || undefined,
                         iconColor: iconColor || undefined,
-                        ctaColor: accent,
+                        ctaColor: accent || undefined,
                         ctaHoverColor: ctaHoverColor || undefined,
                         borderColor: borderColor || undefined,
                         backgroundColor: backgroundColor || undefined,
@@ -808,8 +795,10 @@ export default function Home() {
                         balanceTitle: balanceTitle || undefined,
                         maxDepositUsd,
                       }}
-                      onRequestConnect={privyAvailable ? requestLogin : undefined}
-                      connectButtonLabel={embeddedMode ? "Connect with Privy" : "Connect Wallet"}
+                      onRequestConnect={
+                        privyAvailable ? requestLogin : undefined
+                      }
+                      connectButtonLabel="Connect Wallet"
                       onWithdrawComplete={onDepositComplete}
                       onError={onError}
                       inline={true}
@@ -827,10 +816,7 @@ export default function Home() {
                     key={componentKey}
                     isOpen={true}
                     onClose={() => setShowModal(false)}
-                    walletClient={embeddedMode ? undefined : privyWallet?.walletClient ?? undefined}
-                    publicClient={embeddedMode ? undefined : privyWallet?.publicClient ?? undefined}
-                    address={embeddedMode ? embeddedAddress ?? undefined : privyWallet?.address ?? undefined}
-                    switchChain={embeddedMode ? undefined : privyWallet?.switchChain ?? undefined}
+                    dappAddress={embeddedAddress ?? undefined}
                     reownAppId={reownProjectId}
                     targetChain={targetChain}
                     targetToken={targetToken as Address}
@@ -849,7 +835,7 @@ export default function Home() {
                             : "lg",
                       fontColor: fontColor || undefined,
                       iconColor: iconColor || undefined,
-                      ctaColor: accent,
+                      ctaColor: accent || undefined,
                       ctaHoverColor: ctaHoverColor || undefined,
                       borderColor: borderColor || undefined,
                       backgroundColor: backgroundColor || undefined,
@@ -865,7 +851,7 @@ export default function Home() {
                       maxDepositUsd,
                     }}
                     onRequestConnect={privyAvailable ? requestLogin : undefined}
-                    connectButtonLabel={embeddedMode ? "Connect with Privy" : "Connect Wallet"}
+                    connectButtonLabel="Connect Wallet"
                     onDepositComplete={onDepositComplete}
                     onError={onError}
                     inline={true}
@@ -1023,9 +1009,10 @@ function Pill({
   onChange: (v: string) => void;
   options: { value: string; label: string }[];
 }) {
+  const newLocal = "flex gap-0.5 p-[3px]";
   return (
     <div
-      className="flex gap-0.5 p-[3px]"
+      className={newLocal}
       style={{
         borderRadius: "var(--radius-sm)",
         background: "var(--bg-surface)",
@@ -1092,9 +1079,7 @@ function Select({
           color: "var(--text-primary)",
         }}
       >
-        <span className="truncate max-w-25">
-          {selected?.label ?? value}
-        </span>
+        <span className="truncate max-w-25">{selected?.label ?? value}</span>
         <svg
           width="10"
           height="10"
@@ -1257,6 +1242,7 @@ function buildModalCodeString(cfg: {
   targetChain: number;
   targetToken: string;
   recipient: string;
+  rhinestoneApiKey?: string;
   themeMode: string;
   borderRadius: number;
   brandTitle: string;
@@ -1279,17 +1265,13 @@ function buildModalCodeString(cfg: {
     `import { DepositModal } from "@rhinestone/deposit-modal";`,
     `import "@rhinestone/deposit-modal/styles.css";`,
     ``,
-    `// In your component with wagmi hooks:`,
-    `// const { address } = useAccount();`,
-    `// const { data: walletClient } = useWalletClient();`,
-    `// const publicClient = usePublicClient();`,
+    `// In your component (identity only flow):`,
+    `// const dappAddress = embeddedWalletAddress; // optional, enables QR flow`,
     ``,
     `<DepositModal`,
     `  isOpen={isOpen}`,
     `  onClose={() => setIsOpen(false)}`,
-    `  walletClient={walletClient}`,
-    `  publicClient={publicClient}`,
-    `  address={address}`,
+    `  dappAddress={dappAddress}`,
     `  targetChain={${cfg.targetChain}}`,
     `  targetToken="${cfg.targetToken}"`,
     `  forceRegister={true}`,
@@ -1306,6 +1288,9 @@ function buildModalCodeString(cfg: {
   if (cfg.sessionChainIds && cfg.sessionChainIds.length > 0) {
     lines.push(`  sessionChainIds={[${cfg.sessionChainIds.join(", ")}]}`);
   }
+  if (cfg.rhinestoneApiKey) {
+    lines.push(`  rhinestoneApiKey="${cfg.rhinestoneApiKey}"`);
+  }
   // Theme
   lines.push(`  theme={{`);
   lines.push(`    mode: "${cfg.themeMode}",`);
@@ -1314,7 +1299,7 @@ function buildModalCodeString(cfg: {
   lines.push(`    radius: "${radius}",`);
   if (cfg.fontColor) lines.push(`    fontColor: "${cfg.fontColor}",`);
   if (cfg.iconColor) lines.push(`    iconColor: "${cfg.iconColor}",`);
-  lines.push(`    ctaColor: "${cfg.ctaColor}",`);
+  if (cfg.ctaColor) lines.push(`    ctaColor: "${cfg.ctaColor}",`);
   if (cfg.ctaHoverColor)
     lines.push(`    ctaHoverColor: "${cfg.ctaHoverColor}",`);
   if (cfg.borderColor) lines.push(`    borderColor: "${cfg.borderColor}",`);
@@ -1356,6 +1341,7 @@ function buildWithdrawCodeString(cfg: {
   targetChain: number;
   targetToken: string;
   recipient: string;
+  rhinestoneApiKey?: string;
   themeMode: string;
   borderRadius: number;
   brandTitle: string;
@@ -1378,17 +1364,13 @@ function buildWithdrawCodeString(cfg: {
     `import { WithdrawModal } from "@rhinestone/deposit-modal";`,
     `import "@rhinestone/deposit-modal/styles.css";`,
     ``,
-    `// In your component with wagmi hooks:`,
-    `// const { address } = useAccount();`,
-    `// const { data: walletClient } = useWalletClient();`,
-    `// const publicClient = usePublicClient();`,
+    `// In your component (identity only flow):`,
+    `// const dappAddress = embeddedWalletAddress;`,
     ``,
     `<WithdrawModal`,
     `  isOpen={isOpen}`,
     `  onClose={() => setIsOpen(false)}`,
-    `  walletClient={walletClient}`,
-    `  publicClient={publicClient}`,
-    `  address={address}`,
+    `  dappAddress={dappAddress}`,
     `  safeAddress="${cfg.safeAddress}"`,
     `  sourceChain={${cfg.sourceChain}}`,
     `  sourceToken="${cfg.sourceToken}"`,
@@ -1408,6 +1390,9 @@ function buildWithdrawCodeString(cfg: {
   if (cfg.sessionChainIds && cfg.sessionChainIds.length > 0) {
     lines.push(`  sessionChainIds={[${cfg.sessionChainIds.join(", ")}]}`);
   }
+  if (cfg.rhinestoneApiKey) {
+    lines.push(`  rhinestoneApiKey="${cfg.rhinestoneApiKey}"`);
+  }
   lines.push(`  theme={{`);
   lines.push(`    mode: "${cfg.themeMode}",`);
   const radius =
@@ -1415,7 +1400,7 @@ function buildWithdrawCodeString(cfg: {
   lines.push(`    radius: "${radius}",`);
   if (cfg.fontColor) lines.push(`    fontColor: "${cfg.fontColor}",`);
   if (cfg.iconColor) lines.push(`    iconColor: "${cfg.iconColor}",`);
-  lines.push(`    ctaColor: "${cfg.ctaColor}",`);
+  if (cfg.ctaColor) lines.push(`    ctaColor: "${cfg.ctaColor}",`);
   if (cfg.ctaHoverColor)
     lines.push(`    ctaHoverColor: "${cfg.ctaHoverColor}",`);
   if (cfg.borderColor) lines.push(`    borderColor: "${cfg.borderColor}",`);
