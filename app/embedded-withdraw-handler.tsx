@@ -6,17 +6,15 @@ import {
   createWalletClient,
   createPublicClient,
   custom,
+  hexToBytes,
   http,
+  toHex,
   type Address,
   type Chain,
   type Hex,
 } from "viem";
 import { mainnet, base, arbitrum, optimism, polygon, bsc } from "viem/chains";
-import {
-  executeSafeEthTransfer,
-  executeSafeErc20Transfer,
-} from "@rhinestone/deposit-modal";
-import type { WithdrawSignParams } from "@rhinestone/deposit-modal";
+import type { SafeTransactionRequest } from "@rhinestone/deposit-modal";
 
 const VIEM_CHAINS_BY_ID: Record<number, Chain> = {
   1: mainnet,
@@ -27,11 +25,34 @@ const VIEM_CHAINS_BY_ID: Record<number, Chain> = {
   56: bsc,
 };
 
+const EXEC_TRANSACTION_ABI = [
+  {
+    type: "function",
+    name: "execTransaction",
+    stateMutability: "payable",
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "value", type: "uint256" },
+      { name: "data", type: "bytes" },
+      { name: "operation", type: "uint8" },
+      { name: "safeTxGas", type: "uint256" },
+      { name: "baseGas", type: "uint256" },
+      { name: "gasPrice", type: "uint256" },
+      { name: "gasToken", type: "address" },
+      { name: "refundReceiver", type: "address" },
+      { name: "signatures", type: "bytes" },
+    ],
+    outputs: [{ name: "success", type: "bool" }],
+  },
+] as const;
+
 export function EmbeddedWithdrawHandler({
   signRef,
   onAddressChange,
 }: {
-  signRef: RefObject<((params: WithdrawSignParams) => Promise<{ txHash: Hex }>) | null>;
+  signRef: RefObject<
+    ((request: SafeTransactionRequest) => Promise<{ txHash: Hex }>) | null
+  >;
   onAddressChange?: (address: Address | null) => void;
 }) {
   const { wallets } = useWallets();
@@ -50,21 +71,19 @@ export function EmbeddedWithdrawHandler({
 
   useEffect(() => {
     signRef.current = async (
-      params: WithdrawSignParams,
+      request: SafeTransactionRequest,
     ): Promise<{ txHash: Hex }> => {
       const embeddedWallet = getEmbeddedConnectedWallet(wallets);
       if (!embeddedWallet) {
-        throw new Error(
-          "No Privy embedded wallet found. Please log in first.",
-        );
+        throw new Error("No Privy embedded wallet found. Please log in first.");
       }
 
-      const chain = VIEM_CHAINS_BY_ID[params.chainId];
+      const chain = VIEM_CHAINS_BY_ID[request.chainId];
       if (!chain) {
-        throw new Error(`Unsupported chain ${params.chainId}`);
+        throw new Error(`Unsupported chain ${request.chainId}`);
       }
 
-      await embeddedWallet.switchChain(params.chainId);
+      await embeddedWallet.switchChain(request.chainId);
       const provider = await embeddedWallet.getEthereumProvider();
 
       const privyWalletClient = createWalletClient({
@@ -78,26 +97,62 @@ export function EmbeddedWithdrawHandler({
         transport: http(),
       });
 
-      const result = params.isNative
-        ? await executeSafeEthTransfer({
-            walletClient: privyWalletClient,
-            publicClient: privyPublicClient,
-            safeAddress: params.safeAddress,
-            recipient: params.recipient,
-            amount: params.amount,
-            chainId: params.chainId,
-          })
-        : await executeSafeErc20Transfer({
-            walletClient: privyWalletClient,
-            publicClient: privyPublicClient,
-            safeAddress: params.safeAddress,
-            tokenAddress: params.tokenAddress,
-            recipient: params.recipient,
-            amount: params.amount,
-            chainId: params.chainId,
-          });
+      console.log(
+        "[withdraw] signing safeTxHash via raw provider.request (personal_sign)",
+      );
+      console.log("[withdraw] safeTxHash:", request.safeTxHash);
+      console.log("[withdraw] signer:", embeddedWallet.address);
 
-      return { txHash: result.txHash };
+      // Call personal_sign directly on the provider to bypass Privy's
+      // SignRequestScreen UI, which crashes after signing completes.
+      const rawSignature = (await provider.request({
+        method: "personal_sign",
+        params: [request.safeTxHash, embeddedWallet.address],
+      })) as Hex;
+
+      console.log("[withdraw] got signature:", rawSignature);
+
+      // Adjust v by +4 for Safe's eth_sign verification path.
+      // Safe checks v > 30 and verifies via
+      // keccak256("\x19Ethereum Signed Message:\n32" + hash).
+      const sigBytes = hexToBytes(rawSignature);
+      sigBytes[64] += 4;
+      const signature = toHex(sigBytes);
+
+      console.log("[withdraw] adjusted signature (v+4):", signature);
+
+      // Submit execTransaction on-chain (integrators would use a relayer here)
+      const { message } = request.typedData;
+      console.log(
+        "[withdraw] submitting execTransaction to Safe:",
+        request.safeAddress,
+      );
+
+      const txHash = await privyWalletClient.writeContract({
+        chain,
+        address: request.safeAddress,
+        abi: EXEC_TRANSACTION_ABI,
+        functionName: "execTransaction",
+        args: [
+          message.to,
+          message.value,
+          message.data,
+          message.operation,
+          message.safeTxGas,
+          message.baseGas,
+          message.gasPrice,
+          message.gasToken,
+          message.refundReceiver,
+          signature,
+        ],
+      });
+
+      console.log("[withdraw] execTransaction txHash:", txHash);
+
+      await privyPublicClient.waitForTransactionReceipt({ hash: txHash });
+      console.log("[withdraw] transaction confirmed");
+
+      return { txHash };
     };
     return () => {
       signRef.current = null;

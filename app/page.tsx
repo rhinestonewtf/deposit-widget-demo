@@ -17,7 +17,7 @@ import {
   getTokenAddress,
   getSupportedTokenSymbolsForChain,
 } from "@rhinestone/deposit-modal";
-import type { WithdrawSignParams } from "@rhinestone/deposit-modal";
+import type { SafeTransactionRequest } from "@rhinestone/deposit-modal";
 import { isAddress, type Address, type Hex } from "viem";
 import { useEmbeddedMode } from "./providers";
 
@@ -120,7 +120,9 @@ export default function Home() {
   const [showStepper, setShowStepper] = useState(false);
   const [balanceTitle, setBalanceTitle] = useState("Nexus balance");
   const [maxDepositUsd, setMaxDepositUsd] = useState<number | undefined>(100);
-  const [minDepositUsd, setMinDepositUsd] = useState<number | undefined>(undefined);
+  const [minDepositUsd, setMinDepositUsd] = useState<number | undefined>(
+    undefined,
+  );
 
   // Theme colors
   const [fontColor, setFontColor] = useState("");
@@ -142,19 +144,19 @@ export default function Home() {
   const { isEmbedded, embeddedAddress, privyAvailable, requestLogin } =
     useEmbeddedMode();
   const withdrawSignRef = useRef<
-    ((params: WithdrawSignParams) => Promise<{ txHash: Hex }>) | null
+    ((request: SafeTransactionRequest) => Promise<{ txHash: Hex }>) | null
   >(null);
 
   const reownProjectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID;
   const rhinestoneApiKey = process.env.NEXT_PUBLIC_RHINESTONE_API_KEY;
   const withdrawReownAppId = isEmbedded ? undefined : reownProjectId;
 
-  const handleWithdrawSign = useCallback(
-    async (params: WithdrawSignParams): Promise<{ txHash: Hex }> => {
+  const handleRelayTransaction = useCallback(
+    async (request: SafeTransactionRequest): Promise<{ txHash: Hex }> => {
       if (!withdrawSignRef.current) {
         throw new Error("Privy embedded wallet not available");
       }
-      return withdrawSignRef.current(params);
+      return withdrawSignRef.current(request);
     },
     [],
   );
@@ -772,8 +774,8 @@ export default function Home() {
                       onClose={() => setShowModal(false)}
                       dappAddress={embeddedAddress ?? undefined}
                       reownAppId={withdrawReownAppId}
-                      onWithdrawSign={
-                        isEmbedded ? handleWithdrawSign : undefined
+                      onRelayTransaction={
+                        isEmbedded ? handleRelayTransaction : undefined
                       }
                       safeAddress={safeAddress as Address}
                       sourceChain={sourceChain}
@@ -1431,10 +1433,7 @@ function buildWithdrawCodeString(cfg: {
     if (cfg.logoUrl) lines.push(`    logoUrl: "${cfg.logoUrl}",`);
     lines.push(`  }}`);
   }
-  const hasUiConfig =
-    cfg.showLogo ||
-    cfg.showStepper ||
-    cfg.balanceTitle;
+  const hasUiConfig = cfg.showLogo || cfg.showStepper || cfg.balanceTitle;
   if (hasUiConfig) {
     lines.push(`  uiConfig={{`);
     if (cfg.showLogo) lines.push(`    showLogo: true,`);
