@@ -143,15 +143,15 @@ export default function Home() {
   const { isEmbedded, embeddedAddress, privyAvailable, requestLogin } =
     useEmbeddedMode();
   const withdrawSignRef = useRef<
-    ((request: SafeTransactionRequest) => Promise<{ txHash: Hex }>) | null
+    ((request: SafeTransactionRequest) => Promise<{ signature: Hex }>) | null
   >(null);
 
   const reownProjectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID;
   const rhinestoneApiKey = process.env.NEXT_PUBLIC_RHINESTONE_API_KEY;
   const withdrawReownAppId = isEmbedded ? undefined : reownProjectId;
 
-  const handleRelayTransaction = useCallback(
-    async (request: SafeTransactionRequest): Promise<{ txHash: Hex }> => {
+  const handleSignTransaction = useCallback(
+    async (request: SafeTransactionRequest): Promise<{ signature: Hex }> => {
       if (!withdrawSignRef.current) {
         throw new Error("Privy embedded wallet not available");
       }
@@ -773,8 +773,8 @@ export default function Home() {
                       onClose={() => setShowModal(false)}
                       dappAddress={embeddedAddress ?? undefined}
                       reownAppId={withdrawReownAppId}
-                      onRelayTransaction={
-                        isEmbedded ? handleRelayTransaction : undefined
+                      onSignTransaction={
+                        isEmbedded ? handleSignTransaction : undefined
                       }
                       safeAddress={safeAddress as Address}
                       sourceChain={sourceChain}

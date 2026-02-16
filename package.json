@@ -9,11 +9,12 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@privy-io/react-auth": "^3.13.1",
     "@reown/appkit": "^1.8.17",
     "@reown/appkit-adapter-wagmi": "^1.8.17",
+    "@rhinestone/deposit-modal": "^0.1.25",
+    "@rhinestone/sdk": "^1.2.13",
     "@tanstack/react-query": "^5.0.0",
-    "@privy-io/react-auth": "^3.13.1",
-    "@rhinestone/deposit-modal": "^0.1.24",
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
