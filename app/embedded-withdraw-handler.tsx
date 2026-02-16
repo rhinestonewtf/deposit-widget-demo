@@ -14,7 +14,7 @@ import {
   type Hex,
 } from "viem";
 import { mainnet, base, arbitrum, optimism, polygon, bsc } from "viem/chains";
-import type { SafeTransactionRequest } from "@rhinestone/deposit-modal";
+import type { SafeTransactionRequest } from "@rhinestone/deposit-modal/safe";
 
 const VIEM_CHAINS_BY_ID: Record<number, Chain> = {
   1: mainnet,

@@ -10,14 +10,13 @@ import {
   Suspense,
 } from "react";
 import {
-  DepositModal,
-  WithdrawModal,
   NATIVE_TOKEN_ADDRESS,
   SOURCE_CHAINS,
   getTokenAddress,
   getSupportedTokenSymbolsForChain,
-} from "@rhinestone/deposit-modal";
-import type { SafeTransactionRequest } from "@rhinestone/deposit-modal";
+} from "@rhinestone/deposit-modal/constants";
+import { DepositModal, WithdrawModal } from "@rhinestone/deposit-modal/reown";
+import type { SafeTransactionRequest } from "@rhinestone/deposit-modal/safe";
 import { isAddress, type Address, type Hex } from "viem";
 import { useEmbeddedMode } from "./providers";
 
@@ -1280,7 +1279,7 @@ function buildModalCodeString(cfg: {
   backgroundColor: string;
 }): string {
   const lines = [
-    `import { DepositModal } from "@rhinestone/deposit-modal";`,
+    `import { DepositModal } from "@rhinestone/deposit-modal/reown";`,
     `import "@rhinestone/deposit-modal/styles.css";`,
     ``,
     `// In your component (identity only flow):`,
@@ -1381,7 +1380,7 @@ function buildWithdrawCodeString(cfg: {
   backgroundColor: string;
 }): string {
   const lines = [
-    `import { WithdrawModal } from "@rhinestone/deposit-modal";`,
+    `import { WithdrawModal } from "@rhinestone/deposit-modal/reown";`,
     `import "@rhinestone/deposit-modal/styles.css";`,
     ``,
     `// In your component (identity only flow):`,
