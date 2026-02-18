@@ -7,8 +7,8 @@
         "@privy-io/react-auth": "^3.13.1",
         "@reown/appkit": "^1.8.17",
         "@reown/appkit-adapter-wagmi": "^1.8.17",
-        "@rhinestone/deposit-modal": "^0.1.25",
-        "@rhinestone/sdk": "^1.2.13",
+        "@rhinestone/deposit-modal": "^0.1.26",
+        "@rhinestone/sdk": "^1.2.14",
         "@tanstack/react-query": "^5.0.0",
         "next": "16.1.6",
         "react": "19.2.3",
@@ -335,9 +335,9 @@
 
     "@reown/appkit-wallet": ["@reown/appkit-wallet@1.8.18", "", { "dependencies": { "@reown/appkit-common": "1.8.18", "@reown/appkit-polyfills": "1.8.18", "@walletconnect/logger": "3.0.2", "zod": "3.22.4" } }, "sha512-1FWTkh269iBm2XzN0plHFIgIM1wMUmXrdeNmQK3NcJvGHpZ1YO1z2zFHTkWCPFVMZCHoQH28fcP6Aobq1FuFbA=="],
 
-    "@rhinestone/deposit-modal": ["@rhinestone/deposit-modal@0.1.25", "", { "dependencies": { "@reown/appkit": "^1.8.17", "@reown/appkit-adapter-wagmi": "^1.8.17", "@rhinestone/sdk": "^1.2.11", "@rhinestone/shared-configs": "^1.4.93", "@tanstack/react-query": "^5.0.0", "qrcode-generator": "^2.0.4", "wagmi": "^3.4.2" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18", "viem": ">=2" } }, "sha512-Nux4sECCnpAFHCPE2MEnkz/LS2sCNY64QATb69Llrve6grF9K57zi2vr4de9UKV7O7UOzGB2S6ZreojNsNtplw=="],
+    "@rhinestone/deposit-modal": ["@rhinestone/deposit-modal@0.1.26", "", { "dependencies": { "@reown/appkit": "^1.8.17", "@reown/appkit-adapter-wagmi": "^1.8.17", "@rhinestone/sdk": "^1.2.14", "@rhinestone/shared-configs": "^1.4.93", "@tanstack/react-query": "^5.0.0", "qrcode-generator": "^2.0.4", "wagmi": "^3.4.2" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18", "viem": ">=2" } }, "sha512-axH88bEsT4eMv+v9Aa6TA25qqflfRq3MLWwwr+7KyTHlaBzXkIiJSEIY3zlG+6ckpUxMhZ1+1llZZIA3YULEmg=="],
 
-    "@rhinestone/sdk": ["@rhinestone/sdk@1.2.13", "", { "dependencies": { "@rhinestone/shared-configs": "1.4.97", "ox": "^0.11.3", "solady": "^0.1.26" }, "peerDependencies": { "viem": "^2.38.0" } }, "sha512-Qrr8MARk68ibTqBhQ4/YWbsKPRsL2vFy70k6UtmqQJjhbW/Q90R0mLYsKgbosA8hhwHZvg9dqNrBvN3vjECndg=="],
+    "@rhinestone/sdk": ["@rhinestone/sdk@1.2.14", "", { "dependencies": { "@rhinestone/shared-configs": "1.4.97", "ox": "^0.11.3", "solady": "^0.1.26" }, "peerDependencies": { "viem": "^2.38.0" } }, "sha512-sEuiwc2MDKKylaJysuG7fzFe9k48HQt2wHfqf0P30A9JNDjrgQ6InFFzb+12ZJPFIISTg5R8ejG7dEjpVhnOug=="],
 
     "@rhinestone/shared-configs": ["@rhinestone/shared-configs@1.4.97", "", { "peerDependencies": { "typescript": "^5", "viem": "^2.40.1" } }, "sha512-+3OigqALe7cix8qf6OpopqxS15XddYhC3q+i5Z91ccA6D4RBjx9SxCrXuLH6zdMlj3pojNKj5zyCs5wTXkPIMw=="],
 
