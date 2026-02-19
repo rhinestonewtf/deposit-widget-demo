@@ -279,9 +279,7 @@ export default function Home() {
             </Suspense>
           )}
           <a
-            href="https://docs.google.com/document/d/1uaOrXAEALpuXsn-jIdTI-DGIichypdeGSUpkE_qNruo/edit?usp=sharing"
-            target="_blank"
-            rel="noopener noreferrer"
+            href="/docs"
             className="flex items-center gap-1.5 text-[12px] font-medium transition-colors"
             style={{ color: "var(--text-tertiary)" }}
             onMouseEnter={(e) =>
@@ -1507,22 +1505,13 @@ function CodeBlock({ code }: { code: string }) {
 
 function RhinestoneLogo() {
   return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-      <rect width="20" height="20" rx="5" fill="var(--text-primary)" />
-      <path
-        d="M6 14L10 6L14 14"
-        stroke="var(--bg-primary)"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M7.5 11.5H12.5"
-        stroke="var(--bg-primary)"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-    </svg>
+    <img
+      src="https://github.com/rhinestonewtf.png"
+      alt="Rhinestone"
+      width={22}
+      height={22}
+      style={{ borderRadius: 5 }}
+    />
   );
 }
 
