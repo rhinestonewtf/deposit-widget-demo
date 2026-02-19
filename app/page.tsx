@@ -102,9 +102,9 @@ const LazyEmbeddedLoginButton = lazy(() =>
 export default function Home() {
   const [flow, setFlow] = useState<FlowMode>("deposit");
   const [targetChain, setTargetChain] = useState(8453);
-  const [targetToken, setTargetToken] = useState(tokenForChain(8453));
+  const [targetToken, setTargetToken] = useState(resolveTokenAddress(8453, "USDC"));
   const [sourceChain, setSourceChain] = useState(8453);
-  const [sourceToken, setSourceToken] = useState(tokenForChain(8453));
+  const [sourceToken, setSourceToken] = useState(resolveTokenAddress(8453, "USDC"));
   const [safeAddress, setSafeAddress] = useState("");
   const [accent, setAccent] = useState("");
   const [themeMode, setThemeMode] = useState<"light" | "dark">("light");
@@ -783,7 +783,7 @@ export default function Home() {
                       targetToken={targetToken as Address}
                       recipient={(recipient as Address) || undefined}
                       defaultAmount={prefilledAmount || undefined}
-                      forceRegister={true}
+                      forceRegister={false}
                       sessionChainIds={sessionChainIds}
                       waitForFinalTx={waitForFinalTx}
                       theme={{
@@ -837,7 +837,7 @@ export default function Home() {
                     targetToken={targetToken as Address}
                     recipient={(recipient as Address) || undefined}
                     defaultAmount={prefilledAmount || undefined}
-                    forceRegister={true}
+                    forceRegister={false}
                     sessionChainIds={sessionChainIds}
                     waitForFinalTx={waitForFinalTx}
                     theme={{
