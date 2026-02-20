@@ -781,7 +781,7 @@ export default function Home() {
                       targetToken={targetToken as Address}
                       recipient={(recipient as Address) || undefined}
                       defaultAmount={prefilledAmount || undefined}
-                      forceRegister={false}
+                      forceRegister={true}
                       sessionChainIds={sessionChainIds}
                       waitForFinalTx={waitForFinalTx}
                       theme={{
@@ -835,7 +835,7 @@ export default function Home() {
                     targetToken={targetToken as Address}
                     recipient={(recipient as Address) || undefined}
                     defaultAmount={prefilledAmount || undefined}
-                    forceRegister={false}
+                    forceRegister={true}
                     sessionChainIds={sessionChainIds}
                     waitForFinalTx={waitForFinalTx}
                     theme={{
