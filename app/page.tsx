@@ -102,9 +102,13 @@ const LazyEmbeddedLoginButton = lazy(() =>
 export default function Home() {
   const [flow, setFlow] = useState<FlowMode>("deposit");
   const [targetChain, setTargetChain] = useState(8453);
-  const [targetToken, setTargetToken] = useState(resolveTokenAddress(8453, "USDC"));
+  const [targetToken, setTargetToken] = useState(
+    resolveTokenAddress(8453, "USDC"),
+  );
   const [sourceChain, setSourceChain] = useState(8453);
-  const [sourceToken, setSourceToken] = useState(resolveTokenAddress(8453, "USDC"));
+  const [sourceToken, setSourceToken] = useState(
+    resolveTokenAddress(8453, "USDC"),
+  );
   const [safeAddress, setSafeAddress] = useState("");
   const [accent, setAccent] = useState("");
   const [themeMode, setThemeMode] = useState<"light" | "dark">("light");
@@ -118,6 +122,8 @@ export default function Home() {
   const [showLogo, setShowLogo] = useState(false);
   const [showStepper, setShowStepper] = useState(false);
   const [balanceTitle, setBalanceTitle] = useState("Nexus balance");
+  const [balanceAmount, setBalanceAmount] = useState("");
+  const [showTokenBalance, setShowTokenBalance] = useState(false);
   const [maxDepositUsd, setMaxDepositUsd] = useState<number | undefined>(100);
   const [minDepositUsd, setMinDepositUsd] = useState<number | undefined>(
     undefined,
@@ -226,7 +232,7 @@ export default function Home() {
     );
   }, []);
 
-  const componentKey = `${flow}-${targetChain}-${targetToken}-${sourceChain}-${sourceToken}-${safeAddress}-${recipient}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${logoUrl}-${prefilledAmount}-${waitForFinalTx}-${useCustomSessionChains}-${customSessionChainIds.join(",")}-${showLogo}-${showStepper}-${balanceTitle}-${maxDepositUsd}-${minDepositUsd}-${fontColor}-${iconColor}-${ctaHoverColor}-${borderColor}-${backgroundColor}-${isEmbedded}-${embeddedAddress ?? ""}`;
+  const componentKey = `${flow}-${targetChain}-${targetToken}-${sourceChain}-${sourceToken}-${safeAddress}-${recipient}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${logoUrl}-${prefilledAmount}-${waitForFinalTx}-${useCustomSessionChains}-${customSessionChainIds.join(",")}-${showLogo}-${showStepper}-${balanceTitle}-${balanceAmount}-${showTokenBalance}-${maxDepositUsd}-${minDepositUsd}-${fontColor}-${iconColor}-${ctaHoverColor}-${borderColor}-${backgroundColor}-${isEmbedded}-${embeddedAddress ?? ""}`;
 
   const recipientTooltip =
     flow === "withdraw"
@@ -632,6 +638,22 @@ export default function Home() {
                   style={{ color: "var(--text-primary)" }}
                 />
               </Row>
+              <Row label="Balance Amount">
+                <input
+                  type="text"
+                  value={balanceAmount}
+                  onChange={(e) => setBalanceAmount(e.target.value)}
+                  placeholder="e.g. $322.64"
+                  className="text-[13px] font-medium bg-transparent outline-none text-right w-27.5 text-ellipsis overflow-hidden"
+                  style={{ color: "var(--text-primary)" }}
+                />
+              </Row>
+              <Row label="Show Token Balance">
+                <Toggle
+                  checked={showTokenBalance}
+                  onChange={setShowTokenBalance}
+                />
+              </Row>
               <Row label="Max Deposit USD">
                 <input
                   type="number"
@@ -710,6 +732,8 @@ export default function Home() {
                           showLogo,
                           showStepper,
                           balanceTitle,
+                          balanceAmount,
+                          showTokenBalance,
                           fontColor,
                           iconColor,
                           ctaColor: accent,
@@ -732,6 +756,8 @@ export default function Home() {
                           showLogo,
                           showStepper,
                           balanceTitle,
+                          balanceAmount,
+                          showTokenBalance,
                           maxDepositUsd,
                           minDepositUsd,
                           fontColor,
@@ -806,7 +832,13 @@ export default function Home() {
                       uiConfig={{
                         showLogo,
                         showStepper,
-                        balanceTitle: balanceTitle || undefined,
+                        showTokenBalance,
+                        balance: balanceTitle
+                          ? {
+                              title: balanceTitle,
+                              amount: balanceAmount || undefined,
+                            }
+                          : undefined,
                       }}
                       onRequestConnect={
                         privyAvailable ? requestLogin : undefined
@@ -860,7 +892,13 @@ export default function Home() {
                     uiConfig={{
                       showLogo,
                       showStepper,
-                      balanceTitle: balanceTitle || undefined,
+                      showTokenBalance,
+                      balance: balanceTitle
+                        ? {
+                            title: balanceTitle,
+                            amount: balanceAmount || undefined,
+                          }
+                        : undefined,
                       maxDepositUsd,
                       minDepositUsd,
                     }}
@@ -1267,6 +1305,8 @@ function buildModalCodeString(cfg: {
   showLogo: boolean;
   showStepper: boolean;
   balanceTitle: string;
+  balanceAmount: string;
+  showTokenBalance: boolean;
   maxDepositUsd?: number;
   minDepositUsd?: number;
   fontColor: string;
@@ -1332,6 +1372,7 @@ function buildModalCodeString(cfg: {
   const hasUiConfig =
     cfg.showLogo ||
     cfg.showStepper ||
+    cfg.showTokenBalance ||
     cfg.balanceTitle ||
     cfg.maxDepositUsd !== undefined ||
     cfg.minDepositUsd !== undefined;
@@ -1339,8 +1380,11 @@ function buildModalCodeString(cfg: {
     lines.push(`  uiConfig={{`);
     if (cfg.showLogo) lines.push(`    showLogo: true,`);
     if (cfg.showStepper) lines.push(`    showStepper: true,`);
+    if (cfg.showTokenBalance) lines.push(`    showTokenBalance: true,`);
     if (cfg.balanceTitle)
-      lines.push(`    balanceTitle: "${cfg.balanceTitle}",`);
+      lines.push(
+        `    balance: { title: "${cfg.balanceTitle}"${cfg.balanceAmount ? `, amount: "${cfg.balanceAmount}"` : ""} },`,
+      );
     if (cfg.maxDepositUsd !== undefined)
       lines.push(`    maxDepositUsd: ${cfg.maxDepositUsd},`);
     if (cfg.minDepositUsd !== undefined)
@@ -1370,6 +1414,8 @@ function buildWithdrawCodeString(cfg: {
   showLogo: boolean;
   showStepper: boolean;
   balanceTitle: string;
+  balanceAmount: string;
+  showTokenBalance: boolean;
   fontColor: string;
   iconColor: string;
   ctaColor: string;
@@ -1430,13 +1476,16 @@ function buildWithdrawCodeString(cfg: {
     if (cfg.logoUrl) lines.push(`    logoUrl: "${cfg.logoUrl}",`);
     lines.push(`  }}`);
   }
-  const hasUiConfig = cfg.showLogo || cfg.showStepper || cfg.balanceTitle;
+  const hasUiConfig =
+    cfg.showLogo || cfg.showStepper || cfg.showTokenBalance || cfg.balanceTitle;
   if (hasUiConfig) {
     lines.push(`  uiConfig={{`);
     if (cfg.showLogo) lines.push(`    showLogo: true,`);
     if (cfg.showStepper) lines.push(`    showStepper: true,`);
     if (cfg.balanceTitle)
-      lines.push(`    balanceTitle: "${cfg.balanceTitle}",`);
+      lines.push(
+        `    balance: { title: "${cfg.balanceTitle}"${cfg.balanceAmount ? `, amount: "${cfg.balanceAmount}"` : ""} },`,
+      );
     lines.push(`  }}`);
   }
   lines.push(`  onWithdrawComplete={(data) => console.log("Complete", data)}`);
