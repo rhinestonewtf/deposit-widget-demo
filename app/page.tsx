@@ -123,7 +123,6 @@ export default function Home() {
   const [showStepper, setShowStepper] = useState(false);
   const [balanceTitle, setBalanceTitle] = useState("Nexus balance");
   const [balanceAmount, setBalanceAmount] = useState("");
-  const [showTokenBalance, setShowTokenBalance] = useState(false);
   const [maxDepositUsd, setMaxDepositUsd] = useState<number | undefined>(100);
   const [minDepositUsd, setMinDepositUsd] = useState<number | undefined>(
     undefined,
@@ -232,7 +231,7 @@ export default function Home() {
     );
   }, []);
 
-  const componentKey = `${flow}-${targetChain}-${targetToken}-${sourceChain}-${sourceToken}-${safeAddress}-${recipient}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${logoUrl}-${prefilledAmount}-${waitForFinalTx}-${useCustomSessionChains}-${customSessionChainIds.join(",")}-${showLogo}-${showStepper}-${balanceTitle}-${balanceAmount}-${showTokenBalance}-${maxDepositUsd}-${minDepositUsd}-${fontColor}-${iconColor}-${ctaHoverColor}-${borderColor}-${backgroundColor}-${isEmbedded}-${embeddedAddress ?? ""}`;
+  const componentKey = `${flow}-${targetChain}-${targetToken}-${sourceChain}-${sourceToken}-${safeAddress}-${recipient}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${logoUrl}-${prefilledAmount}-${waitForFinalTx}-${useCustomSessionChains}-${customSessionChainIds.join(",")}-${showLogo}-${showStepper}-${balanceTitle}-${balanceAmount}-${maxDepositUsd}-${minDepositUsd}-${fontColor}-${iconColor}-${ctaHoverColor}-${borderColor}-${backgroundColor}-${isEmbedded}-${embeddedAddress ?? ""}`;
 
   const recipientTooltip =
     flow === "withdraw"
@@ -648,12 +647,6 @@ export default function Home() {
                   style={{ color: "var(--text-primary)" }}
                 />
               </Row>
-              <Row label="Show Token Balance">
-                <Toggle
-                  checked={showTokenBalance}
-                  onChange={setShowTokenBalance}
-                />
-              </Row>
               <Row label="Max Deposit USD">
                 <input
                   type="number"
@@ -733,7 +726,7 @@ export default function Home() {
                           showStepper,
                           balanceTitle,
                           balanceAmount,
-                          showTokenBalance,
+
                           fontColor,
                           iconColor,
                           ctaColor: accent,
@@ -757,7 +750,7 @@ export default function Home() {
                           showStepper,
                           balanceTitle,
                           balanceAmount,
-                          showTokenBalance,
+
                           maxDepositUsd,
                           minDepositUsd,
                           fontColor,
@@ -832,7 +825,6 @@ export default function Home() {
                       uiConfig={{
                         showLogo,
                         showStepper,
-                        showTokenBalance,
                         balance: balanceTitle
                           ? {
                               title: balanceTitle,
@@ -892,7 +884,6 @@ export default function Home() {
                     uiConfig={{
                       showLogo,
                       showStepper,
-                      showTokenBalance,
                       balance: balanceTitle
                         ? {
                             title: balanceTitle,
@@ -1306,7 +1297,6 @@ function buildModalCodeString(cfg: {
   showStepper: boolean;
   balanceTitle: string;
   balanceAmount: string;
-  showTokenBalance: boolean;
   maxDepositUsd?: number;
   minDepositUsd?: number;
   fontColor: string;
@@ -1372,7 +1362,6 @@ function buildModalCodeString(cfg: {
   const hasUiConfig =
     cfg.showLogo ||
     cfg.showStepper ||
-    cfg.showTokenBalance ||
     cfg.balanceTitle ||
     cfg.maxDepositUsd !== undefined ||
     cfg.minDepositUsd !== undefined;
@@ -1380,7 +1369,6 @@ function buildModalCodeString(cfg: {
     lines.push(`  uiConfig={{`);
     if (cfg.showLogo) lines.push(`    showLogo: true,`);
     if (cfg.showStepper) lines.push(`    showStepper: true,`);
-    if (cfg.showTokenBalance) lines.push(`    showTokenBalance: true,`);
     if (cfg.balanceTitle)
       lines.push(
         `    balance: { title: "${cfg.balanceTitle}"${cfg.balanceAmount ? `, amount: "${cfg.balanceAmount}"` : ""} },`,
@@ -1415,7 +1403,6 @@ function buildWithdrawCodeString(cfg: {
   showStepper: boolean;
   balanceTitle: string;
   balanceAmount: string;
-  showTokenBalance: boolean;
   fontColor: string;
   iconColor: string;
   ctaColor: string;
@@ -1477,7 +1464,7 @@ function buildWithdrawCodeString(cfg: {
     lines.push(`  }}`);
   }
   const hasUiConfig =
-    cfg.showLogo || cfg.showStepper || cfg.showTokenBalance || cfg.balanceTitle;
+    cfg.showLogo || cfg.showStepper || cfg.balanceTitle;
   if (hasUiConfig) {
     lines.push(`  uiConfig={{`);
     if (cfg.showLogo) lines.push(`    showLogo: true,`);
