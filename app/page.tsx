@@ -24,7 +24,7 @@ type FlowMode = "deposit" | "withdraw";
 
 const DEFAULT_RECIPIENT = "0x0197d7FaFCA118Bc91f6854B9A2ceea94E676585";
 
-const MAINNET_CHAIN_IDS = new Set([1, 8453, 42161, 10, 137, 56]);
+const MAINNET_CHAIN_IDS = new Set([1, 8453, 42161, 10, 137, 56, 9745, 1868]);
 
 function getSelectableSymbolsForChain(chainId: number): string[] {
   return getSupportedTokenSymbolsForChain(chainId).filter((symbol) => {
