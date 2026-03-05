@@ -22,7 +22,8 @@ import { useEmbeddedMode } from "./providers";
 
 type FlowMode = "deposit" | "withdraw";
 
-const DEFAULT_RECIPIENT = "0x0197d7FaFCA118Bc91f6854B9A2ceea94E676585";
+const DEFAULT_RECIPIENT = "";
+const DEFAULT_OWNER_ADDRESS = "0x0197d7FaFCA118Bc91f6854B9A2ceea94E676585";
 
 const MAINNET_CHAIN_IDS = new Set([1, 8453, 42161, 10, 137, 56, 1868, 9745]);
 
@@ -136,6 +137,8 @@ export default function Home() {
   const [backgroundColor, setBackgroundColor] = useState("");
 
   const [recipient, setRecipient] = useState(DEFAULT_RECIPIENT);
+  const [ownerAddress, setOwnerAddress] = useState(DEFAULT_OWNER_ADDRESS);
+  const [recipientManuallyEdited, setRecipientManuallyEdited] = useState(false);
   const [prefilledAmount, setPrefilledAmount] = useState("");
   const [waitForFinalTx, setWaitForFinalTx] = useState(false);
   const [useCustomSessionChains, setUseCustomSessionChains] = useState(false);
@@ -198,6 +201,25 @@ export default function Home() {
     [],
   );
   const onError = useCallback((e: unknown) => console.log("error", e), []);
+  const normalizedEmbeddedAddress = embeddedAddress?.toLowerCase() ?? null;
+
+  const handleModalConnected = useCallback(
+    (data: { address: Address; smartAccount: Address }) => {
+      if (recipientManuallyEdited) return;
+
+      const connectedAddress = data.address.toLowerCase();
+      // Prefer non-Privy wallets (e.g. Reown) for recipient autofill.
+      if (
+        normalizedEmbeddedAddress &&
+        connectedAddress === normalizedEmbeddedAddress
+      ) {
+        return;
+      }
+
+      setRecipient(data.address);
+    },
+    [normalizedEmbeddedAddress, recipientManuallyEdited],
+  );
 
   const availableSessionChainIds = useMemo(
     () => CHAIN_OPTIONS.map((chain) => chain.id),
@@ -231,12 +253,14 @@ export default function Home() {
     );
   }, []);
 
-  const componentKey = `${flow}-${targetChain}-${targetToken}-${sourceChain}-${sourceToken}-${safeAddress}-${recipient}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${logoUrl}-${prefilledAmount}-${waitForFinalTx}-${useCustomSessionChains}-${customSessionChainIds.join(",")}-${showLogo}-${showStepper}-${balanceTitle}-${balanceAmount}-${maxDepositUsd}-${minDepositUsd}-${fontColor}-${iconColor}-${ctaHoverColor}-${borderColor}-${backgroundColor}-${isEmbedded}-${embeddedAddress ?? ""}`;
+  const componentKey = `${flow}-${targetChain}-${targetToken}-${sourceChain}-${sourceToken}-${safeAddress}-${recipient}-${ownerAddress}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${logoUrl}-${prefilledAmount}-${waitForFinalTx}-${useCustomSessionChains}-${customSessionChainIds.join(",")}-${showLogo}-${showStepper}-${balanceTitle}-${balanceAmount}-${maxDepositUsd}-${minDepositUsd}-${fontColor}-${iconColor}-${ctaHoverColor}-${borderColor}-${backgroundColor}-${isEmbedded}-${embeddedAddress ?? ""}`;
 
   const recipientTooltip =
     flow === "withdraw"
       ? "The address that will receive withdrawn funds on the destination chain."
       : "The address where deposited funds are sent. Set this to the user's address when installing the widget.";
+  const ownerAddressTooltip =
+    "Used as dappAddress (owner anchor) for setup and QR flow. Keep this populated to allow QR flow without Privy login.";
 
   const isSafeAddressValid =
     flow !== "withdraw" ||
@@ -413,7 +437,27 @@ export default function Home() {
                 <input
                   type="text"
                   value={recipient}
-                  onChange={(e) => setRecipient(e.target.value)}
+                  onChange={(e) => {
+                    setRecipient(e.target.value);
+                    setRecipientManuallyEdited(true);
+                  }}
+                  placeholder="0x..."
+                  className="text-[13px] font-mono bg-transparent outline-none text-right w-27.5 text-ellipsis overflow-hidden"
+                  style={{ color: "var(--text-primary)" }}
+                />
+              </Row>
+              <Row
+                label={
+                  <LabelWithInfo
+                    text="Owner address"
+                    tooltip={ownerAddressTooltip}
+                  />
+                }
+              >
+                <input
+                  type="text"
+                  value={ownerAddress}
+                  onChange={(e) => setOwnerAddress(e.target.value)}
                   placeholder="0x..."
                   className="text-[13px] font-mono bg-transparent outline-none text-right w-27.5 text-ellipsis overflow-hidden"
                   style={{ color: "var(--text-primary)" }}
@@ -714,6 +758,7 @@ export default function Home() {
                           targetChain,
                           targetToken,
                           recipient,
+                          ownerAddress,
                           rhinestoneApiKey,
                           themeMode,
                           borderRadius,
@@ -738,6 +783,7 @@ export default function Home() {
                           targetChain,
                           targetToken,
                           recipient,
+                          ownerAddress,
                           rhinestoneApiKey,
                           themeMode,
                           borderRadius,
@@ -789,7 +835,11 @@ export default function Home() {
                       isOpen={true}
                       onClose={() => setShowModal(false)}
                       debug={true}
-                      dappAddress={embeddedAddress ?? undefined}
+                      dappAddress={
+                        isAddress(ownerAddress, { strict: false })
+                          ? (ownerAddress as Address)
+                          : undefined
+                      }
                       reownAppId={withdrawReownAppId}
                       onSignTransaction={
                         isEmbedded ? handleSignTransaction : undefined
@@ -801,7 +851,7 @@ export default function Home() {
                       targetToken={targetToken as Address}
                       recipient={(recipient as Address) || undefined}
                       defaultAmount={prefilledAmount || undefined}
-                      forceRegister={true}
+                      // forceRegister={true}
                       sessionChainIds={sessionChainIds}
                       waitForFinalTx={waitForFinalTx}
                       theme={{
@@ -837,6 +887,7 @@ export default function Home() {
                         privyAvailable ? requestLogin : undefined
                       }
                       connectButtonLabel="Connect Wallet"
+                      onConnected={handleModalConnected}
                       onWithdrawComplete={onDepositComplete}
                       onError={onError}
                       inline={true}
@@ -855,13 +906,18 @@ export default function Home() {
                     isOpen={true}
                     onClose={() => setShowModal(false)}
                     debug={true}
-                    dappAddress={embeddedAddress ?? undefined}
+                    solanaRpcUrl="https://demo.rhinestone.dev/api/solana-rpc"
+                    dappAddress={
+                      isAddress(ownerAddress, { strict: false })
+                        ? (ownerAddress as Address)
+                        : undefined
+                    }
                     reownAppId={reownProjectId}
                     targetChain={targetChain}
                     targetToken={targetToken as Address}
                     recipient={(recipient as Address) || undefined}
                     defaultAmount={prefilledAmount || undefined}
-                    forceRegister={true}
+                    // forceRegister={true}
                     sessionChainIds={sessionChainIds}
                     waitForFinalTx={waitForFinalTx}
                     theme={{
@@ -897,6 +953,7 @@ export default function Home() {
                     }}
                     onRequestConnect={privyAvailable ? requestLogin : undefined}
                     connectButtonLabel="Connect Wallet"
+                    onConnected={handleModalConnected}
                     onDepositComplete={onDepositComplete}
                     onError={onError}
                     inline={true}
@@ -1287,6 +1344,7 @@ function buildModalCodeString(cfg: {
   targetChain: number;
   targetToken: string;
   recipient: string;
+  ownerAddress: string;
   rhinestoneApiKey?: string;
   themeMode: string;
   borderRadius: number;
@@ -1312,17 +1370,16 @@ function buildModalCodeString(cfg: {
     `import { DepositModal } from "@rhinestone/deposit-modal/reown";`,
     `import "@rhinestone/deposit-modal/styles.css";`,
     ``,
-    `// In your component (identity only flow):`,
-    `// const dappAddress = embeddedWalletAddress; // optional, enables QR flow`,
-    ``,
     `<DepositModal`,
     `  isOpen={isOpen}`,
     `  onClose={() => setIsOpen(false)}`,
-    `  dappAddress={dappAddress}`,
     `  targetChain={${cfg.targetChain}}`,
     `  targetToken="${cfg.targetToken}"`,
     `  forceRegister={true}`,
   ];
+  if (cfg.ownerAddress) {
+    lines.push(`  dappAddress="${cfg.ownerAddress}"`);
+  }
   if (cfg.recipient) {
     lines.push(`  recipient="${cfg.recipient}"`);
   }
@@ -1393,6 +1450,7 @@ function buildWithdrawCodeString(cfg: {
   targetChain: number;
   targetToken: string;
   recipient: string;
+  ownerAddress: string;
   rhinestoneApiKey?: string;
   themeMode: string;
   borderRadius: number;
@@ -1416,13 +1474,9 @@ function buildWithdrawCodeString(cfg: {
     `import { WithdrawModal } from "@rhinestone/deposit-modal/reown";`,
     `import "@rhinestone/deposit-modal/styles.css";`,
     ``,
-    `// In your component (identity only flow):`,
-    `// const dappAddress = embeddedWalletAddress;`,
-    ``,
     `<WithdrawModal`,
     `  isOpen={isOpen}`,
     `  onClose={() => setIsOpen(false)}`,
-    `  dappAddress={dappAddress}`,
     `  safeAddress="${cfg.safeAddress}"`,
     `  sourceChain={${cfg.sourceChain}}`,
     `  sourceToken="${cfg.sourceToken}"`,
@@ -1430,6 +1484,9 @@ function buildWithdrawCodeString(cfg: {
     `  targetToken="${cfg.targetToken}"`,
     `  forceRegister={true}`,
   ];
+  if (cfg.ownerAddress) {
+    lines.push(`  dappAddress="${cfg.ownerAddress}"`);
+  }
   if (cfg.recipient) {
     lines.push(`  recipient="${cfg.recipient}"`);
   }
