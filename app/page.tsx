@@ -24,7 +24,7 @@ type FlowMode = "deposit" | "withdraw";
 
 const DEFAULT_RECIPIENT = "0x0197d7FaFCA118Bc91f6854B9A2ceea94E676585";
 
-const MAINNET_CHAIN_IDS = new Set([1, 8453, 42161, 10, 137, 56, 9745, 1868]);
+const MAINNET_CHAIN_IDS = new Set([1, 8453, 42161, 10, 137, 56, 1868, 9745]);
 
 function getSelectableSymbolsForChain(chainId: number): string[] {
   return getSupportedTokenSymbolsForChain(chainId).filter((symbol) => {
@@ -788,6 +788,7 @@ export default function Home() {
                       key={componentKey}
                       isOpen={true}
                       onClose={() => setShowModal(false)}
+                      debug={true}
                       dappAddress={embeddedAddress ?? undefined}
                       reownAppId={withdrawReownAppId}
                       onSignTransaction={
@@ -853,6 +854,7 @@ export default function Home() {
                     key={componentKey}
                     isOpen={true}
                     onClose={() => setShowModal(false)}
+                    debug={true}
                     dappAddress={embeddedAddress ?? undefined}
                     reownAppId={reownProjectId}
                     targetChain={targetChain}
@@ -1463,8 +1465,7 @@ function buildWithdrawCodeString(cfg: {
     if (cfg.logoUrl) lines.push(`    logoUrl: "${cfg.logoUrl}",`);
     lines.push(`  }}`);
   }
-  const hasUiConfig =
-    cfg.showLogo || cfg.showStepper || cfg.balanceTitle;
+  const hasUiConfig = cfg.showLogo || cfg.showStepper || cfg.balanceTitle;
   if (hasUiConfig) {
     lines.push(`  uiConfig={{`);
     if (cfg.showLogo) lines.push(`    showLogo: true,`);
