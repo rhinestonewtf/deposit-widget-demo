@@ -217,6 +217,7 @@ export default function Home() {
       }
 
       setRecipient(data.address);
+      setOwnerAddress(data.address);
     },
     [normalizedEmbeddedAddress, recipientManuallyEdited],
   );
