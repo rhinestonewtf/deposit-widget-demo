@@ -30,6 +30,7 @@ export default function DocsQuickstartPage() {
   isOpen={isDepositOpen}
   onClose={() => setDepositOpen(false)}
   reownAppId={process.env.NEXT_PUBLIC_REOWN_PROJECT_ID!}
+  enableSolana={false} // optional: keep the modal EVM-only
   targetChain={8453}
   targetToken="0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" // USDC on Base
   recipient="0xYourRecipient"

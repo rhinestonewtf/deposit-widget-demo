@@ -141,6 +141,7 @@ export default function Home() {
   const [recipientManuallyEdited, setRecipientManuallyEdited] = useState(false);
   const [prefilledAmount, setPrefilledAmount] = useState("");
   const [waitForFinalTx, setWaitForFinalTx] = useState(false);
+  const [enableSolana, setEnableSolana] = useState(true);
   const [useCustomSessionChains, setUseCustomSessionChains] = useState(false);
   const [customSessionChainIds, setCustomSessionChainIds] = useState<number[]>([
     8453, 42161, 10,
@@ -254,7 +255,7 @@ export default function Home() {
     );
   }, []);
 
-  const componentKey = `${flow}-${targetChain}-${targetToken}-${sourceChain}-${sourceToken}-${safeAddress}-${recipient}-${ownerAddress}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${logoUrl}-${prefilledAmount}-${waitForFinalTx}-${useCustomSessionChains}-${customSessionChainIds.join(",")}-${showLogo}-${showStepper}-${balanceTitle}-${balanceAmount}-${maxDepositUsd}-${minDepositUsd}-${fontColor}-${iconColor}-${ctaHoverColor}-${borderColor}-${backgroundColor}-${isEmbedded}-${embeddedAddress ?? ""}`;
+  const componentKey = `${flow}-${targetChain}-${targetToken}-${sourceChain}-${sourceToken}-${safeAddress}-${recipient}-${ownerAddress}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${logoUrl}-${prefilledAmount}-${waitForFinalTx}-${enableSolana}-${useCustomSessionChains}-${customSessionChainIds.join(",")}-${showLogo}-${showStepper}-${balanceTitle}-${balanceAmount}-${maxDepositUsd}-${minDepositUsd}-${fontColor}-${iconColor}-${ctaHoverColor}-${borderColor}-${backgroundColor}-${isEmbedded}-${embeddedAddress ?? ""}`;
 
   const recipientTooltip =
     flow === "withdraw"
@@ -474,6 +475,18 @@ export default function Home() {
               >
                 <Toggle checked={waitForFinalTx} onChange={setWaitForFinalTx} />
               </Row>
+              {flow === "deposit" && (
+                <Row
+                  label={
+                    <LabelWithInfo
+                      text="Enable Solana"
+                      tooltip="Controls the Solana wallet and QR deposit flows inside the deposit modal."
+                    />
+                  }
+                >
+                  <Toggle checked={enableSolana} onChange={setEnableSolana} />
+                </Row>
+              )}
             </Section>
 
             <Section title="Session Signing">
@@ -792,6 +805,7 @@ export default function Home() {
                           logoUrl,
                           prefilledAmount,
                           waitForFinalTx,
+                          enableSolana,
                           sessionChainIds,
                           showLogo,
                           showStepper,
@@ -921,6 +935,7 @@ export default function Home() {
                     // forceRegister={true}
                     sessionChainIds={sessionChainIds}
                     waitForFinalTx={waitForFinalTx}
+                    enableSolana={enableSolana}
                     theme={{
                       mode: themeMode,
                       radius:
@@ -1353,6 +1368,7 @@ function buildModalCodeString(cfg: {
   logoUrl: string;
   prefilledAmount: string;
   waitForFinalTx: boolean;
+  enableSolana: boolean;
   sessionChainIds?: number[];
   showLogo: boolean;
   showStepper: boolean;
@@ -1389,6 +1405,9 @@ function buildModalCodeString(cfg: {
   }
   if (!cfg.waitForFinalTx) {
     lines.push(`  waitForFinalTx={false}`);
+  }
+  if (!cfg.enableSolana) {
+    lines.push(`  enableSolana={false}`);
   }
   if (cfg.sessionChainIds && cfg.sessionChainIds.length > 0) {
     lines.push(`  sessionChainIds={[${cfg.sessionChainIds.join(", ")}]}`);
