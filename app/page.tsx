@@ -113,14 +113,14 @@ export default function Home() {
   const [safeAddress, setSafeAddress] = useState("");
   const [accent, setAccent] = useState("");
   const [themeMode, setThemeMode] = useState<"light" | "dark">("light");
-  const [borderRadius, setBorderRadius] = useState(14);
+  const [borderRadius, setBorderRadius] = useState<"none" | "sm" | "md" | "lg">("lg");
   const [brandTitle, setBrandTitle] = useState("Deposit");
   const [logoUrl, setLogoUrl] = useState(
     "https://github.com/rhinestonewtf.png",
   );
 
   // UI Config
-  const [showLogo, setShowLogo] = useState(false);
+  const [showLogo, setShowLogo] = useState(true);
   const [showStepper, setShowStepper] = useState(false);
   const [balanceTitle, setBalanceTitle] = useState("Nexus balance");
   const [balanceAmount, setBalanceAmount] = useState("");
@@ -591,22 +591,23 @@ export default function Home() {
                 </div>
               </Row>
               <Row label="Radius">
-                <div className="flex items-center gap-2.5">
-                  <input
-                    type="range"
-                    min={0}
-                    max={24}
-                    value={borderRadius}
-                    onChange={(e) => setBorderRadius(Number(e.target.value))}
-                    className="w-16"
-                  />
-                  <span
-                    className="text-[11px] font-mono w-6.5 text-right tabular-nums"
-                    style={{ color: "var(--text-tertiary)" }}
-                  >
-                    {borderRadius}px
-                  </span>
-                </div>
+                <select
+                  value={borderRadius}
+                  onChange={(e) => setBorderRadius(e.target.value as "none" | "sm" | "md" | "lg")}
+                  style={{
+                    background: "var(--bg-secondary)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "var(--radius-sm)",
+                    padding: "4px 8px",
+                    fontSize: 12,
+                    color: "var(--text-primary)",
+                  }}
+                >
+                  <option value="none">none</option>
+                  <option value="sm">sm</option>
+                  <option value="md">md</option>
+                  <option value="lg">lg</option>
+                </select>
               </Row>
               <Row label="Title">
                 <input
@@ -825,7 +826,7 @@ export default function Home() {
               style={{
                 width: 420,
                 boxShadow: "var(--shadow-widget)",
-                borderRadius: `${borderRadius}px`,
+                borderRadius: `18px`,
                 overflow: "hidden",
               }}
             >
@@ -858,12 +859,7 @@ export default function Home() {
                       waitForFinalTx={waitForFinalTx}
                       theme={{
                         mode: themeMode,
-                        radius:
-                          borderRadius <= 4
-                            ? "sm"
-                            : borderRadius <= 10
-                              ? "md"
-                              : "lg",
+                        radius: borderRadius,
                         fontColor: fontColor || undefined,
                         iconColor: iconColor || undefined,
                         ctaColor: accent || undefined,
@@ -924,12 +920,7 @@ export default function Home() {
                     waitForFinalTx={waitForFinalTx}
                     theme={{
                       mode: themeMode,
-                      radius:
-                        borderRadius <= 4
-                          ? "sm"
-                          : borderRadius <= 10
-                            ? "md"
-                            : "lg",
+                      radius: borderRadius,
                       fontColor: fontColor || undefined,
                       iconColor: iconColor || undefined,
                       ctaColor: accent || undefined,
@@ -1349,7 +1340,7 @@ function buildModalCodeString(cfg: {
   ownerAddress: string;
   rhinestoneApiKey?: string;
   themeMode: string;
-  borderRadius: number;
+  borderRadius: string;
   brandTitle: string;
   logoUrl: string;
   prefilledAmount: string;
@@ -1401,9 +1392,7 @@ function buildModalCodeString(cfg: {
   // Theme
   lines.push(`  theme={{`);
   lines.push(`    mode: "${cfg.themeMode}",`);
-  const radius =
-    cfg.borderRadius <= 4 ? "sm" : cfg.borderRadius <= 10 ? "md" : "lg";
-  lines.push(`    radius: "${radius}",`);
+  lines.push(`    radius: "${cfg.borderRadius}",`);
   if (cfg.fontColor) lines.push(`    fontColor: "${cfg.fontColor}",`);
   if (cfg.iconColor) lines.push(`    iconColor: "${cfg.iconColor}",`);
   if (cfg.ctaColor) lines.push(`    ctaColor: "${cfg.ctaColor}",`);
@@ -1456,7 +1445,7 @@ function buildWithdrawCodeString(cfg: {
   ownerAddress: string;
   rhinestoneApiKey?: string;
   themeMode: string;
-  borderRadius: number;
+  borderRadius: string;
   brandTitle: string;
   logoUrl: string;
   prefilledAmount: string;
@@ -1507,9 +1496,7 @@ function buildWithdrawCodeString(cfg: {
   }
   lines.push(`  theme={{`);
   lines.push(`    mode: "${cfg.themeMode}",`);
-  const radius =
-    cfg.borderRadius <= 4 ? "sm" : cfg.borderRadius <= 10 ? "md" : "lg";
-  lines.push(`    radius: "${radius}",`);
+  lines.push(`    radius: "${cfg.borderRadius}",`);
   if (cfg.fontColor) lines.push(`    fontColor: "${cfg.fontColor}",`);
   if (cfg.iconColor) lines.push(`    iconColor: "${cfg.iconColor}",`);
   if (cfg.ctaColor) lines.push(`    ctaColor: "${cfg.ctaColor}",`);
