@@ -142,6 +142,9 @@ export default function Home() {
   const [prefilledAmount, setPrefilledAmount] = useState("");
   const [waitForFinalTx, setWaitForFinalTx] = useState(true);
 
+  const [useCustomOutputToken, setUseCustomOutputToken] = useState(false);
+  const [customOutputToken, setCustomOutputToken] = useState("");
+
   const [useCustomSessionChains, setUseCustomSessionChains] = useState(false);
   const [customSessionChainIds, setCustomSessionChainIds] = useState<number[]>([
     8453, 42161, 10,
@@ -255,7 +258,7 @@ export default function Home() {
     );
   }, []);
 
-  const componentKey = `${flow}-${targetChain}-${targetToken}-${sourceChain}-${sourceToken}-${safeAddress}-${recipient}-${ownerAddress}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${logoUrl}-${prefilledAmount}-${waitForFinalTx}-${useCustomSessionChains}-${customSessionChainIds.join(",")}-${showLogo}-${showStepper}-${balanceTitle}-${balanceAmount}-${maxDepositUsd}-${minDepositUsd}-${fontColor}-${iconColor}-${ctaHoverColor}-${borderColor}-${backgroundColor}-${isEmbedded}-${embeddedAddress ?? ""}`;
+  const componentKey = `${flow}-${targetChain}-${targetToken}-${sourceChain}-${sourceToken}-${safeAddress}-${recipient}-${ownerAddress}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${logoUrl}-${prefilledAmount}-${waitForFinalTx}-${useCustomSessionChains}-${customSessionChainIds.join(",")}-${showLogo}-${showStepper}-${balanceTitle}-${balanceAmount}-${maxDepositUsd}-${minDepositUsd}-${fontColor}-${iconColor}-${ctaHoverColor}-${borderColor}-${backgroundColor}-${useCustomOutputToken}-${customOutputToken}-${isEmbedded}-${embeddedAddress ?? ""}`;
 
   const recipientTooltip =
     flow === "withdraw"
@@ -406,20 +409,62 @@ export default function Home() {
                   }))}
                 />
               </Row>
-              <Row label="Token">
-                <Select
-                  value={symbolForToken(targetChain, targetToken)}
-                  onChange={(value) =>
-                    setTargetToken(resolveTokenAddress(targetChain, value))
-                  }
-                  options={getSelectableSymbolsForChain(targetChain).map(
-                    (symbol) => ({
-                      value: symbol,
-                      label: symbol,
-                    }),
-                  )}
+              {!useCustomOutputToken && (
+                <Row label="Token">
+                  <Select
+                    value={symbolForToken(targetChain, targetToken)}
+                    onChange={(value) =>
+                      setTargetToken(resolveTokenAddress(targetChain, value))
+                    }
+                    options={getSelectableSymbolsForChain(targetChain).map(
+                      (symbol) => ({
+                        value: symbol,
+                        label: symbol,
+                      }),
+                    )}
+                  />
+                </Row>
+              )}
+              <Row
+                label={
+                  <LabelWithInfo
+                    text="Custom output token"
+                    tooltip="Enable to specify any ERC-20 token address as the output. The orchestrator will route through 1inch, 0x, or Velora to swap into it."
+                  />
+                }
+              >
+                <Toggle
+                  checked={useCustomOutputToken}
+                  onChange={(v) => {
+                    setUseCustomOutputToken(v);
+                    if (!v) {
+                      setTargetToken(resolveTokenAddress(targetChain, getSelectableSymbolsForChain(targetChain)[0] ?? "USDC"));
+                    }
+                  }}
                 />
               </Row>
+              {useCustomOutputToken && (
+                <Row label="Token address">
+                  <input
+                    type="text"
+                    value={customOutputToken}
+                    onChange={(e) => {
+                      const val = e.target.value.trim();
+                      setCustomOutputToken(val);
+                      if (isAddress(val)) {
+                        setTargetToken(val);
+                      }
+                    }}
+                    placeholder="0x..."
+                    className="text-[13px] font-mono bg-transparent outline-none text-right w-35 text-ellipsis overflow-hidden"
+                    style={{
+                      color: customOutputToken && !isAddress(customOutputToken)
+                        ? "var(--color-error, #e5484d)"
+                        : "var(--text-primary)",
+                    }}
+                  />
+                </Row>
+              )}
               <Row label="Amount">
                 <input
                   type="text"
