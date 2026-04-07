@@ -13,7 +13,7 @@
     "@reown/appkit": "^1.8.19",
     "@reown/appkit-adapter-solana": "^1.8.19",
     "@reown/appkit-adapter-wagmi": "^1.8.19",
-    "@rhinestone/deposit-modal": "^0.1.58",
+    "@rhinestone/deposit-modal": "^0.1.63",
     "@rhinestone/sdk": "^1.2.14",
     "@solana/spl-token": "^0.4.14",
     "@solana/web3.js": "^1.98.4",

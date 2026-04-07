@@ -17,6 +17,7 @@ import {
 } from "@rhinestone/deposit-modal/constants";
 import { DepositModal, WithdrawModal } from "@rhinestone/deposit-modal/reown";
 import type { SafeTransactionRequest } from "@rhinestone/deposit-modal/safe";
+import type { PostBridgeAction } from "@rhinestone/deposit-modal";
 import { isAddress, type Address, type Hex } from "viem";
 import { useEmbeddedMode } from "./providers";
 
@@ -24,6 +25,11 @@ type FlowMode = "deposit" | "withdraw";
 
 const DEFAULT_RECIPIENT = "";
 const DEFAULT_OWNER_ADDRESS = "0x0197d7FaFCA118Bc91f6854B9A2ceea94E676585";
+
+const M0_ORDERBOOK_CONTRACT =
+  "0xb6807116b3b1b321a390594e31ecd6e0076f6278" as Address;
+const M0_OUTPUT_TOKEN =
+  "0x2d8d3aADeD3641C4358a8334D72086C908B515fb" as Address;
 
 const MAINNET_CHAIN_IDS = new Set([1, 8453, 42161, 10, 137, 56, 1868, 9745]);
 
@@ -141,6 +147,7 @@ export default function Home() {
   const [recipientManuallyEdited, setRecipientManuallyEdited] = useState(false);
   const [prefilledAmount, setPrefilledAmount] = useState("");
   const [waitForFinalTx, setWaitForFinalTx] = useState(true);
+  const [enableM0, setEnableM0] = useState(false);
 
   const [useCustomSessionChains, setUseCustomSessionChains] = useState(false);
   const [customSessionChainIds, setCustomSessionChainIds] = useState<number[]>([
@@ -247,6 +254,20 @@ export default function Home() {
     targetChain,
   ]);
 
+  const postBridgeActions = useMemo<PostBridgeAction[] | undefined>(
+    () =>
+      enableM0
+        ? [
+            {
+              type: "orderbook-swap",
+              contract: M0_ORDERBOOK_CONTRACT,
+              outputToken: M0_OUTPUT_TOKEN,
+            },
+          ]
+        : undefined,
+    [enableM0],
+  );
+
   const toggleSessionChain = useCallback((chainId: number) => {
     setCustomSessionChainIds((prev) =>
       prev.includes(chainId)
@@ -255,7 +276,7 @@ export default function Home() {
     );
   }, []);
 
-  const componentKey = `${flow}-${targetChain}-${targetToken}-${sourceChain}-${sourceToken}-${safeAddress}-${recipient}-${ownerAddress}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${logoUrl}-${prefilledAmount}-${waitForFinalTx}-${useCustomSessionChains}-${customSessionChainIds.join(",")}-${showLogo}-${showStepper}-${balanceTitle}-${balanceAmount}-${maxDepositUsd}-${minDepositUsd}-${fontColor}-${iconColor}-${ctaHoverColor}-${borderColor}-${backgroundColor}-${isEmbedded}-${embeddedAddress ?? ""}`;
+  const componentKey = `${flow}-${targetChain}-${targetToken}-${sourceChain}-${sourceToken}-${safeAddress}-${recipient}-${ownerAddress}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${logoUrl}-${prefilledAmount}-${waitForFinalTx}-${useCustomSessionChains}-${customSessionChainIds.join(",")}-${showLogo}-${showStepper}-${balanceTitle}-${balanceAmount}-${maxDepositUsd}-${minDepositUsd}-${fontColor}-${iconColor}-${ctaHoverColor}-${borderColor}-${backgroundColor}-${isEmbedded}-${embeddedAddress ?? ""}-${enableM0}`;
 
   const recipientTooltip =
     flow === "withdraw"
@@ -474,6 +495,16 @@ export default function Home() {
                 }
               >
                 <Toggle checked={waitForFinalTx} onChange={setWaitForFinalTx} />
+              </Row>
+              <Row
+                label={
+                  <LabelWithInfo
+                    text="M0 post-bridge swap"
+                    tooltip="When enabled, executes an orderbook swap through the M0 contract after bridging to the target chain."
+                  />
+                }
+              >
+                <Toggle checked={enableM0} onChange={setEnableM0} />
               </Row>
             </Section>
 
@@ -918,6 +949,7 @@ export default function Home() {
                     forceRegister={true}
                     sessionChainIds={sessionChainIds}
                     waitForFinalTx={waitForFinalTx}
+                    postBridgeActions={postBridgeActions}
                     theme={{
                       mode: themeMode,
                       radius: borderRadius,
