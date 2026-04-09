@@ -128,6 +128,7 @@ export default function Home() {
   // UI Config
   const [showLogo, setShowLogo] = useState(true);
   const [showStepper, setShowStepper] = useState(false);
+  const [showHistoryButton, setShowHistoryButton] = useState(true);
   const [balanceTitle, setBalanceTitle] = useState("Nexus balance");
   const [balanceAmount, setBalanceAmount] = useState("");
   const [maxDepositUsd, setMaxDepositUsd] = useState<number | undefined>(100);
@@ -705,6 +706,9 @@ export default function Home() {
               <Row label="Show Stepper">
                 <Toggle checked={showStepper} onChange={setShowStepper} />
               </Row>
+              <Row label="Show History">
+                <Toggle checked={showHistoryButton} onChange={setShowHistoryButton} />
+              </Row>
               <Row label="Balance Title">
                 <input
                   type="text"
@@ -967,6 +971,7 @@ export default function Home() {
                     uiConfig={{
                       showLogo,
                       showStepper,
+                      showHistoryButton,
                       balance: balanceTitle
                         ? {
                             title: balanceTitle,
