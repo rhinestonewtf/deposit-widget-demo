@@ -8,7 +8,7 @@
         "@reown/appkit": "^1.8.19",
         "@reown/appkit-adapter-solana": "^1.8.19",
         "@reown/appkit-adapter-wagmi": "^1.8.19",
-        "@rhinestone/deposit-modal": "^0.2.0",
+        "@rhinestone/deposit-modal": "^0.2.2",
         "@rhinestone/sdk": "^1.2.14",
         "@solana/spl-token": "^0.4.14",
         "@solana/web3.js": "^1.98.4",
@@ -342,7 +342,7 @@
 
     "@reown/appkit-wallet": ["@reown/appkit-wallet@1.8.19", "", { "dependencies": { "@reown/appkit-common": "1.8.19", "@reown/appkit-polyfills": "1.8.19", "@walletconnect/logger": "3.0.2", "zod": "3.22.4" } }, "sha512-NVdIKceUhkXYtsG32925ctmVn0QJFNyDlr+mWheMLCEZ/IUPn+6aA53vTVaSUquhyeFxUXtrCOh3ln6v1tup5w=="],
 
-    "@rhinestone/deposit-modal": ["@rhinestone/deposit-modal@0.2.0", "", { "dependencies": { "react-qrcode-logo": "^4.0.0" }, "peerDependencies": { "@reown/appkit": ">=1.6.0", "@reown/appkit-adapter-solana": ">=1.6.0", "@reown/appkit-adapter-wagmi": ">=1.6.0", "@solana/spl-token": ">=0.4", "@solana/web3.js": ">=1", "@tanstack/react-query": ">=5", "react": ">=18", "react-dom": ">=18", "viem": ">=2", "wagmi": ">=3" }, "optionalPeers": ["@reown/appkit-adapter-solana", "@solana/spl-token", "@solana/web3.js"] }, "sha512-TXN5RyXH3w5bJj/T82yE+CmEk58uLYbdC0xMEvx/AoyHY8HWSTqIhMZJE5LVCTI5pRvtjq8m50HEiV3VsDwneg=="],
+    "@rhinestone/deposit-modal": ["@rhinestone/deposit-modal@0.2.2", "", { "dependencies": { "react-qrcode-logo": "^4.0.0" }, "peerDependencies": { "@reown/appkit": ">=1.6.0", "@reown/appkit-adapter-solana": ">=1.6.0", "@reown/appkit-adapter-wagmi": ">=1.6.0", "@solana/spl-token": ">=0.4", "@solana/web3.js": ">=1", "@tanstack/react-query": ">=5", "react": ">=18", "react-dom": ">=18", "viem": ">=2", "wagmi": ">=3" }, "optionalPeers": ["@reown/appkit-adapter-solana", "@solana/spl-token", "@solana/web3.js"] }, "sha512-bScePusI38jkrmr/f+ycop8us/Xbifn6ZH0ICJTKy+kXFILMiJeAKZa+4jMxgt3YtqW9/kDkKZvbs4W6enEJHQ=="],
 
     "@rhinestone/sdk": ["@rhinestone/sdk@1.2.14", "", { "dependencies": { "@rhinestone/shared-configs": "1.4.97", "ox": "^0.11.3", "solady": "^0.1.26" }, "peerDependencies": { "viem": "^2.38.0" } }, "sha512-sEuiwc2MDKKylaJysuG7fzFe9k48HQt2wHfqf0P30A9JNDjrgQ6InFFzb+12ZJPFIISTg5R8ejG7dEjpVhnOug=="],
 
