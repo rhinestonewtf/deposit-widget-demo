@@ -945,6 +945,7 @@ export default function Home() {
                         ? (ownerAddress as Address)
                         : undefined
                     }
+                    enablePolymarketMigration={true}
                     reownAppId={reownProjectId}
                     targetChain={targetChain}
                     targetToken={targetToken as Address}
