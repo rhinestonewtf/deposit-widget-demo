@@ -15,8 +15,8 @@ export default function DocsQuickstartPage() {
       <PageTitle>Quickstart</PageTitle>
 
       <Lead>
-        Minimal integration for both deposit and withdraw using the Reown export
-        from <Mono>@rhinestone/deposit-modal</Mono>.
+        Minimal integration for both deposit and withdraw from
+        <Mono> @rhinestone/deposit-modal</Mono>.
       </Lead>
 
       <Subheading>1) Install + styles</Subheading>
@@ -24,7 +24,7 @@ export default function DocsQuickstartPage() {
       <CodeBlock lang="tsx">{`import "@rhinestone/deposit-modal/styles.css";`}</CodeBlock>
 
       <Subheading>2) Deposit</Subheading>
-      <CodeBlock lang="tsx">{`import { DepositModal } from "@rhinestone/deposit-modal/reown";
+      <CodeBlock lang="tsx">{`import { DepositModal } from "@rhinestone/deposit-modal";
 
 <DepositModal
   isOpen={isDepositOpen}
@@ -33,12 +33,14 @@ export default function DocsQuickstartPage() {
   targetChain={8453}
   targetToken="0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" // USDC on Base
   recipient="0xYourRecipient"
-  onDepositComplete={(data) => console.log("deposit complete", data)}
-  onDepositFailed={(data) => console.log("deposit failed", data)}
+  onLifecycle={(event) => {
+    if (event.type === "complete") console.log("deposit complete", event);
+    if (event.type === "failed") console.log("deposit failed", event);
+  }}
 />`}</CodeBlock>
 
       <Subheading>3) Withdraw</Subheading>
-      <CodeBlock lang="tsx">{`import { WithdrawModal } from "@rhinestone/deposit-modal/reown";
+      <CodeBlock lang="tsx">{`import { WithdrawModal } from "@rhinestone/deposit-modal";
 
 <WithdrawModal
   isOpen={isWithdrawOpen}
@@ -50,8 +52,10 @@ export default function DocsQuickstartPage() {
   targetChain={42161}
   targetToken="0xaf88d065e77c8cC2239327C5EDb3A432268e5831" // USDC on Arbitrum
   recipient="0xYourRecipient"
-  onWithdrawComplete={(data) => console.log("withdraw complete", data)}
-  onWithdrawFailed={(data) => console.log("withdraw failed", data)}
+  onLifecycle={(event) => {
+    if (event.type === "complete") console.log("withdraw complete", event);
+    if (event.type === "failed") console.log("withdraw failed", event);
+  }}
 />`}</CodeBlock>
 
       <Subheading>4) Embedded wallet / host-managed owner</Subheading>

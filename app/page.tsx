@@ -1,25 +1,20 @@
 "use client";
 
-import {
-  useState,
-  useCallback,
-  useRef,
-  useEffect,
-  useMemo,
-  lazy,
-  Suspense,
-} from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import {
   NATIVE_TOKEN_ADDRESS,
   SOURCE_CHAINS,
   getTokenAddress,
   getSupportedTokenSymbolsForChain,
 } from "@rhinestone/deposit-modal/constants";
-import { DepositModal, WithdrawModal } from "@rhinestone/deposit-modal/reown";
-import type { SafeTransactionRequest } from "@rhinestone/deposit-modal/safe";
-import type { PostBridgeAction } from "@rhinestone/deposit-modal";
-import { isAddress, type Address, type Hex } from "viem";
-import { useEmbeddedMode } from "./providers";
+import {
+  DepositModal,
+  WithdrawModal,
+  type DepositLifecycleEvent,
+  type WithdrawLifecycleEvent,
+  type PostBridgeAction,
+} from "@rhinestone/deposit-modal";
+import { isAddress, type Address } from "viem";
 
 type FlowMode = "deposit" | "withdraw";
 
@@ -94,18 +89,6 @@ function symbolForToken(chainId: number, token: string): string {
   return matched ?? symbols[0] ?? "USDC";
 }
 
-const LazyEmbeddedWithdrawHandler = lazy(() =>
-  import("./embedded-withdraw-handler").then((m) => ({
-    default: m.EmbeddedWithdrawHandler,
-  })),
-);
-
-const LazyEmbeddedLoginButton = lazy(() =>
-  import("./embedded-login-button").then((m) => ({
-    default: m.EmbeddedLoginButton,
-  })),
-);
-
 export default function Home() {
   const [flow, setFlow] = useState<FlowMode>("deposit");
   const [targetChain, setTargetChain] = useState(8453);
@@ -157,25 +140,8 @@ export default function Home() {
   const [showCode, setShowCode] = useState(false);
   const [showModal, setShowModal] = useState(true);
 
-  const { isEmbedded, embeddedAddress, privyAvailable, requestLogin } =
-    useEmbeddedMode();
-  const withdrawSignRef = useRef<
-    ((request: SafeTransactionRequest) => Promise<{ signature: Hex }>) | null
-  >(null);
-
   const reownProjectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID;
   const rhinestoneApiKey = process.env.NEXT_PUBLIC_RHINESTONE_API_KEY;
-  const withdrawReownAppId = isEmbedded ? undefined : reownProjectId;
-
-  const handleSignTransaction = useCallback(
-    async (request: SafeTransactionRequest): Promise<{ signature: Hex }> => {
-      if (!withdrawSignRef.current) {
-        throw new Error("Privy embedded wallet not available");
-      }
-      return withdrawSignRef.current(request);
-    },
-    [],
-  );
 
   const handleChainChange = useCallback(
     (chainId: number) => {
@@ -205,30 +171,28 @@ export default function Home() {
     [sourceChain, sourceToken],
   );
 
-  const onDepositComplete = useCallback(
-    (d: unknown) => console.log("complete", d),
-    [],
-  );
   const onError = useCallback((e: unknown) => console.log("error", e), []);
-  const normalizedEmbeddedAddress = embeddedAddress?.toLowerCase() ?? null;
 
-  const handleModalConnected = useCallback(
-    (data: { address: Address; smartAccount: Address }) => {
+  const onDepositLifecycle = useCallback(
+    (event: DepositLifecycleEvent) => {
+      console.log("deposit lifecycle", event);
+      if (event.type !== "connected") return;
       if (recipientManuallyEdited) return;
-
-      const connectedAddress = data.address.toLowerCase();
-      // Prefer non-Privy wallets (e.g. Reown) for recipient autofill.
-      if (
-        normalizedEmbeddedAddress &&
-        connectedAddress === normalizedEmbeddedAddress
-      ) {
-        return;
-      }
-
-      setRecipient(data.address);
-      setOwnerAddress(data.address);
+      setRecipient(event.address);
+      setOwnerAddress(event.address);
     },
-    [normalizedEmbeddedAddress, recipientManuallyEdited],
+    [recipientManuallyEdited],
+  );
+
+  const onWithdrawLifecycle = useCallback(
+    (event: WithdrawLifecycleEvent) => {
+      console.log("withdraw lifecycle", event);
+      if (event.type !== "connected") return;
+      if (recipientManuallyEdited) return;
+      setRecipient(event.address);
+      setOwnerAddress(event.address);
+    },
+    [recipientManuallyEdited],
   );
 
   const availableSessionChainIds = useMemo(
@@ -277,14 +241,14 @@ export default function Home() {
     );
   }, []);
 
-  const componentKey = `${flow}-${targetChain}-${targetToken}-${sourceChain}-${sourceToken}-${safeAddress}-${recipient}-${ownerAddress}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${logoUrl}-${prefilledAmount}-${waitForFinalTx}-${useCustomSessionChains}-${customSessionChainIds.join(",")}-${showLogo}-${showStepper}-${balanceTitle}-${balanceAmount}-${maxDepositUsd}-${minDepositUsd}-${fontColor}-${iconColor}-${ctaHoverColor}-${borderColor}-${backgroundColor}-${isEmbedded}-${embeddedAddress ?? ""}-${enableM0}`;
+  const componentKey = `${flow}-${targetChain}-${targetToken}-${sourceChain}-${sourceToken}-${safeAddress}-${recipient}-${ownerAddress}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${logoUrl}-${prefilledAmount}-${waitForFinalTx}-${useCustomSessionChains}-${customSessionChainIds.join(",")}-${showLogo}-${showStepper}-${balanceTitle}-${balanceAmount}-${maxDepositUsd}-${minDepositUsd}-${fontColor}-${iconColor}-${ctaHoverColor}-${borderColor}-${backgroundColor}-${enableM0}`;
 
   const recipientTooltip =
     flow === "withdraw"
       ? "The address that will receive withdrawn funds on the destination chain."
       : "The address where deposited funds are sent. Set this to the user's address when installing the widget.";
   const ownerAddressTooltip =
-    "Used as dappAddress (owner anchor) for setup and QR flow. Keep this populated to allow QR flow without Privy login.";
+    "Used as dappAddress (owner anchor) for setup and QR flow. Keep this populated to allow QR flow without a connected wallet.";
 
   const isSafeAddressValid =
     flow !== "withdraw" ||
@@ -292,11 +256,6 @@ export default function Home() {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
-      {isEmbedded && (
-        <Suspense fallback={null}>
-          <LazyEmbeddedWithdrawHandler signRef={withdrawSignRef} />
-        </Suspense>
-      )}
       {/* ── Header ──────────────────────────────────────── */}
       <header
         className="h-12 flex items-center justify-between px-5 shrink-0"
@@ -326,11 +285,6 @@ export default function Home() {
         </div>
 
         <div className="flex items-center gap-3">
-          {privyAvailable && (
-            <Suspense fallback={null}>
-              <LazyEmbeddedLoginButton />
-            </Suspense>
-          )}
           <a
             href="/docs"
             className="flex items-center gap-1.5 text-[12px] font-medium transition-colors"
@@ -878,10 +832,7 @@ export default function Home() {
                           ? (ownerAddress as Address)
                           : undefined
                       }
-                      reownAppId={withdrawReownAppId}
-                      onSignTransaction={
-                        isEmbedded ? handleSignTransaction : undefined
-                      }
+                      reownAppId={reownProjectId}
                       safeAddress={safeAddress as Address}
                       sourceChain={sourceChain}
                       sourceToken={sourceToken as Address}
@@ -902,26 +853,7 @@ export default function Home() {
                         borderColor: borderColor || undefined,
                         backgroundColor: backgroundColor || undefined,
                       }}
-                      branding={{
-                        title: brandTitle || undefined,
-                        logoUrl: logoUrl || undefined,
-                      }}
-                      uiConfig={{
-                        showLogo,
-                        showStepper,
-                        balance: balanceTitle
-                          ? {
-                              title: balanceTitle,
-                              amount: balanceAmount || undefined,
-                            }
-                          : undefined,
-                      }}
-                      onRequestConnect={
-                        privyAvailable ? requestLogin : undefined
-                      }
-                      connectButtonLabel="Connect Wallet"
-                      onConnected={handleModalConnected}
-                      onWithdrawComplete={onDepositComplete}
+                      onLifecycle={onWithdrawLifecycle}
                       onError={onError}
                       inline={true}
                     />
@@ -945,7 +877,6 @@ export default function Home() {
                         ? (ownerAddress as Address)
                         : undefined
                     }
-                    enablePolymarketMigration={true}
                     reownAppId={reownProjectId}
                     targetChain={targetChain}
                     targetToken={targetToken as Address}
@@ -965,27 +896,12 @@ export default function Home() {
                       borderColor: borderColor || undefined,
                       backgroundColor: backgroundColor || undefined,
                     }}
-                    branding={{
-                      title: brandTitle || undefined,
-                      logoUrl: logoUrl || undefined,
-                    }}
                     uiConfig={{
-                      showLogo,
-                      showStepper,
                       showHistoryButton,
-                      balance: balanceTitle
-                        ? {
-                            title: balanceTitle,
-                            amount: balanceAmount || undefined,
-                          }
-                        : undefined,
                       maxDepositUsd,
                       minDepositUsd,
                     }}
-                    onRequestConnect={privyAvailable ? requestLogin : undefined}
-                    connectButtonLabel="Connect Wallet"
-                    onConnected={handleModalConnected}
-                    onDepositComplete={onDepositComplete}
+                    onLifecycle={onDepositLifecycle}
                     onError={onError}
                     inline={true}
                   />
@@ -1399,7 +1315,7 @@ function buildModalCodeString(cfg: {
   backgroundColor: string;
 }): string {
   const lines = [
-    `import { DepositModal } from "@rhinestone/deposit-modal/reown";`,
+    `import { DepositModal } from "@rhinestone/deposit-modal";`,
     `import "@rhinestone/deposit-modal/styles.css";`,
     ``,
     `<DepositModal`,
@@ -1440,35 +1356,17 @@ function buildModalCodeString(cfg: {
   if (cfg.backgroundColor)
     lines.push(`    backgroundColor: "${cfg.backgroundColor}",`);
   lines.push(`  }}`);
-  // Branding
-  if (cfg.brandTitle || cfg.logoUrl) {
-    lines.push(`  branding={{`);
-    if (cfg.brandTitle) lines.push(`    title: "${cfg.brandTitle}",`);
-    if (cfg.logoUrl) lines.push(`    logoUrl: "${cfg.logoUrl}",`);
-    lines.push(`  }}`);
-  }
-  // UI Config - only show if non-default values
   const hasUiConfig =
-    cfg.showLogo ||
-    cfg.showStepper ||
-    cfg.balanceTitle ||
-    cfg.maxDepositUsd !== undefined ||
-    cfg.minDepositUsd !== undefined;
+    cfg.maxDepositUsd !== undefined || cfg.minDepositUsd !== undefined;
   if (hasUiConfig) {
     lines.push(`  uiConfig={{`);
-    if (cfg.showLogo) lines.push(`    showLogo: true,`);
-    if (cfg.showStepper) lines.push(`    showStepper: true,`);
-    if (cfg.balanceTitle)
-      lines.push(
-        `    balance: { title: "${cfg.balanceTitle}"${cfg.balanceAmount ? `, amount: "${cfg.balanceAmount}"` : ""} },`,
-      );
     if (cfg.maxDepositUsd !== undefined)
       lines.push(`    maxDepositUsd: ${cfg.maxDepositUsd},`);
     if (cfg.minDepositUsd !== undefined)
       lines.push(`    minDepositUsd: ${cfg.minDepositUsd},`);
     lines.push(`  }}`);
   }
-  lines.push(`  onDepositComplete={(data) => console.log("Complete", data)}`);
+  lines.push(`  onLifecycle={(event) => console.log(event.type, event)}`);
   lines.push(`/>`);
   return lines.join("\n");
 }
@@ -1501,7 +1399,7 @@ function buildWithdrawCodeString(cfg: {
   backgroundColor: string;
 }): string {
   const lines = [
-    `import { WithdrawModal } from "@rhinestone/deposit-modal/reown";`,
+    `import { WithdrawModal } from "@rhinestone/deposit-modal";`,
     `import "@rhinestone/deposit-modal/styles.css";`,
     ``,
     `<WithdrawModal`,
@@ -1544,24 +1442,7 @@ function buildWithdrawCodeString(cfg: {
   if (cfg.backgroundColor)
     lines.push(`    backgroundColor: "${cfg.backgroundColor}",`);
   lines.push(`  }}`);
-  if (cfg.brandTitle || cfg.logoUrl) {
-    lines.push(`  branding={{`);
-    if (cfg.brandTitle) lines.push(`    title: "${cfg.brandTitle}",`);
-    if (cfg.logoUrl) lines.push(`    logoUrl: "${cfg.logoUrl}",`);
-    lines.push(`  }}`);
-  }
-  const hasUiConfig = cfg.showLogo || cfg.showStepper || cfg.balanceTitle;
-  if (hasUiConfig) {
-    lines.push(`  uiConfig={{`);
-    if (cfg.showLogo) lines.push(`    showLogo: true,`);
-    if (cfg.showStepper) lines.push(`    showStepper: true,`);
-    if (cfg.balanceTitle)
-      lines.push(
-        `    balance: { title: "${cfg.balanceTitle}"${cfg.balanceAmount ? `, amount: "${cfg.balanceAmount}"` : ""} },`,
-      );
-    lines.push(`  }}`);
-  }
-  lines.push(`  onWithdrawComplete={(data) => console.log("Complete", data)}`);
+  lines.push(`  onLifecycle={(event) => console.log(event.type, event)}`);
   lines.push(`/>`);
   return lines.join("\n");
 }
