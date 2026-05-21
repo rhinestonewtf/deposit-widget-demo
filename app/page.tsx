@@ -246,7 +246,7 @@ export default function Home() {
     );
   }, []);
 
-  const componentKey = `${flow}-${targetChain}-${targetToken}-${sourceChain}-${sourceToken}-${safeAddress}-${recipient}-${ownerAddress}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${logoUrl}-${prefilledAmount}-${waitForFinalTx}-${useCustomSessionChains}-${customSessionChainIds.join(",")}-${showLogo}-${showStepper}-${balanceTitle}-${balanceAmount}-${maxDepositUsd}-${minDepositUsd}-${fontColor}-${iconColor}-${ctaHoverColor}-${borderColor}-${backgroundColor}-${enableM0}`;
+  const componentKey = `${flow}-${targetChain}-${targetToken}-${sourceChain}-${sourceToken}-${safeAddress}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${logoUrl}-${prefilledAmount}-${waitForFinalTx}-${useCustomSessionChains}-${customSessionChainIds.join(",")}-${showLogo}-${showStepper}-${balanceTitle}-${balanceAmount}-${maxDepositUsd}-${minDepositUsd}-${fontColor}-${iconColor}-${ctaHoverColor}-${borderColor}-${backgroundColor}-${enableM0}`;
 
   const recipientTooltip =
     flow === "withdraw"
@@ -911,7 +911,7 @@ export default function Home() {
                     targetToken={targetToken as Address}
                     recipient={(recipient as Address) || undefined}
                     defaultAmount={prefilledAmount || undefined}
-                    forceRegister={true}
+                    // forceRegister={true}
                     sessionChainIds={sessionChainIds}
                     waitForFinalTx={waitForFinalTx}
                     postBridgeActions={postBridgeActions}
