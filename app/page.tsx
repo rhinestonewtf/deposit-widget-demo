@@ -901,6 +901,7 @@ export default function Home() {
                       maxDepositUsd,
                       minDepositUsd,
                     }}
+                    dappImports={{ polymarket: true }}
                     onLifecycle={onDepositLifecycle}
                     onError={onError}
                     inline={true}
