@@ -139,6 +139,11 @@ export default function Home() {
   ]);
   const [showCode, setShowCode] = useState(false);
   const [showModal, setShowModal] = useState(true);
+  // Config panel is a slide-in drawer on mobile, statically docked on
+  // md+ screens (Tailwind overrides translate-x in CSS regardless of
+  // this state). Default closed so the widget preview is what users see
+  // first on a phone.
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
 
   const reownProjectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID;
   const rhinestoneApiKey = process.env.NEXT_PUBLIC_RHINESTONE_API_KEY;
@@ -265,6 +270,19 @@ export default function Home() {
         }}
       >
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setIsConfigOpen((open) => !open)}
+            className="md:hidden -ml-1 mr-1 p-1.5 flex items-center justify-center"
+            style={{
+              color: "var(--text-secondary)",
+              borderRadius: "var(--radius-sm)",
+            }}
+            aria-label={isConfigOpen ? "Close config panel" : "Open config panel"}
+            aria-expanded={isConfigOpen}
+          >
+            <MenuIcon />
+          </button>
           <RhinestoneLogo />
           <span
             className="text-[13px] font-semibold tracking-[-0.01em]"
@@ -302,10 +320,21 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="flex-1 flex min-h-0">
+      <div className="flex-1 flex min-h-0 relative">
+        {/* Mobile backdrop — only rendered when the drawer is open. */}
+        {isConfigOpen && (
+          <button
+            type="button"
+            aria-label="Close config panel"
+            onClick={() => setIsConfigOpen(false)}
+            className="md:hidden absolute inset-0 z-20 bg-black/40"
+          />
+        )}
         {/* ── Config Panel ────────────────────────────────── */}
         <aside
-          className="config-panel w-[320px] shrink-0 overflow-y-auto"
+          className={`config-panel w-[85vw] max-w-[320px] md:w-[320px] shrink-0 overflow-y-auto absolute md:static inset-y-0 left-0 z-30 transition-transform md:transition-none md:translate-x-0 ${
+            isConfigOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
           style={{
             borderRight: "1px solid var(--border-primary)",
             background: "var(--bg-primary)",
@@ -807,13 +836,13 @@ export default function Home() {
 
         {/* ── Preview ─────────────────────────────────────── */}
         <main
-          className="flex-1 flex items-center justify-center dot-grid overflow-hidden"
+          className="flex-1 flex items-center justify-center dot-grid overflow-hidden p-4 md:p-0"
           style={{ background: "var(--bg-secondary)" }}
         >
-          <div className="widget-glow">
+          <div className="widget-glow w-full flex justify-center">
             <div
               style={{
-                width: 420,
+                width: "min(420px, 100%)",
                 boxShadow: "var(--shadow-widget)",
                 borderRadius: `18px`,
                 overflow: "hidden",
@@ -1516,6 +1545,25 @@ function RhinestoneLogo() {
       height={22}
       style={{ borderRadius: 5 }}
     />
+  );
+}
+
+function MenuIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <line x1="3" y1="12" x2="21" y2="12" />
+      <line x1="3" y1="18" x2="21" y2="18" />
+    </svg>
   );
 }
 
