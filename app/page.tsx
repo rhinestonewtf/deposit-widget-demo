@@ -28,21 +28,29 @@ const M0_OUTPUT_TOKEN =
 
 const MAINNET_CHAIN_IDS = new Set([1, 8453, 42161, 10, 137, 56, 1868, 9745]);
 
-function getSelectableSymbolsForChain(chainId: number): string[] {
+// Solana destination tokens (mint addresses; "native" = SOL).
+const SOLANA_DEST_TOKENS: Record<string, string> = {
+  USDC: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+  USDT: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+  SOL: "So11111111111111111111111111111111111111112",
+};
+
+function getSelectableSymbolsForChain(chainId: number | "solana"): string[] {
+  if (chainId === "solana") return Object.keys(SOLANA_DEST_TOKENS);
   return getSupportedTokenSymbolsForChain(chainId).filter((symbol) => {
     if (symbol.toUpperCase() === "ETH") return true;
     return Boolean(getTokenAddress(symbol, chainId));
   });
 }
 
-const CHAIN_OPTIONS = SOURCE_CHAINS.filter(
-  (chain) =>
-    MAINNET_CHAIN_IDS.has(chain.id) &&
-    getSelectableSymbolsForChain(chain.id).length > 0,
-).map((chain) => ({
-  id: chain.id,
-  label: chain.name,
-}));
+const CHAIN_OPTIONS: { id: number | "solana"; label: string }[] = [
+  ...SOURCE_CHAINS.filter(
+    (chain) =>
+      MAINNET_CHAIN_IDS.has(chain.id) &&
+      getSelectableSymbolsForChain(chain.id).length > 0,
+  ).map((chain) => ({ id: chain.id as number | "solana", label: chain.name })),
+  { id: "solana", label: "Solana" },
+];
 
 function preventScrollJump(e: React.FocusEvent) {
   const scrollPositions: [HTMLElement, number, number][] = [];
@@ -68,7 +76,12 @@ const ACCENT_PRESETS = [
   { label: "Neutral", value: "#18181b" },
 ];
 
-function resolveTokenAddress(chainId: number, symbol: string): string {
+function resolveTokenAddress(
+  chainId: number | "solana",
+  symbol: string,
+): string {
+  if (chainId === "solana")
+    return SOLANA_DEST_TOKENS[symbol.toUpperCase()] ?? "native";
   if (symbol.toUpperCase() === "ETH") return NATIVE_TOKEN_ADDRESS;
   return getTokenAddress(symbol, chainId) ?? NATIVE_TOKEN_ADDRESS;
 }
@@ -78,7 +91,13 @@ function tokenForChain(chainId: number): string {
   return resolveTokenAddress(chainId, symbol);
 }
 
-function symbolForToken(chainId: number, token: string): string {
+function symbolForToken(chainId: number | "solana", token: string): string {
+  if (chainId === "solana") {
+    const match = Object.entries(SOLANA_DEST_TOKENS).find(
+      ([, mint]) => mint === token,
+    );
+    return match?.[0] ?? "USDC";
+  }
   if (token.toLowerCase() === NATIVE_TOKEN_ADDRESS.toLowerCase()) return "ETH";
   const symbols = getSelectableSymbolsForChain(chainId);
   const matched = symbols.find(
@@ -91,7 +110,8 @@ function symbolForToken(chainId: number, token: string): string {
 
 export default function Home() {
   const [flow, setFlow] = useState<FlowMode>("deposit");
-  const [targetChain, setTargetChain] = useState(8453);
+  const [targetChain, setTargetChain] = useState<number | "solana">(8453);
+  const [backendUrl, setBackendUrl] = useState("");
   const [targetToken, setTargetToken] = useState(
     resolveTokenAddress(8453, "USDC"),
   );
@@ -149,7 +169,7 @@ export default function Home() {
   const rhinestoneApiKey = process.env.NEXT_PUBLIC_RHINESTONE_API_KEY;
 
   const handleChainChange = useCallback(
-    (chainId: number) => {
+    (chainId: number | "solana") => {
       const nextSymbols = getSelectableSymbolsForChain(chainId);
       if (nextSymbols.length === 0) return;
       const previousSymbol = symbolForToken(targetChain, targetToken);
@@ -216,7 +236,7 @@ export default function Home() {
     if (filtered.length > 0) {
       return filtered;
     }
-    return [targetChain];
+    return typeof targetChain === "number" ? [targetChain] : [];
   }, [
     useCustomSessionChains,
     availableSessionChainIds,
@@ -404,11 +424,23 @@ export default function Home() {
               <Row label="Chain">
                 <Select
                   value={String(targetChain)}
-                  onChange={(v) => handleChainChange(Number(v))}
+                  onChange={(v) =>
+                    handleChainChange(v === "solana" ? "solana" : Number(v))
+                  }
                   options={CHAIN_OPTIONS.map((chain) => ({
                     value: String(chain.id),
                     label: chain.label,
                   }))}
+                />
+              </Row>
+              <Row label="Backend">
+                <input
+                  type="text"
+                  value={backendUrl}
+                  onChange={(e) => setBackendUrl(e.target.value)}
+                  placeholder="prod (default)"
+                  className="text-[13px] font-mono bg-transparent outline-none text-right w-44 text-ellipsis overflow-hidden"
+                  style={{ color: "var(--text-primary)" }}
                 />
               </Row>
               <Row label="Token">
@@ -515,7 +547,10 @@ export default function Home() {
               {useCustomSessionChains && (
                 <div className="p-2.5">
                   <div className="flex flex-wrap gap-1.5">
-                    {CHAIN_OPTIONS.map((chain) => {
+                    {CHAIN_OPTIONS.filter(
+                      (c): c is { id: number; label: string } =>
+                        c.id !== "solana",
+                    ).map((chain) => {
                       const selected = customSessionChainIds.includes(chain.id);
                       return (
                         <button
@@ -776,7 +811,7 @@ export default function Home() {
                           safeAddress,
                           sourceChain,
                           sourceToken,
-                          targetChain,
+                          targetChain: targetChain as number,
                           targetToken,
                           recipient,
                           ownerAddress,
@@ -801,7 +836,7 @@ export default function Home() {
                           backgroundColor,
                         })
                       : buildModalCodeString({
-                          targetChain,
+                          targetChain: targetChain as number,
                           targetToken,
                           recipient,
                           ownerAddress,
@@ -865,7 +900,7 @@ export default function Home() {
                       safeAddress={safeAddress as Address}
                       sourceChain={sourceChain}
                       sourceToken={sourceToken as Address}
-                      targetChain={targetChain}
+                      targetChain={targetChain as number}
                       targetToken={targetToken as Address}
                       recipient={(recipient as Address) || undefined}
                       defaultAmount={prefilledAmount || undefined}
@@ -894,6 +929,26 @@ export default function Home() {
                       Enter a valid Safe address to preview withdraw.
                     </div>
                   )
+                ) : targetChain === "solana" &&
+                  !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(
+                    (recipient ?? "").trim(),
+                  ) ? (
+                  <div
+                    className="flex flex-col items-center justify-center text-center gap-2 px-6"
+                    style={{ color: "var(--text-tertiary)", height: 500 }}
+                  >
+                    <div
+                      className="text-[13px] font-medium"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      Enter a Solana recipient to continue
+                    </div>
+                    <div className="text-[12px]">
+                      Solana destinations require a base58 recipient (32-44
+                      chars). Type one into the Recipient field on the left,
+                      then the deposit modal will render.
+                    </div>
+                  </div>
                 ) : (
                   <DepositModal
                     key={componentKey}
@@ -907,6 +962,8 @@ export default function Home() {
                         : undefined
                     }
                     reownAppId={reownProjectId}
+                    rhinestoneApiKey={rhinestoneApiKey}
+                    backendUrl={backendUrl || undefined}
                     targetChain={targetChain}
                     targetToken={targetToken as Address}
                     recipient={(recipient as Address) || undefined}
