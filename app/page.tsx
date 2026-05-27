@@ -111,7 +111,6 @@ function symbolForToken(chainId: number | "solana", token: string): string {
 export default function Home() {
   const [flow, setFlow] = useState<FlowMode>("deposit");
   const [targetChain, setTargetChain] = useState<number | "solana">(8453);
-  const [backendUrl, setBackendUrl] = useState("");
   const [targetToken, setTargetToken] = useState(
     resolveTokenAddress(8453, "USDC"),
   );
@@ -153,7 +152,9 @@ export default function Home() {
   const [waitForFinalTx, setWaitForFinalTx] = useState(true);
   const [enableM0, setEnableM0] = useState(false);
 
-  const [useCustomSessionChains, setUseCustomSessionChains] = useState(false);
+  // Local-test default: limit session chains so the local processor (public RPC,
+  // no RPC proxy) doesn't fan out session derivation across all ~10 chains (hangs).
+  const [useCustomSessionChains, setUseCustomSessionChains] = useState(true);
   const [customSessionChainIds, setCustomSessionChainIds] = useState<number[]>([
     8453, 42161, 10,
   ]);
@@ -431,16 +432,6 @@ export default function Home() {
                     value: String(chain.id),
                     label: chain.label,
                   }))}
-                />
-              </Row>
-              <Row label="Backend">
-                <input
-                  type="text"
-                  value={backendUrl}
-                  onChange={(e) => setBackendUrl(e.target.value)}
-                  placeholder="prod (default)"
-                  className="text-[13px] font-mono bg-transparent outline-none text-right w-44 text-ellipsis overflow-hidden"
-                  style={{ color: "var(--text-primary)" }}
                 />
               </Row>
               <Row label="Token">
@@ -963,7 +954,6 @@ export default function Home() {
                     }
                     reownAppId={reownProjectId}
                     rhinestoneApiKey={rhinestoneApiKey}
-                    backendUrl={backendUrl || undefined}
                     targetChain={targetChain}
                     targetToken={targetToken as Address}
                     recipient={(recipient as Address) || undefined}
