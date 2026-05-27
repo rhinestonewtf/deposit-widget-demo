@@ -18,7 +18,6 @@ import {
 import {
   DepositModal,
   type DepositLifecycleEvent,
-  type PostBridgeAction,
 } from "@rhinestone/deposit-modal";
 import { isAddress, type Address } from "viem";
 
@@ -27,11 +26,6 @@ import { isAddress, type Address } from "viem";
    ───────────────────────────────────────────────────────────── */
 
 const DEFAULT_OWNER_ADDRESS = "0x0197d7FaFCA118Bc91f6854B9A2ceea94E676585";
-
-const M0_ORDERBOOK_CONTRACT =
-  "0xb6807116b3b1b321a390594e31ecd6e0076f6278" as Address;
-const M0_OUTPUT_TOKEN =
-  "0x2d8d3aADeD3641C4358a8334D72086C908B515fb" as Address;
 
 const MAINNET_CHAIN_IDS = new Set([1, 8453, 42161, 10, 137, 56, 1868, 9745]);
 
@@ -134,7 +128,6 @@ export default function Home() {
   const [recipient, setRecipient] = useState("");
   const [recipientManuallyEdited, setRecipientManuallyEdited] = useState(false);
   const [waitForFinalTx, setWaitForFinalTx] = useState(true);
-  const [enableM0, setEnableM0] = useState(false);
   const [scope, setScope] = useState<"auto" | "custom">("auto");
   const [ownerAddress, setOwnerAddress] = useState(DEFAULT_OWNER_ADDRESS);
   const [customSessionChainIds, setCustomSessionChainIds] = useState<number[]>([
@@ -161,9 +154,18 @@ export default function Home() {
   const [tab, setTab] = useState<Tab>("widget");
   const [showCode, setShowCode] = useState(false);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [widgetState, setWidgetState] = useState<"open" | "closing" | "closed">(
+    "open",
+  );
 
   const reownProjectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID;
   const rhinestoneApiKey = process.env.NEXT_PUBLIC_RHINESTONE_API_KEY;
+
+  const [solanaRpcUrl] = useState(() =>
+    typeof window === "undefined"
+      ? "https://demo.rhinestone.dev/api/solana-rpc"
+      : `${window.location.origin}/api/solana-rpc`,
+  );
 
   /* ── sync page theme with preview theme ───────────────────── */
   useEffect(() => {
@@ -210,20 +212,6 @@ export default function Home() {
     return filtered.length > 0 ? filtered : [targetChain];
   }, [scope, availableSessionChainIds, customSessionChainIds, targetChain]);
 
-  const postBridgeActions = useMemo<PostBridgeAction[] | undefined>(
-    () =>
-      enableM0
-        ? [
-            {
-              type: "orderbook-swap",
-              contract: M0_ORDERBOOK_CONTRACT,
-              outputToken: M0_OUTPUT_TOKEN,
-            },
-          ]
-        : undefined,
-    [enableM0],
-  );
-
   const toggleSessionChain = useCallback((chainId: number) => {
     setCustomSessionChainIds((prev) =>
       prev.includes(chainId)
@@ -235,23 +223,20 @@ export default function Home() {
   const effectiveAccent = customColor || accentColor;
   const radiusToken = pxToRadius(cornerRadius);
 
+  // Appearance props (theme mode, colors, radius) are applied reactively by
+  // DepositModal via applyTheme, so they must NOT remount the widget — that
+  // would replay the load + open animation on every change. Only props the
+  // widget reads at init belong in the key.
   const componentKey = [
     targetChain,
     targetToken,
-    previewTheme,
-    effectiveAccent,
-    radiusToken,
     prefilledAmount,
     waitForFinalTx,
     scope,
     customSessionChainIds.join(","),
-    primaryText,
-    secondaryText,
-    backgroundColor,
     showHistoryButton,
     maxDeposit,
     minDeposit,
-    enableM0,
   ].join("|");
 
   const codeString = useMemo(
@@ -271,9 +256,9 @@ export default function Home() {
         fontColor: primaryText,
         iconColor: secondaryText,
         backgroundColor,
+        showHistoryButton,
         maxDeposit,
         minDeposit,
-        enableM0,
       }),
     [
       targetChain,
@@ -290,9 +275,9 @@ export default function Home() {
       primaryText,
       secondaryText,
       backgroundColor,
+      showHistoryButton,
       maxDeposit,
       minDeposit,
-      enableM0,
     ],
   );
 
@@ -316,7 +301,9 @@ export default function Home() {
           <RhinestoneWordmark />
         </div>
         <a
-          href="/docs"
+          href="https://docs.rhinestone.dev/deposits/overview"
+          target="_blank"
+          rel="noopener noreferrer"
           className="inline-flex items-center gap-1.5 px-3 h-8 text-[12px] font-medium rounded-[8px] transition-colors"
           style={{
             color: "var(--text-primary)",
@@ -412,8 +399,6 @@ export default function Home() {
                   }}
                   waitForFinalTx={waitForFinalTx}
                   setWaitForFinalTx={setWaitForFinalTx}
-                  enableM0={enableM0}
-                  setEnableM0={setEnableM0}
                   scope={scope}
                   setScope={setScope}
                   customSessionChainIds={customSessionChainIds}
@@ -472,7 +457,7 @@ export default function Home() {
               border: "1px solid var(--preview-border)",
             }}
           >
-          <div className="min-h-full flex flex-col items-center justify-between gap-3 py-3 px-3 md:px-4">
+          <div className="min-h-full flex flex-col items-center gap-6 py-6 px-3 md:px-4">
             {/* Light / Dark toggle */}
             <div
               className="inline-flex items-center gap-0.5 p-[3px] rounded-[8px] shrink-0"
@@ -504,12 +489,28 @@ export default function Home() {
             </div>
 
             {/* Flip card */}
-            <div className="w-full flex items-center justify-center">
+            <div className="w-full flex-1 flex items-center justify-center">
               <div className="flip-scene">
                 <div className={`flip-card ${showCode ? "is-flipped" : ""}`}>
                   {/* Front: modal */}
                   <div className="flip-face flip-face--front">
+                    {widgetState === "closed" ? (
+                      <LaunchWidgetCard
+                        onLaunch={() => setWidgetState("open")}
+                      />
+                    ) : (
                     <div
+                      className={
+                        widgetState === "closing" ? "widget-exit" : "widget-enter"
+                      }
+                      onAnimationEnd={(e) => {
+                        if (
+                          widgetState === "closing" &&
+                          e.animationName === "widget-exit"
+                        ) {
+                          setWidgetState("closed");
+                        }
+                      }}
                       style={{
                         width: "100%",
                         boxShadow: "var(--shadow-widget)",
@@ -520,9 +521,9 @@ export default function Home() {
                       <DepositModal
                         key={componentKey}
                         isOpen={true}
-                        onClose={() => undefined}
+                        onClose={() => setWidgetState("closing")}
                         debug={true}
-                        solanaRpcUrl="https://demo.rhinestone.dev/api/solana-rpc"
+                        solanaRpcUrl={solanaRpcUrl}
                         dappAddress={
                           isAddress(ownerAddress, { strict: false })
                             ? (ownerAddress as Address)
@@ -535,7 +536,6 @@ export default function Home() {
                         defaultAmount={prefilledAmount || undefined}
                         sessionChainIds={sessionChainIds}
                         waitForFinalTx={waitForFinalTx}
-                        postBridgeActions={postBridgeActions}
                         theme={{
                           mode: previewTheme,
                           radius: radiusToken,
@@ -555,6 +555,7 @@ export default function Home() {
                         inline={true}
                       />
                     </div>
+                    )}
                   </div>
 
                   {/* Back: code */}
@@ -602,6 +603,52 @@ export default function Home() {
 }
 
 /* ─────────────────────────────────────────────────────────────
+   Launch widget card (shown when the preview widget is closed)
+   ───────────────────────────────────────────────────────────── */
+
+function LaunchWidgetCard({ onLaunch }: { onLaunch: () => void }) {
+  return (
+    <div
+      className="widget-enter w-full flex flex-col items-center justify-center gap-4 rounded-[16px] px-6 py-16 text-center"
+      style={{
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
+        boxShadow: "var(--shadow-widget)",
+      }}
+    >
+      <div className="flex flex-col gap-1">
+        <span
+          className="text-[14px] font-semibold"
+          style={{ color: "var(--text-primary)" }}
+        >
+          Widget closed
+        </span>
+        <span
+          className="text-[12px]"
+          style={{ color: "var(--text-tertiary)" }}
+        >
+          The deposit widget was dismissed.
+        </span>
+      </div>
+      <button
+        type="button"
+        onClick={onLaunch}
+        className="inline-flex items-center gap-2 px-3.5 h-9 text-[13px] font-medium rounded-[8px] transition-colors"
+        style={{ background: "var(--cta-bg)", color: "var(--cta-fg)" }}
+        onMouseEnter={(e) =>
+          (e.currentTarget.style.background = "var(--cta-bg-hover)")
+        }
+        onMouseLeave={(e) =>
+          (e.currentTarget.style.background = "var(--cta-bg)")
+        }
+      >
+        Launch widget
+      </button>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
    Tab panels
    ───────────────────────────────────────────────────────────── */
 
@@ -616,8 +663,6 @@ function WidgetTab(props: {
   setRecipient: (v: string) => void;
   waitForFinalTx: boolean;
   setWaitForFinalTx: (v: boolean) => void;
-  enableM0: boolean;
-  setEnableM0: (v: boolean) => void;
   scope: "auto" | "custom";
   setScope: (v: "auto" | "custom") => void;
   customSessionChainIds: number[];
@@ -668,12 +713,6 @@ function WidgetTab(props: {
         tooltip="For faster confirmation, Rhinestone marks intents complete on solver pre-confirmation."
         checked={props.waitForFinalTx}
         onChange={props.setWaitForFinalTx}
-      />
-      <ToggleRow
-        label="M0 post-bridge swap"
-        tooltip="Execute an orderbook swap via M0 after bridging."
-        checked={props.enableM0}
-        onChange={props.setEnableM0}
       />
 
       <SectionLabel>SESSION SIGNING</SectionLabel>
@@ -1275,9 +1314,9 @@ function buildModalCodeString(cfg: {
   fontColor: string;
   iconColor: string;
   backgroundColor: string;
+  showHistoryButton: boolean;
   maxDeposit?: number;
   minDeposit?: number;
-  enableM0: boolean;
 }): string {
   const lines: string[] = [
     `import { DepositModal } from "@rhinestone/deposit-modal";`,
@@ -1298,15 +1337,6 @@ function buildModalCodeString(cfg: {
     lines.push(`  sessionChainIds={[${cfg.sessionChainIds.join(", ")}]}`);
   if (cfg.rhinestoneApiKey)
     lines.push(`  rhinestoneApiKey="${cfg.rhinestoneApiKey}"`);
-  if (cfg.enableM0) {
-    lines.push(`  postBridgeActions={[`);
-    lines.push(`    {`);
-    lines.push(`      type: "orderbook-swap",`);
-    lines.push(`      contract: "${M0_ORDERBOOK_CONTRACT}",`);
-    lines.push(`      outputToken: "${M0_OUTPUT_TOKEN}",`);
-    lines.push(`    },`);
-    lines.push(`  ]}`);
-  }
   lines.push(`  theme={{`);
   lines.push(`    mode: "${cfg.themeMode}",`);
   lines.push(`    radius: "${cfg.radiusToken}",`);
@@ -1316,8 +1346,13 @@ function buildModalCodeString(cfg: {
   if (cfg.backgroundColor)
     lines.push(`    backgroundColor: "${cfg.backgroundColor}",`);
   lines.push(`  }}`);
-  if (cfg.maxDeposit !== undefined || cfg.minDeposit !== undefined) {
+  if (
+    cfg.showHistoryButton ||
+    cfg.maxDeposit !== undefined ||
+    cfg.minDeposit !== undefined
+  ) {
     lines.push(`  uiConfig={{`);
+    if (cfg.showHistoryButton) lines.push(`    showHistoryButton: true,`);
     if (cfg.maxDeposit !== undefined)
       lines.push(`    maxDepositUsd: ${cfg.maxDeposit},`);
     if (cfg.minDeposit !== undefined)
