@@ -1,6 +1,14 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import {
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  useMemo,
+  type ReactNode,
+  type FocusEvent as ReactFocusEvent,
+} from "react";
 import {
   NATIVE_TOKEN_ADDRESS,
   SOURCE_CHAINS,
@@ -12,22 +20,15 @@ import {
 } from "@rhinestone/deposit-modal/constants";
 import {
   DepositModal,
-  WithdrawModal,
   type DepositLifecycleEvent,
-  type WithdrawLifecycleEvent,
-  type PostBridgeAction,
 } from "@rhinestone/deposit-modal";
 import { isAddress, type Address } from "viem";
 
-type FlowMode = "deposit" | "withdraw";
+/* ─────────────────────────────────────────────────────────────
+   Constants
+   ───────────────────────────────────────────────────────────── */
 
-const DEFAULT_RECIPIENT = "";
 const DEFAULT_OWNER_ADDRESS = "0x0197d7FaFCA118Bc91f6854B9A2ceea94E676585";
-
-const M0_ORDERBOOK_CONTRACT =
-  "0xb6807116b3b1b321a390594e31ecd6e0076f6278" as Address;
-const M0_OUTPUT_TOKEN =
-  "0x2d8d3aADeD3641C4358a8334D72086C908B515fb" as Address;
 
 const MAINNET_CHAIN_IDS = new Set([1, 8453, 42161, 10, 137, 56, 1868, 9745]);
 
@@ -40,7 +41,7 @@ function getSelectableSymbolsForChain(chainId: number | "solana"): string[] {
 }
 
 // EVM-only chain options — for selectors that can't accept a Solana value
-// (withdraw source, session chains, etc. — sessions are always EVM).
+// (session chains are always EVM).
 const EVM_CHAIN_OPTIONS: { id: number; label: string }[] = SOURCE_CHAINS.filter(
   (chain) =>
     MAINNET_CHAIN_IDS.has(chain.id) &&
@@ -53,42 +54,50 @@ const CHAIN_OPTIONS: { id: number | "solana"; label: string }[] = [
   { id: "solana", label: "Solana" },
 ];
 
-function preventScrollJump(e: React.FocusEvent) {
-  const scrollPositions: [HTMLElement, number, number][] = [];
-  let el: HTMLElement | null = e.target as HTMLElement;
-  while ((el = el.parentElement)) {
-    scrollPositions.push([el, el.scrollTop, el.scrollLeft]);
-  }
-  requestAnimationFrame(() => {
-    for (const [node, top, left] of scrollPositions) {
-      node.scrollTop = top;
-      node.scrollLeft = left;
-    }
-  });
-}
-
-const ACCENT_PRESETS = [
-  { label: "Default", value: "" },
-  { label: "Blue", value: "#0090ff" },
-  { label: "Indigo", value: "#6e56cf" },
-  { label: "Emerald", value: "#30a46c" },
-  { label: "Rose", value: "#e5484d" },
+const COLOR_PRESETS = [
+  { label: "Zinc", value: "#18181b" },
+  { label: "Indigo", value: "#5436f5" },
+  { label: "Emerald", value: "#10b981" },
+  { label: "Sky", value: "#0ea5e9" },
   { label: "Amber", value: "#f59e0b" },
-  { label: "Neutral", value: "#18181b" },
+  { label: "Violet", value: "#a855f7" },
 ];
+
+const FONT_FAMILIES = [
+  { value: "inter", label: "Inter" },
+  { value: "geist", label: "Geist" },
+  { value: "system", label: "System" },
+  { value: "mono", label: "Monospace" },
+];
+
+const RADIUS_OPTIONS: { value: "none" | "sm" | "md" | "lg"; px: number }[] = [
+  { value: "none", px: 0 },
+  { value: "sm", px: 8 },
+  { value: "md", px: 12 },
+  { value: "lg", px: 16 },
+];
+
+function pxToRadius(px: number): "none" | "sm" | "md" | "lg" {
+  let closest = RADIUS_OPTIONS[0];
+  let minDiff = Infinity;
+  for (const opt of RADIUS_OPTIONS) {
+    const diff = Math.abs(opt.px - px);
+    if (diff < minDiff) {
+      minDiff = diff;
+      closest = opt;
+    }
+  }
+  return closest.value;
+}
 
 function resolveTokenAddress(
   chainId: number | "solana",
   symbol: string,
 ): string {
-  if (chainId === "solana") return getSolanaTokenBySymbol(symbol)?.mint ?? "native";
+  if (chainId === "solana")
+    return getSolanaTokenBySymbol(symbol)?.mint ?? "native";
   if (symbol.toUpperCase() === "ETH") return NATIVE_TOKEN_ADDRESS;
   return getTokenAddress(symbol, chainId) ?? NATIVE_TOKEN_ADDRESS;
-}
-
-function tokenForChain(chainId: number): string {
-  const symbol = getSelectableSymbolsForChain(chainId)[0] ?? "USDC";
-  return resolveTokenAddress(chainId, symbol);
 }
 
 function symbolForToken(chainId: number | "solana", token: string): string {
@@ -103,64 +112,80 @@ function symbolForToken(chainId: number | "solana", token: string): string {
   return matched ?? symbols[0] ?? "USDC";
 }
 
+function preventScrollJump(e: ReactFocusEvent) {
+  const scrollPositions: [HTMLElement, number, number][] = [];
+  let el: HTMLElement | null = e.target as HTMLElement;
+  while ((el = el.parentElement)) {
+    scrollPositions.push([el, el.scrollTop, el.scrollLeft]);
+  }
+  requestAnimationFrame(() => {
+    for (const [node, top, left] of scrollPositions) {
+      node.scrollTop = top;
+      node.scrollLeft = left;
+    }
+  });
+}
+
+type Tab = "widget" | "appearance" | "behaviour";
+type ThemeMode = "light" | "dark" | "system";
+
+/* ─────────────────────────────────────────────────────────────
+   Page
+   ───────────────────────────────────────────────────────────── */
+
 export default function Home() {
-  const [flow, setFlow] = useState<FlowMode>("deposit");
+  /* widget */
   const [targetChain, setTargetChain] = useState<number | "solana">(8453);
   const [targetToken, setTargetToken] = useState(
     resolveTokenAddress(8453, "USDC"),
   );
-  const [sourceChain, setSourceChain] = useState(8453);
-  const [sourceToken, setSourceToken] = useState(
-    resolveTokenAddress(8453, "USDC"),
-  );
-  const [safeAddress, setSafeAddress] = useState("");
-  const [accent, setAccent] = useState("");
-  const [themeMode, setThemeMode] = useState<"light" | "dark">("light");
-  const [borderRadius, setBorderRadius] = useState<"none" | "sm" | "md" | "lg">("lg");
-  const [brandTitle, setBrandTitle] = useState("Deposit");
-  const [logoUrl, setLogoUrl] = useState(
-    "https://github.com/rhinestonewtf.png",
-  );
-
-  // UI Config
-  const [showLogo, setShowLogo] = useState(true);
-  const [showStepper, setShowStepper] = useState(false);
-  const [showHistoryButton, setShowHistoryButton] = useState(true);
-  const [balanceTitle, setBalanceTitle] = useState("Nexus balance");
-  const [balanceAmount, setBalanceAmount] = useState("");
-  const [maxDepositUsd, setMaxDepositUsd] = useState<number | undefined>(100);
-  const [minDepositUsd, setMinDepositUsd] = useState<number | undefined>(
-    undefined,
-  );
-
-  // Theme colors
-  const [fontColor, setFontColor] = useState("");
-  const [iconColor, setIconColor] = useState("");
-  const [ctaHoverColor, setCtaHoverColor] = useState("");
-  const [borderColor, setBorderColor] = useState("");
-  const [backgroundColor, setBackgroundColor] = useState("");
-
-  const [recipient, setRecipient] = useState(DEFAULT_RECIPIENT);
-  const [ownerAddress, setOwnerAddress] = useState(DEFAULT_OWNER_ADDRESS);
-  const [recipientManuallyEdited, setRecipientManuallyEdited] = useState(false);
   const [prefilledAmount, setPrefilledAmount] = useState("");
+  const [recipient, setRecipient] = useState("");
+  const [recipientManuallyEdited, setRecipientManuallyEdited] = useState(false);
   const [waitForFinalTx, setWaitForFinalTx] = useState(true);
-  const [enableM0, setEnableM0] = useState(false);
-
-  const [useCustomSessionChains, setUseCustomSessionChains] = useState(false);
+  const [scope, setScope] = useState<"auto" | "custom">("auto");
+  const [ownerAddress, setOwnerAddress] = useState(DEFAULT_OWNER_ADDRESS);
   const [customSessionChainIds, setCustomSessionChainIds] = useState<number[]>([
     8453, 42161, 10,
   ]);
+
+  /* appearance */
+  const [defaultTheme, setDefaultTheme] = useState<ThemeMode>("system");
+  const [previewTheme, setPreviewTheme] = useState<"light" | "dark">("light");
+  const [accentColor, setAccentColor] = useState("");
+  const [customColor, setCustomColor] = useState("");
+  const [cornerRadius, setCornerRadius] = useState(12);
+  const [fontFamily, setFontFamily] = useState("inter");
+  const [primaryText, setPrimaryText] = useState("");
+  const [secondaryText, setSecondaryText] = useState("");
+  const [backgroundColor, setBackgroundColor] = useState("");
+
+  /* behaviour */
+  const [showHistoryButton, setShowHistoryButton] = useState(true);
+  const [minDeposit, setMinDeposit] = useState<number | undefined>(undefined);
+  const [maxDeposit, setMaxDeposit] = useState<number | undefined>(100);
+
+  /* ui state */
+  const [tab, setTab] = useState<Tab>("widget");
   const [showCode, setShowCode] = useState(false);
-  const [showModal, setShowModal] = useState(true);
-  // Config panel is a slide-in drawer on mobile, statically docked on
-  // md+ screens (Tailwind overrides translate-x in CSS regardless of
-  // this state). Default closed so the widget preview is what users see
-  // first on a phone.
   const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [widgetState, setWidgetState] = useState<"open" | "closing" | "closed">(
+    "open",
+  );
 
   const reownProjectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID;
   const rhinestoneApiKey = process.env.NEXT_PUBLIC_RHINESTONE_API_KEY;
+
+  const [solanaRpcUrl] = useState(() =>
+    typeof window === "undefined"
+      ? "https://demo.rhinestone.dev/api/solana-rpc"
+      : `${window.location.origin}/api/solana-rpc`,
+  );
+
+  /* ── sync page theme with preview theme ───────────────────── */
+  useEffect(() => {
+    document.documentElement.dataset.theme = previewTheme;
+  }, [previewTheme]);
 
   const handleChainChange = useCallback(
     (chainId: number | "solana") => {
@@ -176,36 +201,10 @@ export default function Home() {
     [targetChain, targetToken],
   );
 
-  const handleSourceChainChange = useCallback(
-    (chainId: number) => {
-      const nextSymbols = getSelectableSymbolsForChain(chainId);
-      if (nextSymbols.length === 0) return;
-      const previousSymbol = symbolForToken(sourceChain, sourceToken);
-      const nextSymbol = nextSymbols.includes(previousSymbol)
-        ? previousSymbol
-        : nextSymbols[0];
-      setSourceChain(chainId);
-      setSourceToken(resolveTokenAddress(chainId, nextSymbol));
-    },
-    [sourceChain, sourceToken],
-  );
-
   const onError = useCallback((e: unknown) => console.log("error", e), []);
 
   const onDepositLifecycle = useCallback(
     (event: DepositLifecycleEvent) => {
-      console.log("deposit lifecycle", event);
-      if (event.type !== "connected") return;
-      if (recipientManuallyEdited) return;
-      setRecipient(event.address);
-      setOwnerAddress(event.address);
-    },
-    [recipientManuallyEdited],
-  );
-
-  const onWithdrawLifecycle = useCallback(
-    (event: WithdrawLifecycleEvent) => {
-      console.log("withdraw lifecycle", event);
       if (event.type !== "connected") return;
       if (recipientManuallyEdited) return;
       setRecipient(event.address);
@@ -220,37 +219,15 @@ export default function Home() {
   );
 
   const sessionChainIds = useMemo(() => {
-    if (!useCustomSessionChains) {
-      return undefined;
-    }
+    if (scope === "auto") return undefined;
     const allowed = new Set(availableSessionChainIds);
     const filtered = customSessionChainIds.filter((chainId) =>
       allowed.has(chainId),
     );
-    if (filtered.length > 0) {
-      return filtered;
-    }
+    if (filtered.length > 0) return filtered;
+    // Sessions are EVM-only; a Solana destination has no session chain.
     return typeof targetChain === "number" ? [targetChain] : [];
-  }, [
-    useCustomSessionChains,
-    availableSessionChainIds,
-    customSessionChainIds,
-    targetChain,
-  ]);
-
-  const postBridgeActions = useMemo<PostBridgeAction[] | undefined>(
-    () =>
-      enableM0
-        ? [
-            {
-              type: "orderbook-swap",
-              contract: M0_ORDERBOOK_CONTRACT,
-              outputToken: M0_OUTPUT_TOKEN,
-            },
-          ]
-        : undefined,
-    [enableM0],
-  );
+  }, [scope, availableSessionChainIds, customSessionChainIds, targetChain]);
 
   const toggleSessionChain = useCallback((chainId: number) => {
     setCustomSessionChainIds((prev) =>
@@ -260,82 +237,108 @@ export default function Home() {
     );
   }, []);
 
-  const componentKey = `${flow}-${targetChain}-${targetToken}-${sourceChain}-${sourceToken}-${safeAddress}-${themeMode}-${accent}-${borderRadius}-${brandTitle}-${logoUrl}-${prefilledAmount}-${waitForFinalTx}-${useCustomSessionChains}-${customSessionChainIds.join(",")}-${showLogo}-${showStepper}-${balanceTitle}-${balanceAmount}-${maxDepositUsd}-${minDepositUsd}-${fontColor}-${iconColor}-${ctaHoverColor}-${borderColor}-${backgroundColor}-${enableM0}`;
+  const effectiveAccent = customColor || accentColor;
+  const radiusToken = pxToRadius(cornerRadius);
 
-  const recipientTooltip =
-    flow === "withdraw"
-      ? "The address that will receive withdrawn funds on the destination chain."
-      : "The address where deposited funds are sent. Set this to the user's address when installing the widget.";
-  const ownerAddressTooltip =
-    "Used as dappAddress (owner anchor) for setup and QR flow. Keep this populated to allow QR flow without a connected wallet.";
+  // Appearance props (theme mode, colors, radius) are applied reactively by
+  // DepositModal via applyTheme, so they must NOT remount the widget — that
+  // would replay the load + open animation on every change. Only props the
+  // widget reads at init belong in the key.
+  const componentKey = [
+    targetChain,
+    targetToken,
+    prefilledAmount,
+    waitForFinalTx,
+    scope,
+    customSessionChainIds.join(","),
+    showHistoryButton,
+    maxDeposit,
+    minDeposit,
+  ].join("|");
 
-  const isSafeAddressValid =
-    flow !== "withdraw" ||
-    (safeAddress.length > 0 && isAddress(safeAddress, { strict: false }));
+  const codeString = useMemo(
+    () =>
+      buildModalCodeString({
+        targetChain,
+        targetToken,
+        recipient,
+        ownerAddress,
+        rhinestoneApiKey,
+        themeMode: previewTheme,
+        radiusToken,
+        prefilledAmount,
+        waitForFinalTx,
+        sessionChainIds,
+        ctaColor: effectiveAccent,
+        fontColor: primaryText,
+        iconColor: secondaryText,
+        backgroundColor,
+        showHistoryButton,
+        maxDeposit,
+        minDeposit,
+      }),
+    [
+      targetChain,
+      targetToken,
+      recipient,
+      ownerAddress,
+      rhinestoneApiKey,
+      previewTheme,
+      radiusToken,
+      prefilledAmount,
+      waitForFinalTx,
+      sessionChainIds,
+      effectiveAccent,
+      primaryText,
+      secondaryText,
+      backgroundColor,
+      showHistoryButton,
+      maxDeposit,
+      minDeposit,
+    ],
+  );
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden">
-      {/* ── Header ──────────────────────────────────────── */}
+    <div className="h-screen flex flex-col overflow-hidden" style={{ background: "var(--page-bg)" }}>
+      {/* ── Header ───────────────────────────────────── */}
       <header
-        className="h-12 flex items-center justify-between px-5 shrink-0"
-        style={{
-          borderBottom: "1px solid var(--border-primary)",
-          background: "var(--bg-primary)",
-        }}
+        className="h-12 flex items-center justify-between px-4 md:px-5 shrink-0"
+        style={{ borderBottom: "1px solid var(--border)" }}
       >
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => setIsConfigOpen((open) => !open)}
-            className="md:hidden -ml-1 mr-1 p-1.5 flex items-center justify-center"
-            style={{
-              color: "var(--text-secondary)",
-              borderRadius: "var(--radius-sm)",
-            }}
-            aria-label={isConfigOpen ? "Close config panel" : "Open config panel"}
-            aria-expanded={isConfigOpen}
+            onClick={() => setIsConfigOpen((v) => !v)}
+            className="md:hidden -ml-1 p-1.5"
+            style={{ color: "var(--text-secondary)" }}
+            aria-label="Toggle config"
           >
             <MenuIcon />
           </button>
-          <RhinestoneLogo />
-          <span
-            className="text-[13px] font-semibold tracking-[-0.01em]"
-            style={{ color: "var(--text-primary)" }}
-          >
-            {flow === "withdraw" ? "Withdraw" : "Deposit"} Modal
-          </span>
-          <span
-            className="text-[11px] font-medium px-2 py-0.5"
-            style={{
-              background: "var(--bg-surface)",
-              color: "var(--text-tertiary)",
-              borderRadius: "var(--radius-full)",
-            }}
-          >
-            Demo
-          </span>
+          <RhinestoneWordmark />
         </div>
-
-        <div className="flex items-center gap-3">
-          <a
-            href="/docs"
-            className="flex items-center gap-1.5 text-[12px] font-medium transition-colors"
-            style={{ color: "var(--text-tertiary)" }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.color = "var(--text-secondary)")
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.color = "var(--text-tertiary)")
-            }
-          >
-            <ExternalLinkIcon />
-            Docs
-          </a>
-        </div>
+        <a
+          href="https://docs.rhinestone.dev/deposits/overview"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 px-3 h-8 text-[12px] font-medium rounded-[8px] transition-colors"
+          style={{
+            color: "var(--text-primary)",
+            border: "1px solid var(--border)",
+            background: "var(--surface)",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.background = "var(--well)")}
+          onMouseLeave={(e) =>
+            (e.currentTarget.style.background = "var(--surface)")
+          }
+        >
+          Read the docs
+          <ArrowUpRightIcon />
+        </a>
       </header>
 
+      {/* ── Body ────────────────────────────────────── */}
       <div className="flex-1 flex min-h-0 relative">
-        {/* Mobile backdrop — only rendered when the drawer is open. */}
         {isConfigOpen && (
           <button
             type="button"
@@ -344,639 +347,297 @@ export default function Home() {
             className="md:hidden absolute inset-0 z-20 bg-black/40"
           />
         )}
-        {/* ── Config Panel ────────────────────────────────── */}
+
+        {/* Left column — config */}
         <aside
-          className={`config-panel w-[85vw] max-w-[320px] md:w-[320px] shrink-0 overflow-y-auto absolute md:static inset-y-0 left-0 z-30 transition-transform md:transition-none md:translate-x-0 ${
-            isConfigOpen ? "translate-x-0" : "-translate-x-full"
+          className={`config-scroll w-[88vw] max-w-[360px] md:w-[360px] shrink-0 overflow-y-auto absolute md:static inset-y-0 left-0 z-30 transition-transform md:transition-none md:translate-x-0 ${
+            isConfigOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
           }`}
           style={{
-            borderRight: "1px solid var(--border-primary)",
-            background: "var(--bg-primary)",
+            borderRight: "1px solid var(--border)",
+            background: "var(--page-bg)",
           }}
         >
-          <div className="p-5 flex flex-col gap-6">
-            <Section title="Mode">
-              <Row label="Flow">
-                <Pill
-                  value={flow}
-                  onChange={(v) => {
-                    setFlow(v as FlowMode);
-                    setBrandTitle(v === "withdraw" ? "Withdraw" : "Deposit");
-                  }}
-                  options={[
-                    { value: "deposit", label: "Deposit" },
-                    { value: "withdraw", label: "Withdraw" },
-                  ]}
-                />
-              </Row>
-              <Row label="Show Modal">
-                <Toggle checked={showModal} onChange={setShowModal} />
-              </Row>
-            </Section>
+          <div className="px-6 pt-7 pb-10 flex flex-col">
+            <h1
+              className="text-[20px] font-semibold tracking-[-0.01em]"
+              style={{ color: "var(--text-primary)" }}
+            >
+              Deposit demo
+            </h1>
 
-            {flow === "withdraw" && (
-              <Section title="Source (Safe)">
-                <Row label="Safe address">
-                  <input
-                    type="text"
-                    value={safeAddress}
-                    onChange={(e) => setSafeAddress(e.target.value.trim())}
-                    placeholder="0x..."
-                    className="text-[13px] font-mono bg-transparent outline-none text-right w-35 text-ellipsis overflow-hidden"
-                    style={{ color: "var(--text-primary)" }}
-                  />
-                </Row>
-                <Row label="Chain">
-                  <Select
-                    value={String(sourceChain)}
-                    onChange={(v) => handleSourceChainChange(Number(v))}
-                    options={EVM_CHAIN_OPTIONS.map((chain) => ({
-                      value: String(chain.id),
-                      label: chain.label,
-                    }))}
-                  />
-                </Row>
-                <Row label="Token">
-                  <Select
-                    value={symbolForToken(sourceChain, sourceToken)}
-                    onChange={(value) =>
-                      setSourceToken(resolveTokenAddress(sourceChain, value))
-                    }
-                    options={getSelectableSymbolsForChain(sourceChain).map(
-                      (symbol) => ({
-                        value: symbol,
-                        label: symbol,
-                      }),
+            {/* Tabs */}
+            <div
+              className="mt-6 grid grid-cols-3 relative"
+              style={{ borderBottom: "1px solid var(--border)" }}
+            >
+              {(["widget", "appearance", "behaviour"] as Tab[]).map((t) => {
+                const active = tab === t;
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setTab(t)}
+                    className="relative h-10 text-[13px] font-medium capitalize transition-colors"
+                    style={{
+                      color: active
+                        ? "var(--text-primary)"
+                        : "var(--text-tertiary)",
+                    }}
+                  >
+                    {t}
+                    {active && (
+                      <span
+                        className="absolute left-0 right-0 -bottom-px h-[2px] rounded-full"
+                        style={{ background: "var(--tab-indicator)" }}
+                      />
                     )}
-                  />
-                </Row>
-              </Section>
-            )}
+                  </button>
+                );
+              })}
+            </div>
 
-            {/* Target */}
-            <Section title="Destination">
-              <Row label="Chain">
-                <Select
-                  value={String(targetChain)}
-                  onChange={(v) =>
-                    handleChainChange(v === "solana" ? "solana" : Number(v))
+            {/* Tab content */}
+            <div className="mt-6 flex flex-col gap-5">
+              {tab === "widget" && (
+                <WidgetTab
+                  targetChain={targetChain}
+                  onChainChange={handleChainChange}
+                  targetToken={targetToken}
+                  onTokenChange={(symbol) =>
+                    setTargetToken(resolveTokenAddress(targetChain, symbol))
                   }
-                  options={CHAIN_OPTIONS.map((chain) => ({
-                    value: String(chain.id),
-                    label: chain.label,
-                  }))}
-                />
-              </Row>
-              <Row label="Token">
-                <Select
-                  value={symbolForToken(targetChain, targetToken)}
-                  onChange={(value) =>
-                    setTargetToken(resolveTokenAddress(targetChain, value))
-                  }
-                  options={getSelectableSymbolsForChain(targetChain).map(
-                    (symbol) => ({
-                      value: symbol,
-                      label: symbol,
-                    }),
-                  )}
-                />
-              </Row>
-              <Row label="Amount">
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={prefilledAmount}
-                  onChange={(e) => setPrefilledAmount(e.target.value)}
-                  placeholder="Optional"
-                  className="text-[13px] font-medium bg-transparent outline-none text-right w-20"
-                  style={{ color: "var(--text-primary)" }}
-                />
-              </Row>
-              <Row
-                label={
-                  <LabelWithInfo text="Recipient" tooltip={recipientTooltip} />
-                }
-              >
-                <input
-                  type="text"
-                  value={recipient}
-                  onChange={(e) => {
-                    setRecipient(e.target.value);
+                  prefilledAmount={prefilledAmount}
+                  setPrefilledAmount={setPrefilledAmount}
+                  recipient={recipient}
+                  setRecipient={(v) => {
+                    setRecipient(v);
                     setRecipientManuallyEdited(true);
                   }}
-                  placeholder="0x..."
-                  className="text-[13px] font-mono bg-transparent outline-none text-right w-27.5 text-ellipsis overflow-hidden"
-                  style={{ color: "var(--text-primary)" }}
+                  waitForFinalTx={waitForFinalTx}
+                  setWaitForFinalTx={setWaitForFinalTx}
+                  scope={scope}
+                  setScope={setScope}
+                  customSessionChainIds={customSessionChainIds}
+                  toggleSessionChain={toggleSessionChain}
                 />
-              </Row>
-              <Row
-                label={
-                  <LabelWithInfo
-                    text="Owner address"
-                    tooltip={ownerAddressTooltip}
-                  />
-                }
-              >
-                <input
-                  type="text"
-                  value={ownerAddress}
-                  onChange={(e) => setOwnerAddress(e.target.value)}
-                  placeholder="0x..."
-                  className="text-[13px] font-mono bg-transparent outline-none text-right w-27.5 text-ellipsis overflow-hidden"
-                  style={{ color: "var(--text-primary)" }}
-                />
-              </Row>
-              <Row
-                label={
-                  <LabelWithInfo
-                    text="Wait for final tx"
-                    tooltip="For faster transaction confirmation, Rhinestone marks an intent as complete when the solver delivers a pre-confirmation."
-                  />
-                }
-              >
-                <Toggle checked={waitForFinalTx} onChange={setWaitForFinalTx} />
-              </Row>
-              <Row
-                label={
-                  <LabelWithInfo
-                    text="M0 post-bridge swap"
-                    tooltip="When enabled, executes an orderbook swap through the M0 contract after bridging to the target chain."
-                  />
-                }
-              >
-                <Toggle checked={enableM0} onChange={setEnableM0} />
-              </Row>
-            </Section>
-
-            <Section title="Session Signing">
-              <Row
-                label={
-                  <LabelWithInfo
-                    text="Scope"
-                    tooltip="Auto uses modal defaults. Custom signs sessions only for selected chains, plus the target chain."
-                  />
-                }
-              >
-                <Pill
-                  value={useCustomSessionChains ? "custom" : "auto"}
-                  onChange={(value) =>
-                    setUseCustomSessionChains(value === "custom")
-                  }
-                  options={[
-                    { value: "auto", label: "Auto" },
-                    { value: "custom", label: "Custom" },
-                  ]}
-                />
-              </Row>
-              {useCustomSessionChains && (
-                <div className="p-2.5">
-                  <div className="flex flex-wrap gap-1.5">
-                    {EVM_CHAIN_OPTIONS.map((chain) => {
-                      const selected = customSessionChainIds.includes(chain.id);
-                      return (
-                        <button
-                          key={chain.id}
-                          type="button"
-                          onClick={() => toggleSessionChain(chain.id)}
-                          className="px-2 py-1 text-[11px] font-medium transition-colors"
-                          style={{
-                            borderRadius: "var(--radius-full)",
-                            border: "1px solid var(--border-surface)",
-                            background: selected
-                              ? "var(--bg-accent)"
-                              : "var(--bg-surface)",
-                            color: selected ? "white" : "var(--text-secondary)",
-                          }}
-                        >
-                          {chain.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
               )}
-            </Section>
-
-            {/* Theme */}
-            <Section title="Appearance">
-              <Row label="Mode">
-                <Pill
-                  value={themeMode}
-                  onChange={(v) => setThemeMode(v as "light" | "dark")}
-                  options={[
-                    { value: "light", label: "Light" },
-                    { value: "dark", label: "Dark" },
-                  ]}
-                />
-              </Row>
-              <Row label="Accent">
-                <div className="flex items-center gap-1.5">
-                  {ACCENT_PRESETS.map((p) => (
-                    <button
-                      key={p.value || "default"}
-                      type="button"
-                      onClick={() => setAccent(p.value)}
-                      title={p.label}
-                      className="size-4.5 rounded-full shrink-0 transition-all"
-                      style={{
-                        background: p.value || "var(--bg-surface)",
-                        border: !p.value
-                          ? "1.5px solid var(--border-surface)"
-                          : "none",
-                        boxShadow:
-                          accent === p.value
-                            ? `0 0 0 1.5px var(--bg-primary), 0 0 0 3px ${p.value || "var(--text-tertiary)"}`
-                            : "none",
-                        transform:
-                          accent === p.value ? "scale(1.15)" : "scale(1)",
-                      }}
-                    />
-                  ))}
-                  <label
-                    className="relative size-4.5 rounded-full shrink-0 flex items-center justify-center cursor-pointer transition-colors"
-                    style={{ border: "1.5px dashed var(--border-surface)" }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.borderColor =
-                        "var(--text-tertiary)")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.borderColor =
-                        "var(--border-surface)")
-                    }
-                  >
-                    <input
-                      type="color"
-                      value={accent}
-                      onChange={(e) => setAccent(e.target.value)}
-                      className="absolute inset-0 opacity-0 pointer-events-none"
-                      tabIndex={-1}
-                      onFocus={preventScrollJump}
-                    />
-                    <span
-                      className="text-[8px] leading-none"
-                      style={{ color: "var(--text-tertiary)" }}
-                    >
-                      +
-                    </span>
-                  </label>
-                </div>
-              </Row>
-              <Row label="Radius">
-                <select
-                  value={borderRadius}
-                  onChange={(e) => setBorderRadius(e.target.value as "none" | "sm" | "md" | "lg")}
-                  style={{
-                    background: "var(--bg-secondary)",
-                    border: "1px solid var(--border)",
-                    borderRadius: "var(--radius-sm)",
-                    padding: "4px 8px",
-                    fontSize: 12,
-                    color: "var(--text-primary)",
+              {tab === "appearance" && (
+                <AppearanceTab
+                  defaultTheme={defaultTheme}
+                  setDefaultTheme={setDefaultTheme}
+                  accentColor={accentColor}
+                  setAccentColor={(c) => {
+                    setAccentColor(c);
+                    setCustomColor("");
                   }}
-                >
-                  <option value="none">none</option>
-                  <option value="sm">sm</option>
-                  <option value="md">md</option>
-                  <option value="lg">lg</option>
-                </select>
-              </Row>
-              <Row label="Title">
-                <input
-                  type="text"
-                  value={brandTitle}
-                  onChange={(e) => setBrandTitle(e.target.value)}
-                  placeholder="App name"
-                  className="text-[13px] font-medium bg-transparent outline-none text-right w-24"
-                  style={{ color: "var(--text-primary)" }}
+                  customColor={customColor}
+                  setCustomColor={(c) => {
+                    setCustomColor(c);
+                    if (c) setAccentColor("");
+                  }}
+                  cornerRadius={cornerRadius}
+                  setCornerRadius={setCornerRadius}
+                  fontFamily={fontFamily}
+                  setFontFamily={setFontFamily}
+                  primaryText={primaryText}
+                  setPrimaryText={setPrimaryText}
+                  secondaryText={secondaryText}
+                  setSecondaryText={setSecondaryText}
+                  backgroundColor={backgroundColor}
+                  setBackgroundColor={setBackgroundColor}
                 />
-              </Row>
-              <Row label="Icon URL">
-                <input
-                  type="text"
-                  value={logoUrl}
-                  onChange={(e) => setLogoUrl(e.target.value)}
-                  placeholder="https://..."
-                  className="text-[13px] font-medium bg-transparent outline-none text-right w-27.5 text-ellipsis overflow-hidden"
-                  style={{ color: "var(--text-primary)" }}
-                />
-              </Row>
-              <Row label="Font Color">
-                <ColorInput
-                  value={fontColor}
-                  onChange={setFontColor}
-                  placeholder="Auto"
-                />
-              </Row>
-              <Row label="Icon Color">
-                <ColorInput
-                  value={iconColor}
-                  onChange={setIconColor}
-                  placeholder="Auto"
-                />
-              </Row>
-              <Row label="CTA Hover">
-                <ColorInput
-                  value={ctaHoverColor}
-                  onChange={setCtaHoverColor}
-                  placeholder="Auto"
-                />
-              </Row>
-              <Row label="Border Color">
-                <ColorInput
-                  value={borderColor}
-                  onChange={setBorderColor}
-                  placeholder="Auto"
-                />
-              </Row>
-              <Row label="Background">
-                <ColorInput
-                  value={backgroundColor}
-                  onChange={setBackgroundColor}
-                  placeholder="Auto"
-                />
-              </Row>
-            </Section>
-
-            {/* UI Config */}
-            <Section title="UI Config">
-              <Row label="Show Logo">
-                <Toggle checked={showLogo} onChange={setShowLogo} />
-              </Row>
-              <Row label="Show Stepper">
-                <Toggle checked={showStepper} onChange={setShowStepper} />
-              </Row>
-              <Row label="Show History">
-                <Toggle checked={showHistoryButton} onChange={setShowHistoryButton} />
-              </Row>
-              <Row label="Balance Title">
-                <input
-                  type="text"
-                  value={balanceTitle}
-                  onChange={(e) => setBalanceTitle(e.target.value)}
-                  placeholder="e.g. Rhinestone Balance"
-                  className="text-[13px] font-medium bg-transparent outline-none text-right w-27.5 text-ellipsis overflow-hidden"
-                  style={{ color: "var(--text-primary)" }}
-                />
-              </Row>
-              <Row label="Balance Amount">
-                <input
-                  type="text"
-                  value={balanceAmount}
-                  onChange={(e) => setBalanceAmount(e.target.value)}
-                  placeholder="e.g. $322.64"
-                  className="text-[13px] font-medium bg-transparent outline-none text-right w-27.5 text-ellipsis overflow-hidden"
-                  style={{ color: "var(--text-primary)" }}
-                />
-              </Row>
-              <Row label="Max Deposit USD">
-                <input
-                  type="number"
-                  value={maxDepositUsd ?? ""}
-                  onChange={(e) =>
-                    setMaxDepositUsd(
-                      e.target.value ? Number(e.target.value) : undefined,
-                    )
-                  }
-                  placeholder="No limit"
-                  className="text-[13px] font-medium bg-transparent outline-none text-right w-20"
-                  style={{ color: "var(--text-primary)" }}
-                />
-              </Row>
-              <Row label="Min Deposit USD">
-                <input
-                  type="number"
-                  value={minDepositUsd ?? ""}
-                  onChange={(e) =>
-                    setMinDepositUsd(
-                      e.target.value ? Number(e.target.value) : undefined,
-                    )
-                  }
-                  placeholder="No minimum"
-                  className="text-[13px] font-medium bg-transparent outline-none text-right w-20"
-                  style={{ color: "var(--text-primary)" }}
-                />
-              </Row>
-            </Section>
-
-            {/* Code */}
-            <div className="flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={() => setShowCode(!showCode)}
-                className="flex items-center justify-center gap-1.5 h-8 text-[12px] font-medium transition-colors"
-                style={{
-                  borderRadius: "var(--radius-sm)",
-                  background: showCode
-                    ? "var(--bg-surface-hover)"
-                    : "var(--bg-surface)",
-                  color: "var(--text-secondary)",
-                }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.background = "var(--bg-surface-hover)")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.background = showCode
-                    ? "var(--bg-surface-hover)"
-                    : "var(--bg-surface)")
-                }
-              >
-                <CodeIcon />
-                {showCode ? "Hide Code" : "View Code"}
-              </button>
-
-              {showCode && (
-                <CodeBlock
-                  code={
-                    flow === "withdraw"
-                      ? buildWithdrawCodeString({
-                          safeAddress,
-                          sourceChain,
-                          sourceToken,
-                          targetChain: targetChain as number,
-                          targetToken,
-                          recipient,
-                          ownerAddress,
-                          rhinestoneApiKey,
-                          themeMode,
-                          borderRadius,
-                          brandTitle,
-                          logoUrl,
-                          prefilledAmount,
-                          waitForFinalTx,
-                          sessionChainIds,
-                          showLogo,
-                          showStepper,
-                          balanceTitle,
-                          balanceAmount,
-
-                          fontColor,
-                          iconColor,
-                          ctaColor: accent,
-                          ctaHoverColor,
-                          borderColor,
-                          backgroundColor,
-                        })
-                      : buildModalCodeString({
-                          targetChain: targetChain as number,
-                          targetToken,
-                          recipient,
-                          ownerAddress,
-                          rhinestoneApiKey,
-                          themeMode,
-                          borderRadius,
-                          brandTitle,
-                          logoUrl,
-                          prefilledAmount,
-                          waitForFinalTx,
-                          sessionChainIds,
-                          showLogo,
-                          showStepper,
-                          balanceTitle,
-                          balanceAmount,
-
-                          maxDepositUsd,
-                          minDepositUsd,
-                          fontColor,
-                          iconColor,
-                          ctaColor: accent,
-                          ctaHoverColor,
-                          borderColor,
-                          backgroundColor,
-                        })
-                  }
+              )}
+              {tab === "behaviour" && (
+                <BehaviourTab
+                  showHistoryButton={showHistoryButton}
+                  setShowHistoryButton={setShowHistoryButton}
+                  minDeposit={minDeposit}
+                  setMinDeposit={setMinDeposit}
+                  maxDeposit={maxDeposit}
+                  setMaxDeposit={setMaxDeposit}
                 />
               )}
             </div>
           </div>
         </aside>
 
-        {/* ── Preview ─────────────────────────────────────── */}
+        {/* Right column — preview */}
         <main
-          className="flex-1 flex items-center justify-center dot-grid overflow-hidden p-4 md:p-0"
-          style={{ background: "var(--bg-secondary)" }}
+          className="flex-1 flex flex-col p-3 md:p-3 min-h-0 overflow-hidden"
+          style={{ background: "var(--page-bg)" }}
         >
-          <div className="widget-glow w-full flex justify-center">
+          <div
+            className="flex-1 rounded-[16px] relative overflow-y-auto"
+            style={{
+              background: "var(--preview-bg)",
+              border: "1px solid var(--preview-border)",
+            }}
+          >
+          <div className="min-h-full flex flex-col items-center gap-6 py-6 px-3 md:px-4">
+            {/* Light / Dark toggle */}
             <div
+              className="inline-flex items-center gap-0.5 p-[3px] rounded-[8px] shrink-0"
               style={{
-                width: "min(420px, 100%)",
-                boxShadow: "var(--shadow-widget)",
-                borderRadius: `18px`,
-                overflow: "hidden",
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
               }}
             >
-              {showModal ? (
-                flow === "withdraw" ? (
-                  isSafeAddressValid ? (
-                    <WithdrawModal
-                      key={componentKey}
-                      isOpen={true}
-                      onClose={() => setShowModal(false)}
-                      debug={true}
-                      dappAddress={
-                        isAddress(ownerAddress, { strict: false })
-                          ? (ownerAddress as Address)
-                          : undefined
-                      }
-                      reownAppId={reownProjectId}
-                      safeAddress={safeAddress as Address}
-                      sourceChain={sourceChain}
-                      sourceToken={sourceToken as Address}
-                      targetChain={targetChain as number}
-                      targetToken={targetToken as Address}
-                      recipient={(recipient as Address) || undefined}
-                      defaultAmount={prefilledAmount || undefined}
-                      // forceRegister={true}
-                      sessionChainIds={sessionChainIds}
-                      waitForFinalTx={waitForFinalTx}
-                      theme={{
-                        mode: themeMode,
-                        radius: borderRadius,
-                        fontColor: fontColor || undefined,
-                        iconColor: iconColor || undefined,
-                        ctaColor: accent || undefined,
-                        ctaHoverColor: ctaHoverColor || undefined,
-                        borderColor: borderColor || undefined,
-                        backgroundColor: backgroundColor || undefined,
-                      }}
-                      onLifecycle={onWithdrawLifecycle}
-                      onError={onError}
-                      inline={true}
-                    />
-                  ) : (
-                    <div
-                      className="flex items-center justify-center text-[13px]"
-                      style={{ color: "var(--text-tertiary)", height: 500 }}
-                    >
-                      Enter a valid Safe address to preview withdraw.
-                    </div>
-                  )
-                ) : targetChain === "solana" &&
-                  !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(
-                    (recipient ?? "").trim(),
-                  ) ? (
-                  <div
-                    className="flex flex-col items-center justify-center text-center gap-2 px-6"
-                    style={{ color: "var(--text-tertiary)", height: 500 }}
+              {(["light", "dark"] as const).map((m) => {
+                const active = previewTheme === m;
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setPreviewTheme(m)}
+                    className="inline-flex items-center gap-1.5 px-2.5 h-6 text-[12px] font-medium rounded-[6px] transition-colors capitalize"
+                    style={{
+                      background: active ? "var(--well)" : "transparent",
+                      color: active
+                        ? "var(--text-primary)"
+                        : "var(--text-tertiary)",
+                    }}
                   >
-                    <div
-                      className="text-[13px] font-medium"
-                      style={{ color: "var(--text-primary)" }}
-                    >
-                      Enter a Solana recipient to continue
-                    </div>
-                    <div className="text-[12px]">
-                      Solana destinations require a base58 recipient (32-44
-                      chars). Type one into the Recipient field on the left,
-                      then the deposit modal will render.
-                    </div>
-                  </div>
-                ) : (
-                  <DepositModal
-                    key={componentKey}
-                    isOpen={true}
-                    onClose={() => setShowModal(false)}
-                    debug={true}
-                    solanaRpcUrl="https://demo.rhinestone.dev/api/solana-rpc"
-                    dappAddress={
-                      isAddress(ownerAddress, { strict: false })
-                        ? (ownerAddress as Address)
-                        : undefined
-                    }
-                    reownAppId={reownProjectId}
-                    rhinestoneApiKey={rhinestoneApiKey}
-                    targetChain={targetChain}
-                    targetToken={targetToken as Address}
-                    recipient={(recipient as Address) || undefined}
-                    defaultAmount={prefilledAmount || undefined}
-                    // forceRegister={true}
-                    sessionChainIds={sessionChainIds}
-                    waitForFinalTx={waitForFinalTx}
-                    postBridgeActions={postBridgeActions}
-                    theme={{
-                      mode: themeMode,
-                      radius: borderRadius,
-                      fontColor: fontColor || undefined,
-                      iconColor: iconColor || undefined,
-                      ctaColor: accent || undefined,
-                      ctaHoverColor: ctaHoverColor || undefined,
-                      borderColor: borderColor || undefined,
-                      backgroundColor: backgroundColor || undefined,
-                    }}
-                    uiConfig={{
-                      showHistoryButton,
-                      maxDepositUsd,
-                      minDepositUsd,
-                    }}
-                    dappImports={{ polymarket: true }}
-                    onLifecycle={onDepositLifecycle}
-                    onError={onError}
-                    inline={true}
-                  />
-                )
-              ) : (
-                <ModalPlaceholder onOpen={() => setShowModal(true)} />
-              )}
+                    {m === "light" ? <SunIcon /> : <MoonIcon />}
+                    {m}
+                  </button>
+                );
+              })}
             </div>
+
+            {/* Flip card */}
+            <div className="w-full flex-1 flex items-center justify-center">
+              <div className="flip-scene">
+                <div className={`flip-card ${showCode ? "is-flipped" : ""}`}>
+                  {/* Front: modal */}
+                  <div className="flip-face flip-face--front">
+                    {widgetState === "closed" ? (
+                      <LaunchWidgetCard
+                        onLaunch={() => setWidgetState("open")}
+                      />
+                    ) : (
+                    <div
+                      className={
+                        widgetState === "closing" ? "widget-exit" : "widget-enter"
+                      }
+                      onAnimationEnd={(e) => {
+                        if (
+                          widgetState === "closing" &&
+                          e.animationName === "widget-exit"
+                        ) {
+                          setWidgetState("closed");
+                        }
+                      }}
+                      style={{
+                        width: "100%",
+                        boxShadow: "var(--shadow-widget)",
+                        borderRadius: 16,
+                        overflow: "hidden",
+                      }}
+                    >
+                      {targetChain === "solana" &&
+                      !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(
+                        (recipient ?? "").trim(),
+                      ) ? (
+                        <div
+                          className="flex flex-col items-center justify-center text-center gap-2 px-6"
+                          style={{
+                            background: "var(--surface)",
+                            color: "var(--text-tertiary)",
+                            height: 500,
+                          }}
+                        >
+                          <div
+                            className="text-[13px] font-medium"
+                            style={{ color: "var(--text-primary)" }}
+                          >
+                            Enter a Solana recipient to continue
+                          </div>
+                          <div className="text-[12px]">
+                            Solana destinations require a base58 recipient (32-44
+                            chars). Type one into the Recipient field, then the
+                            deposit modal will render.
+                          </div>
+                        </div>
+                      ) : (
+                        <DepositModal
+                          key={componentKey}
+                          isOpen={true}
+                          onClose={() => setWidgetState("closing")}
+                          debug={true}
+                          solanaRpcUrl={solanaRpcUrl}
+                          dappAddress={
+                            isAddress(ownerAddress, { strict: false })
+                              ? (ownerAddress as Address)
+                              : undefined
+                          }
+                          reownAppId={reownProjectId}
+                          targetChain={targetChain}
+                          targetToken={targetToken as Address}
+                          recipient={(recipient as Address) || undefined}
+                          defaultAmount={prefilledAmount || undefined}
+                          sessionChainIds={sessionChainIds}
+                          waitForFinalTx={waitForFinalTx}
+                          theme={{
+                            mode: previewTheme,
+                            radius: radiusToken,
+                            fontColor: primaryText || undefined,
+                            iconColor: secondaryText || undefined,
+                            ctaColor: effectiveAccent || undefined,
+                            backgroundColor: backgroundColor || undefined,
+                          }}
+                          uiConfig={{
+                            showHistoryButton,
+                            maxDepositUsd: maxDeposit,
+                            minDepositUsd: minDeposit,
+                          }}
+                          dappImports={{ polymarket: true }}
+                          onLifecycle={onDepositLifecycle}
+                          onError={onError}
+                          inline={true}
+                        />
+                      )}
+                    </div>
+                    )}
+                  </div>
+
+                  {/* Back: code */}
+                  <div className="flip-face flip-face--back">
+                    <CodeCard code={codeString} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Get the code / Back to customise */}
+            <button
+              type="button"
+              onClick={() => setShowCode((v) => !v)}
+              className="inline-flex items-center gap-2 px-3.5 h-9 text-[13px] font-medium rounded-[8px] transition-colors shrink-0"
+              style={{
+                background: "var(--cta-bg)",
+                color: "var(--cta-fg)",
+              }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.background = "var(--cta-bg-hover)")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.background = "var(--cta-bg)")
+              }
+            >
+              {showCode ? (
+                <>
+                  <ArrowLeftIcon />
+                  Back to customise
+                </>
+              ) : (
+                <>
+                  <CodeIcon />
+                  Get the code
+                </>
+              )}
+            </button>
+          </div>
           </div>
         </main>
       </div>
@@ -984,188 +645,481 @@ export default function Home() {
   );
 }
 
-/* ── Placeholder for Modal ──────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────
+   Launch widget card (shown when the preview widget is closed)
+   ───────────────────────────────────────────────────────────── */
 
-function ModalPlaceholder({ onOpen }: { onOpen: () => void }) {
+function LaunchWidgetCard({ onLaunch }: { onLaunch: () => void }) {
   return (
     <div
-      className="flex flex-col items-center justify-center gap-4 p-8"
+      className="widget-enter w-full flex flex-col items-center justify-center gap-4 rounded-[16px] px-6 py-16 text-center"
       style={{
-        background: "var(--bg-primary)",
-        minHeight: 300,
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
+        boxShadow: "var(--shadow-widget)",
       }}
     >
-      <div
-        className="flex items-center justify-center size-16 rounded-full"
-        style={{ background: "var(--bg-surface)" }}
-      >
-        <WalletIcon />
-      </div>
-      <div className="text-center">
-        <div
-          className="text-[15px] font-medium"
+      <div className="flex flex-col gap-1">
+        <span
+          className="text-[14px] font-semibold"
           style={{ color: "var(--text-primary)" }}
         >
-          Modal is closed
-        </div>
-        <div
-          className="text-[13px] mt-1"
-          style={{ color: "var(--text-secondary)" }}
+          Widget closed
+        </span>
+        <span
+          className="text-[12px]"
+          style={{ color: "var(--text-tertiary)" }}
         >
-          Toggle &quot;Show Modal&quot; or click below to open
-        </div>
+          The deposit widget was dismissed.
+        </span>
       </div>
       <button
-        onClick={onOpen}
-        className="text-[13px] font-medium px-4 py-2 transition-colors"
-        style={{
-          background: "var(--bg-accent)",
-          color: "white",
-          borderRadius: "var(--radius-sm)",
-        }}
+        type="button"
+        onClick={onLaunch}
+        className="inline-flex items-center gap-2 px-3.5 h-9 text-[13px] font-medium rounded-[8px] transition-colors"
+        style={{ background: "var(--cta-bg)", color: "var(--cta-fg)" }}
+        onMouseEnter={(e) =>
+          (e.currentTarget.style.background = "var(--cta-bg-hover)")
+        }
+        onMouseLeave={(e) =>
+          (e.currentTarget.style.background = "var(--cta-bg)")
+        }
       >
-        Open Modal
+        Launch widget
       </button>
     </div>
   );
 }
 
-/* ── Shared UI Components ────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────
+   Tab panels
+   ───────────────────────────────────────────────────────────── */
 
-function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
+function WidgetTab(props: {
+  targetChain: number | "solana";
+  onChainChange: (chainId: number | "solana") => void;
+  targetToken: string;
+  onTokenChange: (symbol: string) => void;
+  prefilledAmount: string;
+  setPrefilledAmount: (v: string) => void;
+  recipient: string;
+  setRecipient: (v: string) => void;
+  waitForFinalTx: boolean;
+  setWaitForFinalTx: (v: boolean) => void;
+  scope: "auto" | "custom";
+  setScope: (v: "auto" | "custom") => void;
+  customSessionChainIds: number[];
+  toggleSessionChain: (chainId: number) => void;
 }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <span
-        className="text-[11px] font-semibold uppercase tracking-[0.08em] px-0.5"
-        style={{ color: "var(--text-tertiary)" }}
-      >
-        {title}
-      </span>
-      <div
-        className="flex flex-col divide-y"
-        style={{
-          borderRadius: "var(--radius-md)",
-          border: "1px solid var(--border-primary)",
-          background: "var(--bg-primary)",
-          boxShadow: "var(--shadow-sm)",
-        }}
-      >
-        {children}
-      </div>
-    </div>
+    <>
+      <Field label="Default chain">
+        <SelectInput
+          value={String(props.targetChain)}
+          onChange={(v) =>
+            props.onChainChange(v === "solana" ? "solana" : Number(v))
+          }
+          placeholder="Select"
+          options={CHAIN_OPTIONS.map((c) => ({
+            value: String(c.id),
+            label: c.label,
+          }))}
+        />
+      </Field>
+      <Field label="Default token">
+        <SelectInput
+          value={symbolForToken(props.targetChain, props.targetToken)}
+          onChange={props.onTokenChange}
+          placeholder="Select"
+          options={getSelectableSymbolsForChain(props.targetChain).map((s) => ({
+            value: s,
+            label: s,
+          }))}
+        />
+      </Field>
+      <Field label="Default amount">
+        <TextInput
+          value={props.prefilledAmount}
+          onChange={props.setPrefilledAmount}
+          placeholder="0.00"
+          inputMode="decimal"
+        />
+      </Field>
+      <Field label="Recipient address">
+        <TextInput
+          value={props.recipient}
+          onChange={props.setRecipient}
+          placeholder="0x..."
+          mono
+        />
+      </Field>
+      <ToggleRow
+        label="Wait for final tx"
+        tooltip="For faster confirmation, Rhinestone marks intents complete on solver pre-confirmation."
+        checked={props.waitForFinalTx}
+        onChange={props.setWaitForFinalTx}
+      />
+
+      <SectionLabel>SESSION SIGNING</SectionLabel>
+      <Field label="Scope">
+        <SelectInput
+          value={props.scope}
+          onChange={(v) => props.setScope(v as "auto" | "custom")}
+          options={[
+            { value: "auto", label: "Auto" },
+            { value: "custom", label: "Custom" },
+          ]}
+        />
+      </Field>
+      {props.scope === "custom" && (
+        <div className="flex flex-wrap gap-1.5">
+          {EVM_CHAIN_OPTIONS.map((chain) => {
+            const selected = props.customSessionChainIds.includes(chain.id);
+            return (
+              <button
+                key={chain.id}
+                type="button"
+                onClick={() => props.toggleSessionChain(chain.id)}
+                className="px-2.5 h-7 text-[11px] font-medium rounded-full transition-colors"
+                style={{
+                  border: "1px solid var(--border)",
+                  background: selected ? "var(--accent)" : "var(--surface)",
+                  color: selected ? "#fff" : "var(--text-secondary)",
+                }}
+              >
+                {chain.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </>
   );
 }
 
-function LabelWithInfo({ text, tooltip }: { text: string; tooltip: string }) {
+function AppearanceTab(props: {
+  defaultTheme: ThemeMode;
+  setDefaultTheme: (v: ThemeMode) => void;
+  accentColor: string;
+  setAccentColor: (v: string) => void;
+  customColor: string;
+  setCustomColor: (v: string) => void;
+  cornerRadius: number;
+  setCornerRadius: (v: number) => void;
+  fontFamily: string;
+  setFontFamily: (v: string) => void;
+  primaryText: string;
+  setPrimaryText: (v: string) => void;
+  secondaryText: string;
+  setSecondaryText: (v: string) => void;
+  backgroundColor: string;
+  setBackgroundColor: (v: string) => void;
+}) {
   return (
-    <span className="relative flex items-center gap-1.5 group/info">
-      {text}
-      <span
-        className="flex items-center justify-center size-3.75 rounded-full shrink-0"
-        style={{
-          background: "var(--border-surface)",
-          color: "var(--text-secondary)",
-        }}
-      >
-        <span
-          className="text-[9px] font-bold leading-none"
-          style={{ marginTop: "0.5px" }}
-        >
-          i
-        </span>
-      </span>
-      <div
-        className="absolute left-0 top-full mt-1.5 z-10 w-52 p-2 text-[11px] leading-normal font-normal opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-opacity"
-        style={{
-          background: "var(--bg-primary)",
-          color: "var(--text-secondary)",
-          border: "1px solid var(--border-primary)",
-          borderRadius: "var(--radius-sm)",
-          boxShadow: "var(--shadow-md)",
-        }}
-      >
-        {tooltip}
+    <>
+      <Field label="Default theme">
+        <SelectInput
+          value={props.defaultTheme}
+          onChange={(v) => props.setDefaultTheme(v as ThemeMode)}
+          options={[
+            { value: "system", label: "System" },
+            { value: "light", label: "Light" },
+            { value: "dark", label: "Dark" },
+          ]}
+        />
+      </Field>
+
+      <div className="flex flex-col gap-2">
+        <Label>Primary colour</Label>
+        <div className="flex items-center gap-2">
+          {COLOR_PRESETS.map((preset) => {
+            const selected = props.accentColor === preset.value;
+            return (
+              <button
+                key={preset.value}
+                type="button"
+                onClick={() => props.setAccentColor(preset.value)}
+                title={preset.label}
+                className="size-9 rounded-[8px] transition-all shrink-0"
+                style={{
+                  background: preset.value,
+                  border: selected
+                    ? "2px solid var(--text-primary)"
+                    : "1px solid var(--border)",
+                  outline: selected ? "2px solid var(--surface)" : "none",
+                  outlineOffset: selected ? -4 : 0,
+                  boxShadow: selected
+                    ? "0 0 0 2px var(--text-primary)"
+                    : "var(--shadow-sm)",
+                }}
+              />
+            );
+          })}
+        </div>
       </div>
+
+      <Field label="Custom colour">
+        <HexColorInput
+          value={props.customColor}
+          onChange={props.setCustomColor}
+          placeholder="#09090B"
+        />
+      </Field>
+
+      <Field label="Corner radius">
+        <UnitInput
+          value={props.cornerRadius}
+          onChange={props.setCornerRadius}
+          unit="pixels"
+        />
+      </Field>
+
+      <Field label="Font family">
+        <SelectInput
+          value={props.fontFamily}
+          onChange={props.setFontFamily}
+          options={FONT_FAMILIES}
+        />
+      </Field>
+
+      <Field label="Primary text">
+        <HexColorInput
+          value={props.primaryText}
+          onChange={props.setPrimaryText}
+          placeholder="#09090B"
+        />
+      </Field>
+
+      <Field label="Secondary text">
+        <HexColorInput
+          value={props.secondaryText}
+          onChange={props.setSecondaryText}
+          placeholder="#71717B"
+        />
+      </Field>
+
+      <Field label="Background">
+        <HexColorInput
+          value={props.backgroundColor}
+          onChange={props.setBackgroundColor}
+          placeholder="#FAFAFA"
+        />
+      </Field>
+    </>
+  );
+}
+
+function BehaviourTab(props: {
+  showHistoryButton: boolean;
+  setShowHistoryButton: (v: boolean) => void;
+  minDeposit: number | undefined;
+  setMinDeposit: (v: number | undefined) => void;
+  maxDeposit: number | undefined;
+  setMaxDeposit: (v: number | undefined) => void;
+}) {
+  return (
+    <>
+      <ToggleRow
+        label="Show history"
+        checked={props.showHistoryButton}
+        onChange={props.setShowHistoryButton}
+      />
+      <Field label="Min deposit">
+        <TextInput
+          value={props.minDeposit === undefined ? "" : String(props.minDeposit)}
+          onChange={(v) =>
+            props.setMinDeposit(v === "" ? undefined : Number(v))
+          }
+          placeholder="0.00"
+          inputMode="decimal"
+        />
+      </Field>
+      <Field label="Max">
+        <TextInput
+          value={props.maxDeposit === undefined ? "" : String(props.maxDeposit)}
+          onChange={(v) =>
+            props.setMaxDeposit(v === "" ? undefined : Number(v))
+          }
+          placeholder="0.00"
+          inputMode="decimal"
+        />
+      </Field>
+    </>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Form primitives
+   ───────────────────────────────────────────────────────────── */
+
+function Label({ children }: { children: ReactNode }) {
+  return (
+    <span
+      className="text-[12px] font-medium"
+      style={{ color: "var(--text-secondary)" }}
+    >
+      {children}
     </span>
   );
 }
 
-function Row({
+function SectionLabel({ children }: { children: ReactNode }) {
+  return (
+    <span
+      className="text-[11px] font-medium uppercase tracking-[0.06em] mt-2"
+      style={{ color: "var(--text-tertiary)" }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function Field({
   label,
   children,
 }: {
-  label: React.ReactNode;
-  children: React.ReactNode;
+  label: ReactNode;
+  children: ReactNode;
 }) {
   return (
-    <div
-      className="flex items-center justify-between h-11 px-3.5"
-      style={{ borderColor: "var(--border-primary)" }}
-    >
-      <span className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
-        {label}
-      </span>
+    <div className="flex flex-col gap-1.5">
+      <Label>{label}</Label>
       {children}
     </div>
   );
 }
 
-function Pill({
+function TextInput({
   value,
   onChange,
-  options,
+  placeholder,
+  inputMode,
+  mono,
 }: {
   value: string;
   onChange: (v: string) => void;
-  options: { value: string; label: string }[];
+  placeholder?: string;
+  inputMode?: "text" | "decimal" | "numeric";
+  mono?: boolean;
 }) {
-  const newLocal = "flex gap-0.5 p-[3px]";
+  return (
+    <input
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      inputMode={inputMode}
+      className={`h-10 w-full px-3 text-[13px] outline-none rounded-[10px] transition-colors ${
+        mono ? "font-mono" : ""
+      }`}
+      style={{
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
+        color: "var(--text-primary)",
+      }}
+      onFocus={(e) => {
+        e.currentTarget.style.borderColor = "var(--text-tertiary)";
+      }}
+      onBlur={(e) => {
+        e.currentTarget.style.borderColor = "var(--border)";
+      }}
+    />
+  );
+}
+
+function UnitInput({
+  value,
+  onChange,
+  unit,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  unit: string;
+}) {
   return (
     <div
-      className={newLocal}
+      className="h-10 w-full flex items-center px-3 rounded-[10px]"
       style={{
-        borderRadius: "var(--radius-sm)",
-        background: "var(--bg-surface)",
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
       }}
     >
-      {options.map((o) => (
-        <button
-          key={o.value}
-          type="button"
-          onClick={() => onChange(o.value)}
-          className="text-[12px] font-medium px-2.5 py-1.25 transition-all"
-          style={{
-            borderRadius: "calc(var(--radius-sm) - 2px)",
-            background: value === o.value ? "var(--bg-primary)" : "transparent",
-            color:
-              value === o.value
-                ? "var(--text-primary)"
-                : "var(--text-tertiary)",
-            boxShadow:
-              value === o.value ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
-          }}
-        >
-          {o.label}
-        </button>
-      ))}
+      <input
+        type="number"
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value) || 0)}
+        min={0}
+        max={64}
+        className="flex-1 bg-transparent outline-none text-[13px]"
+        style={{ color: "var(--text-primary)" }}
+      />
+      <span
+        className="text-[12px] px-2 h-7 inline-flex items-center rounded-[6px]"
+        style={{
+          background: "var(--well)",
+          color: "var(--text-tertiary)",
+        }}
+      >
+        {unit}
+      </span>
     </div>
   );
 }
 
-function Select({
+function HexColorInput({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <div
+      className="h-10 w-full flex items-center px-3 rounded-[10px] transition-colors"
+      style={{
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
+      }}
+    >
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="flex-1 bg-transparent outline-none text-[13px] font-mono"
+        style={{ color: "var(--text-primary)" }}
+      />
+      <label
+        className="relative size-5 shrink-0 cursor-pointer rounded-[4px] overflow-hidden"
+        style={{
+          background: value || "var(--well)",
+          border: "1px solid var(--border-strong)",
+        }}
+      >
+        <input
+          type="color"
+          value={value || "#888888"}
+          onChange={(e) => onChange(e.target.value)}
+          className="absolute inset-0 opacity-0 cursor-pointer"
+          onFocus={preventScrollJump}
+        />
+      </label>
+    </div>
+  );
+}
+
+function SelectInput({
   value,
   onChange,
   options,
+  placeholder,
 }: {
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string }[];
+  placeholder?: string;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -1187,85 +1141,65 @@ function Select({
     <div ref={ref} className="relative">
       <button
         type="button"
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 text-[12px] font-medium px-2.5 py-1.25 transition-all"
+        onClick={() => setOpen((v) => !v)}
+        className="h-10 w-full flex items-center justify-between px-3 text-[13px] rounded-[10px] transition-colors"
         style={{
-          borderRadius: "var(--radius-sm)",
-          background: "var(--bg-surface)",
-          color: "var(--text-primary)",
+          background: "var(--surface)",
+          border: "1px solid var(--border)",
+          color: selected ? "var(--text-primary)" : "var(--text-placeholder)",
         }}
       >
-        <span className="truncate max-w-25">{selected?.label ?? value}</span>
-        <svg
-          width="10"
-          height="10"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="shrink-0 transition-transform"
-          style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
-        >
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
+        <span className="truncate">
+          {selected?.label ?? placeholder ?? "Select"}
+        </span>
+        <ChevronDownIcon open={open} />
       </button>
 
       {open && (
         <div
-          className="absolute right-0 top-full mt-1 z-50 min-w-35 py-1 overflow-hidden"
+          className="absolute left-0 right-0 mt-1 z-50 py-1 max-h-64 overflow-y-auto rounded-[10px]"
           style={{
-            borderRadius: "var(--radius-sm)",
-            background: "var(--bg-primary)",
-            border: "1px solid var(--border-primary)",
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
             boxShadow: "var(--shadow-md)",
           }}
         >
-          {options.map((o) => (
-            <button
-              key={o.value}
-              type="button"
-              onClick={() => {
-                onChange(o.value);
-                setOpen(false);
-              }}
-              className="flex items-center w-full text-left px-3 py-[7px] text-[12px] font-medium transition-colors"
-              style={{
-                background:
-                  value === o.value ? "var(--bg-surface)" : "transparent",
-                color:
-                  value === o.value
+          {options.map((o) => {
+            const isActive = o.value === value;
+            return (
+              <button
+                key={o.value}
+                type="button"
+                onClick={() => {
+                  onChange(o.value);
+                  setOpen(false);
+                }}
+                className="flex items-center w-full px-3 h-9 text-[13px] transition-colors"
+                style={{
+                  color: isActive
                     ? "var(--text-primary)"
                     : "var(--text-secondary)",
-              }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.background = "var(--bg-surface)")
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.background =
-                  value === o.value ? "var(--bg-surface)" : "transparent")
-              }
-            >
-              {o.label}
-              {value === o.value && (
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="ml-auto shrink-0"
-                  style={{ color: "var(--bg-accent)" }}
-                >
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              )}
-            </button>
-          ))}
+                  background: isActive ? "var(--well)" : "transparent",
+                  fontWeight: isActive ? 500 : 400,
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.background = "var(--well)")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.background = isActive
+                    ? "var(--well)"
+                    : "transparent")
+                }
+              >
+                {o.label}
+                {isActive && (
+                  <span className="ml-auto">
+                    <CheckIcon />
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
@@ -1285,14 +1219,15 @@ function Toggle({
       role="switch"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className="relative w-[34px] h-[20px] rounded-full transition-colors"
+      className="relative w-[34px] h-[20px] rounded-full transition-colors shrink-0"
       style={{
-        background: checked ? "var(--bg-accent)" : "var(--bg-surface)",
+        background: checked ? "var(--accent)" : "var(--switch-off-bg)",
       }}
     >
       <span
-        className="absolute top-[3px] left-[3px] size-[14px] rounded-full bg-white transition-transform"
+        className="absolute top-[3px] left-[3px] size-[14px] rounded-full transition-transform"
         style={{
+          background: "var(--switch-thumb)",
           transform: checked ? "translateX(14px)" : "translateX(0)",
           boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
         }}
@@ -1301,224 +1236,40 @@ function Toggle({
   );
 }
 
-function ColorInput({
-  value,
+function ToggleRow({
+  label,
+  tooltip,
+  checked,
   onChange,
-  placeholder,
 }: {
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
+  label: string;
+  tooltip?: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
 }) {
   return (
-    <div className="flex items-center gap-2">
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="text-[13px] font-medium bg-transparent outline-none text-right w-[80px] text-ellipsis"
-        style={{ color: "var(--text-primary)" }}
-      />
-      <label
-        className="relative size-[18px] rounded shrink-0 flex items-center justify-center cursor-pointer overflow-hidden"
-        style={{
-          background: value || "var(--bg-surface)",
-          border: "1px solid var(--border-surface)",
-        }}
-      >
-        <input
-          type="color"
-          value={value || "#888888"}
-          onChange={(e) => onChange(e.target.value)}
-          className="absolute inset-0 opacity-0 cursor-pointer"
-          onFocus={preventScrollJump}
-        />
-      </label>
-      {value && (
-        <button
-          type="button"
-          onClick={() => onChange("")}
-          className="text-[10px] px-1 py-0.5 rounded"
-          style={{
-            background: "var(--bg-surface)",
-            color: "var(--text-tertiary)",
-          }}
+    <div className="flex items-center justify-between h-7">
+      <div className="flex items-center gap-1.5">
+        <span
+          className="text-[13px] font-medium"
+          style={{ color: "var(--text-primary)" }}
         >
-          ×
-        </button>
-      )}
+          {label}
+        </span>
+        {tooltip && <InfoIcon tooltip={tooltip} />}
+      </div>
+      <Toggle checked={checked} onChange={onChange} />
     </div>
   );
 }
 
-/* ── Code Generation ─────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────
+   Code card (flip back-face)
+   ───────────────────────────────────────────────────────────── */
 
-function buildModalCodeString(cfg: {
-  targetChain: number;
-  targetToken: string;
-  recipient: string;
-  ownerAddress: string;
-  rhinestoneApiKey?: string;
-  themeMode: string;
-  borderRadius: string;
-  brandTitle: string;
-  logoUrl: string;
-  prefilledAmount: string;
-  waitForFinalTx: boolean;
-
-  sessionChainIds?: number[];
-  showLogo: boolean;
-  showStepper: boolean;
-  balanceTitle: string;
-  balanceAmount: string;
-  maxDepositUsd?: number;
-  minDepositUsd?: number;
-  fontColor: string;
-  iconColor: string;
-  ctaColor: string;
-  ctaHoverColor: string;
-  borderColor: string;
-  backgroundColor: string;
-}): string {
-  const lines = [
-    `import { DepositModal } from "@rhinestone/deposit-modal";`,
-    `import "@rhinestone/deposit-modal/styles.css";`,
-    ``,
-    `<DepositModal`,
-    `  isOpen={isOpen}`,
-    `  onClose={() => setIsOpen(false)}`,
-    `  targetChain={${cfg.targetChain}}`,
-    `  targetToken="${cfg.targetToken}"`,
-    `  forceRegister={true}`,
-  ];
-  if (cfg.ownerAddress) {
-    lines.push(`  dappAddress="${cfg.ownerAddress}"`);
-  }
-  if (cfg.recipient) {
-    lines.push(`  recipient="${cfg.recipient}"`);
-  }
-  if (cfg.prefilledAmount) {
-    lines.push(`  defaultAmount="${cfg.prefilledAmount}"`);
-  }
-  if (!cfg.waitForFinalTx) {
-    lines.push(`  waitForFinalTx={false}`);
-  }
-  if (cfg.sessionChainIds && cfg.sessionChainIds.length > 0) {
-    lines.push(`  sessionChainIds={[${cfg.sessionChainIds.join(", ")}]}`);
-  }
-  if (cfg.rhinestoneApiKey) {
-    lines.push(`  rhinestoneApiKey="${cfg.rhinestoneApiKey}"`);
-  }
-  // Theme
-  lines.push(`  theme={{`);
-  lines.push(`    mode: "${cfg.themeMode}",`);
-  lines.push(`    radius: "${cfg.borderRadius}",`);
-  if (cfg.fontColor) lines.push(`    fontColor: "${cfg.fontColor}",`);
-  if (cfg.iconColor) lines.push(`    iconColor: "${cfg.iconColor}",`);
-  if (cfg.ctaColor) lines.push(`    ctaColor: "${cfg.ctaColor}",`);
-  if (cfg.ctaHoverColor)
-    lines.push(`    ctaHoverColor: "${cfg.ctaHoverColor}",`);
-  if (cfg.borderColor) lines.push(`    borderColor: "${cfg.borderColor}",`);
-  if (cfg.backgroundColor)
-    lines.push(`    backgroundColor: "${cfg.backgroundColor}",`);
-  lines.push(`  }}`);
-  const hasUiConfig =
-    cfg.maxDepositUsd !== undefined || cfg.minDepositUsd !== undefined;
-  if (hasUiConfig) {
-    lines.push(`  uiConfig={{`);
-    if (cfg.maxDepositUsd !== undefined)
-      lines.push(`    maxDepositUsd: ${cfg.maxDepositUsd},`);
-    if (cfg.minDepositUsd !== undefined)
-      lines.push(`    minDepositUsd: ${cfg.minDepositUsd},`);
-    lines.push(`  }}`);
-  }
-  lines.push(`  onLifecycle={(event) => console.log(event.type, event)}`);
-  lines.push(`/>`);
-  return lines.join("\n");
-}
-
-function buildWithdrawCodeString(cfg: {
-  safeAddress: string;
-  sourceChain: number;
-  sourceToken: string;
-  targetChain: number;
-  targetToken: string;
-  recipient: string;
-  ownerAddress: string;
-  rhinestoneApiKey?: string;
-  themeMode: string;
-  borderRadius: string;
-  brandTitle: string;
-  logoUrl: string;
-  prefilledAmount: string;
-  waitForFinalTx: boolean;
-  sessionChainIds?: number[];
-  showLogo: boolean;
-  showStepper: boolean;
-  balanceTitle: string;
-  balanceAmount: string;
-  fontColor: string;
-  iconColor: string;
-  ctaColor: string;
-  ctaHoverColor: string;
-  borderColor: string;
-  backgroundColor: string;
-}): string {
-  const lines = [
-    `import { WithdrawModal } from "@rhinestone/deposit-modal";`,
-    `import "@rhinestone/deposit-modal/styles.css";`,
-    ``,
-    `<WithdrawModal`,
-    `  isOpen={isOpen}`,
-    `  onClose={() => setIsOpen(false)}`,
-    `  safeAddress="${cfg.safeAddress}"`,
-    `  sourceChain={${cfg.sourceChain}}`,
-    `  sourceToken="${cfg.sourceToken}"`,
-    `  targetChain={${cfg.targetChain}}`,
-    `  targetToken="${cfg.targetToken}"`,
-    `  forceRegister={true}`,
-  ];
-  if (cfg.ownerAddress) {
-    lines.push(`  dappAddress="${cfg.ownerAddress}"`);
-  }
-  if (cfg.recipient) {
-    lines.push(`  recipient="${cfg.recipient}"`);
-  }
-  if (cfg.prefilledAmount) {
-    lines.push(`  defaultAmount="${cfg.prefilledAmount}"`);
-  }
-  if (!cfg.waitForFinalTx) {
-    lines.push(`  waitForFinalTx={false}`);
-  }
-  if (cfg.sessionChainIds && cfg.sessionChainIds.length > 0) {
-    lines.push(`  sessionChainIds={[${cfg.sessionChainIds.join(", ")}]}`);
-  }
-  if (cfg.rhinestoneApiKey) {
-    lines.push(`  rhinestoneApiKey="${cfg.rhinestoneApiKey}"`);
-  }
-  lines.push(`  theme={{`);
-  lines.push(`    mode: "${cfg.themeMode}",`);
-  lines.push(`    radius: "${cfg.borderRadius}",`);
-  if (cfg.fontColor) lines.push(`    fontColor: "${cfg.fontColor}",`);
-  if (cfg.iconColor) lines.push(`    iconColor: "${cfg.iconColor}",`);
-  if (cfg.ctaColor) lines.push(`    ctaColor: "${cfg.ctaColor}",`);
-  if (cfg.ctaHoverColor)
-    lines.push(`    ctaHoverColor: "${cfg.ctaHoverColor}",`);
-  if (cfg.borderColor) lines.push(`    borderColor: "${cfg.borderColor}",`);
-  if (cfg.backgroundColor)
-    lines.push(`    backgroundColor: "${cfg.backgroundColor}",`);
-  lines.push(`  }}`);
-  lines.push(`  onLifecycle={(event) => console.log(event.type, event)}`);
-  lines.push(`/>`);
-  return lines.join("\n");
-}
-
-/* ── Code Block ──────────────────────────────────────────── */
-
-function CodeBlock({ code }: { code: string }) {
+function CodeCard({ code }: { code: string }) {
   const [copied, setCopied] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     return () => {
@@ -1526,7 +1277,7 @@ function CodeBlock({ code }: { code: string }) {
     };
   }, []);
 
-  const handleCopy = useCallback(() => {
+  const copy = useCallback(() => {
     navigator.clipboard.writeText(code).then(() => {
       setCopied(true);
       if (timerRef.current) clearTimeout(timerRef.current);
@@ -1536,52 +1287,173 @@ function CodeBlock({ code }: { code: string }) {
 
   return (
     <div
-      className="relative group"
-      style={{ borderRadius: "var(--radius-sm)", overflow: "hidden" }}
+      className="w-full flex flex-col rounded-[16px] overflow-hidden"
+      style={{
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
+        boxShadow: "var(--shadow-widget)",
+        minHeight: 520,
+      }}
     >
-      <button
-        type="button"
-        onClick={handleCopy}
-        className="absolute top-2 right-2 flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium opacity-0 group-hover:opacity-100 transition-opacity"
+      <div
+        className="h-11 flex items-center justify-between px-4"
+        style={{ borderBottom: "1px solid var(--border)" }}
+      >
+        <span
+          className="text-[12px] font-mono"
+          style={{ color: "var(--text-tertiary)" }}
+        >
+          DepositModal.tsx
+        </span>
+        <button
+          type="button"
+          onClick={copy}
+          className="inline-flex items-center gap-1.5 px-2.5 h-7 text-[11px] font-medium rounded-[6px] transition-colors"
+          style={{
+            background: "var(--well)",
+            color: "var(--text-secondary)",
+          }}
+        >
+          {copied ? (
+            <>
+              <CheckIcon />
+              Copied
+            </>
+          ) : (
+            <>
+              <CopyIcon />
+              Copy
+            </>
+          )}
+        </button>
+      </div>
+      <pre
+        className="flex-1 m-0 px-4 py-4 font-mono text-[11.5px] leading-[1.7] overflow-auto"
         style={{
-          borderRadius: "var(--radius-sm)",
-          background: "rgba(255,255,255,0.1)",
-          color: "#a1a1aa",
+          background: "var(--surface)",
+          color: "var(--text-secondary)",
         }}
       >
-        {copied ? (
-          <>
-            <CheckIcon />
-            Copied
-          </>
-        ) : (
-          <>
-            <CopyIcon />
-            Copy
-          </>
-        )}
-      </button>
-      <pre
-        className="font-mono text-[10.5px] leading-[1.7] p-3 overflow-x-auto"
-        style={{ background: "#18181b", color: "#a1a1aa", margin: 0 }}
-      >
-        {code}
+        <code>{code}</code>
       </pre>
     </div>
   );
 }
 
-/* ── Icons ───────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────
+   Code generation
+   ───────────────────────────────────────────────────────────── */
 
-function RhinestoneLogo() {
+function buildModalCodeString(cfg: {
+  targetChain: number | "solana";
+  targetToken: string;
+  recipient: string;
+  ownerAddress: string;
+  rhinestoneApiKey?: string;
+  themeMode: "light" | "dark";
+  radiusToken: "none" | "sm" | "md" | "lg";
+  prefilledAmount: string;
+  waitForFinalTx: boolean;
+  sessionChainIds?: number[];
+  ctaColor: string;
+  fontColor: string;
+  iconColor: string;
+  backgroundColor: string;
+  showHistoryButton: boolean;
+  maxDeposit?: number;
+  minDeposit?: number;
+}): string {
+  const lines: string[] = [
+    `import { DepositModal } from "@rhinestone/deposit-modal";`,
+    `import "@rhinestone/deposit-modal/styles.css";`,
+    ``,
+    `<DepositModal`,
+    `  isOpen={isOpen}`,
+    `  onClose={() => setIsOpen(false)}`,
+    cfg.targetChain === "solana"
+      ? `  targetChain="solana"`
+      : `  targetChain={${cfg.targetChain}}`,
+    `  targetToken="${cfg.targetToken}"`,
+  ];
+  if (cfg.ownerAddress) lines.push(`  dappAddress="${cfg.ownerAddress}"`);
+  if (cfg.recipient) lines.push(`  recipient="${cfg.recipient}"`);
+  if (cfg.prefilledAmount)
+    lines.push(`  defaultAmount="${cfg.prefilledAmount}"`);
+  if (!cfg.waitForFinalTx) lines.push(`  waitForFinalTx={false}`);
+  if (cfg.sessionChainIds?.length)
+    lines.push(`  sessionChainIds={[${cfg.sessionChainIds.join(", ")}]}`);
+  if (cfg.rhinestoneApiKey)
+    lines.push(`  rhinestoneApiKey="${cfg.rhinestoneApiKey}"`);
+  lines.push(`  theme={{`);
+  lines.push(`    mode: "${cfg.themeMode}",`);
+  lines.push(`    radius: "${cfg.radiusToken}",`);
+  if (cfg.fontColor) lines.push(`    fontColor: "${cfg.fontColor}",`);
+  if (cfg.iconColor) lines.push(`    iconColor: "${cfg.iconColor}",`);
+  if (cfg.ctaColor) lines.push(`    ctaColor: "${cfg.ctaColor}",`);
+  if (cfg.backgroundColor)
+    lines.push(`    backgroundColor: "${cfg.backgroundColor}",`);
+  lines.push(`  }}`);
+  if (
+    cfg.showHistoryButton ||
+    cfg.maxDeposit !== undefined ||
+    cfg.minDeposit !== undefined
+  ) {
+    lines.push(`  uiConfig={{`);
+    if (cfg.showHistoryButton) lines.push(`    showHistoryButton: true,`);
+    if (cfg.maxDeposit !== undefined)
+      lines.push(`    maxDepositUsd: ${cfg.maxDeposit},`);
+    if (cfg.minDeposit !== undefined)
+      lines.push(`    minDepositUsd: ${cfg.minDeposit},`);
+    lines.push(`  }}`);
+  }
+  lines.push(`  onLifecycle={(event) => console.log(event.type, event)}`);
+  lines.push(`/>`);
+  return lines.join("\n");
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Icons
+   ───────────────────────────────────────────────────────────── */
+
+function RhinestoneWordmark() {
   return (
-    <img
-      src="https://github.com/rhinestonewtf.png"
-      alt="Rhinestone"
-      width={22}
-      height={22}
-      style={{ borderRadius: 5 }}
-    />
+    <svg
+      viewBox="0 0 153 34"
+      fill="none"
+      aria-label="Rhinestone"
+      role="img"
+      style={{ height: 22, width: "auto", color: "var(--text-primary)" }}
+    >
+      <g clipPath="url(#rh-clip)">
+        <path
+          opacity="0.5"
+          fillRule="evenodd"
+          clipRule="evenodd"
+          d="M22.2631 31.4818C20.8401 32.5897 19.217 33.4962 17.1864 33.619C16.8209 33.6412 16.4545 33.6411 16.0891 33.619C14.0585 33.4962 12.4353 32.5897 11.0124 31.4818C9.69078 30.4528 8.23999 29.0018 6.5894 27.351C6.54365 27.3053 6.49775 27.2594 6.45169 27.2133C6.40563 27.1673 6.35973 27.1214 6.31397 27.0756C4.66316 25.425 3.21217 23.9743 2.18317 22.6527C1.07527 21.2297 0.168761 19.6066 0.0459294 17.576C0.023826 17.2106 0.023826 16.8441 0.0459294 16.4787C0.168761 14.4481 1.07527 12.825 2.18317 11.402C3.21217 10.0804 4.66316 8.62965 6.31397 6.97907C6.35973 6.93332 6.40563 6.88742 6.45169 6.84136C6.49775 6.79531 6.54365 6.7494 6.5894 6.70365C8.23999 5.05284 9.69078 3.60187 11.0124 2.57287C12.4353 1.46498 14.0585 0.558472 16.0891 0.435642C16.4545 0.413538 16.8209 0.413537 17.1864 0.435641C19.217 0.558472 20.8401 1.46498 22.2631 2.57287C23.5847 3.60187 25.0355 5.05285 26.6861 6.70366C26.7318 6.74941 26.7777 6.79531 26.8238 6.84136C26.8698 6.88742 26.9157 6.93332 26.9615 6.97906C28.6123 8.62964 30.0633 10.0804 31.0923 11.402C32.2002 12.825 33.1067 14.4481 33.2295 16.4787C33.2516 16.8441 33.2516 17.2106 33.2295 17.576C33.1067 19.6066 32.2002 21.2297 31.0923 22.6527C30.0633 23.9743 28.6123 25.425 26.9615 27.0756C26.9157 27.1214 26.8698 27.1673 26.8238 27.2133C26.7777 27.2594 26.7318 27.3053 26.6861 27.351C25.0355 29.0018 23.5847 30.4528 22.2631 31.4818ZM3.36415 17.3752C3.49609 19.5565 5.26483 21.3253 8.80232 24.8627C12.3398 28.4002 14.1085 30.1689 16.2898 30.3008C16.5216 30.3149 16.7539 30.3149 16.9856 30.3008C19.1669 30.1689 20.9357 28.4002 24.4731 24.8627C28.0106 21.3253 29.7794 19.5565 29.9113 17.3752C29.9253 17.1435 29.9253 16.9112 29.9113 16.6794C29.7794 14.4982 28.0106 12.7294 24.4731 9.19197C20.9357 5.65451 19.1669 3.88578 16.9856 3.75384C16.7539 3.73982 16.5216 3.73982 16.2898 3.75384C14.1085 3.88578 12.3398 5.65451 8.80232 9.19198C5.26483 12.7294 3.49609 14.4982 3.36415 16.6794C3.35013 16.9112 3.35013 17.1435 3.36415 17.3752Z"
+          fill="currentColor"
+        />
+        <path
+          d="M7.77344 17.0249C7.77344 16.6627 8.02966 16.353 8.38185 16.2688C10.1682 15.8416 11.5749 15.173 12.756 14.1267C13.1035 13.8188 13.4321 13.4902 13.74 13.1426C14.7863 11.9616 15.4549 10.5549 15.8821 8.76856C15.9663 8.41638 16.2761 8.16016 16.6382 8.16016C17.0003 8.16016 17.3101 8.41637 17.3943 8.76856C17.8215 10.5549 18.4901 11.9616 19.5364 13.1427C19.8443 13.4902 20.1729 13.8188 20.5204 14.1267C21.7015 15.173 23.1082 15.8416 24.8946 16.2688C25.2467 16.353 25.503 16.6627 25.503 17.0249C25.503 17.387 25.2467 17.6967 24.8946 17.781C23.1082 18.2082 21.7015 18.8767 20.5204 19.9231C20.1729 20.2309 19.8443 20.5595 19.5364 20.9071C18.4901 22.0881 17.8215 23.4948 17.3943 25.2812C17.3101 25.6334 17.0003 25.8896 16.6382 25.8896C16.2761 25.8896 15.9663 25.6334 15.8821 25.2812C15.4549 23.4948 14.7863 22.0881 13.74 20.9071C13.4321 20.5595 13.1035 20.2309 12.756 19.9231C11.5749 18.8767 10.1682 18.2082 8.38185 17.781C8.02966 17.6967 7.77344 17.387 7.77344 17.0249Z"
+          fill="currentColor"
+        />
+      </g>
+      <path d="M64.002 9.71077C64.002 10.7986 64.8193 11.5692 66.0451 11.5692C67.271 11.5692 68.0655 10.7986 68.0655 9.71077C68.0655 8.60024 67.271 7.875 66.0451 7.875C64.8193 7.875 64.002 8.60024 64.002 9.71077Z" fill="currentColor" />
+      <path d="M64.4107 12.7704V24.1023H67.6796V12.7704H64.4107Z" fill="currentColor" />
+      <path d="M55.062 24.1023H51.793V8.23762H55.062V14.5835C55.5841 13.4956 56.7646 12.4304 58.4445 12.4304C61.1913 12.4304 62.4399 14.1982 62.4399 17.2805V24.1023H59.1709V17.6431C59.1709 16.0113 58.4445 15.1728 57.1959 15.1728C55.7884 15.1728 55.062 16.306 55.062 17.9378V24.1023Z" fill="currentColor" />
+      <path d="M45.6205 24.1023H42.3516V12.7704H45.6205L45.0449 15.3703C45.0107 15.5249 45.1283 15.6714 45.2866 15.6714V15.6714C45.4022 15.6714 45.5018 15.591 45.5321 15.4794C46.0193 13.6887 47.49 12.5891 49.003 12.5891C49.5932 12.5891 49.9564 12.6344 50.2061 12.6797V15.694C49.9791 15.6714 49.23 15.6261 48.7987 15.6261C47.3685 15.6261 45.6205 16.2833 45.6205 19.8642V24.1023Z" fill="currentColor" />
+      <path d="M73.2334 24.1023H69.9645V12.7704H73.2334L73.188 14.6742C73.7101 13.5636 74.936 12.4304 76.6159 12.4304C79.3627 12.4304 80.6113 14.1982 80.6113 17.2805V24.1023H77.3423V17.6431C77.3423 16.0113 76.6159 15.1728 75.3673 15.1728C73.9599 15.1728 73.2334 16.306 73.2334 17.9378V24.1023Z" fill="currentColor" />
+      <path fillRule="evenodd" clipRule="evenodd" d="M82.313 18.459C82.313 21.9266 84.4696 24.465 88.0791 24.465C91.2799 24.465 92.9825 22.7198 93.4819 20.7934L90.44 20.2268C90.2357 21.0201 89.4411 21.9719 88.0564 21.9719C86.6262 21.9719 85.4457 20.7028 85.423 19.1843H93.5046C93.5727 18.9123 93.6181 18.527 93.6181 18.0058C93.6181 14.7195 91.1664 12.4078 88.1018 12.4078C84.9009 12.4078 82.313 14.9688 82.313 18.459ZM90.44 17.2352H85.5365C85.6046 15.83 86.7624 14.8328 88.0564 14.8328C89.3276 14.8328 90.4854 15.7847 90.44 17.2352Z" fill="currentColor" />
+      <path d="M100.091 24.465C97.5261 24.465 95.1425 23.5811 94.6658 20.9521L97.7077 20.4988C98.0709 21.6773 98.8882 22.1759 100.046 22.1759C101.113 22.1759 101.68 21.6773 101.68 21.0201C101.68 20.4535 101.249 20.0682 100.091 19.8415L99.0244 19.6149C96.7089 19.139 95.256 18.0738 95.256 16.1926C95.256 13.9489 97.2083 12.4078 100.046 12.4078C102.725 12.4078 104.7 13.6543 104.972 15.9887L101.976 16.442C101.839 15.3314 101.067 14.6968 100.046 14.6968C99.0017 14.6968 98.4568 15.2634 98.4568 15.9207C98.4568 16.4419 98.8201 16.8046 99.7962 17.0085L100.863 17.2125C103.565 17.7565 104.972 18.8443 104.972 20.9294C104.972 23.0825 102.793 24.465 100.091 24.465Z" fill="currentColor" />
+      <path fillRule="evenodd" clipRule="evenodd" d="M115.69 18.4364C115.69 21.7 117.983 24.465 121.592 24.465C125.202 24.465 127.517 21.7 127.517 18.4364C127.517 15.1501 125.202 12.4078 121.592 12.4078C117.983 12.4078 115.69 15.1501 115.69 18.4364ZM124.225 18.4364C124.225 20.5215 122.977 21.5187 121.592 21.5187C120.23 21.5187 118.981 20.5215 118.981 18.4364C118.981 16.374 120.23 15.3314 121.592 15.3314C122.977 15.3314 124.225 16.3513 124.225 18.4364Z" fill="currentColor" />
+      <path d="M132.615 24.1023H129.347V12.7704H132.615L132.57 14.6742C133.092 13.5636 134.318 12.4304 135.998 12.4304C138.745 12.4304 139.993 14.1982 139.993 17.2805V24.1023H136.724V17.6431C136.724 16.0113 135.998 15.1728 134.749 15.1728C133.342 15.1728 132.615 16.306 132.615 17.9378V24.1023Z" fill="currentColor" />
+      <path fillRule="evenodd" clipRule="evenodd" d="M141.695 18.459C141.695 21.9266 143.852 24.465 147.461 24.465C150.662 24.465 152.365 22.7198 152.864 20.7934L149.822 20.2268C149.618 21.0201 148.823 21.9719 147.438 21.9719C146.008 21.9719 144.828 20.7028 144.805 19.1843H152.887C152.955 18.9123 153 18.527 153 18.0058C153 14.7195 150.548 12.4078 147.484 12.4078C144.283 12.4078 141.695 14.9688 141.695 18.459ZM149.822 17.2352H144.919C144.987 15.83 146.144 14.8328 147.438 14.8328C148.71 14.8328 149.867 15.7847 149.822 17.2352Z" fill="currentColor" />
+      <path d="M111.439 19.2284V15.4317H114.682V12.7501H111.439V9.39258H108.189V12.7501H105.834V15.4317H108.189L108.189 19.0361C108.189 19.054 108.189 19.0726 108.189 19.0918C108.189 19.1712 108.189 19.357 108.189 19.357C108.189 19.6677 108.172 20.0467 108.219 20.399C108.3 20.9983 108.535 21.9684 109.372 22.8036C110.208 23.6387 111.18 23.8733 111.78 23.9538C112.246 24.0163 112.764 24.0155 113.092 24.0149L114.483 24.0177V20.9718H113.169C112.346 20.9718 111.934 20.9718 111.678 20.7165C111.438 20.4762 111.438 20.0981 111.439 19.3693C111.439 19.3237 111.439 19.2768 111.439 19.2284Z" fill="currentColor" />
+      <defs>
+        <clipPath id="rh-clip">
+          <rect width="34" height="34" fill="white" />
+        </clipPath>
+      </defs>
+    </svg>
   );
 }
 
@@ -1595,7 +1467,6 @@ function MenuIcon() {
       stroke="currentColor"
       strokeWidth="2"
       strokeLinecap="round"
-      strokeLinejoin="round"
     >
       <line x1="3" y1="6" x2="21" y2="6" />
       <line x1="3" y1="12" x2="21" y2="12" />
@@ -1604,7 +1475,7 @@ function MenuIcon() {
   );
 }
 
-function ExternalLinkIcon() {
+function ArrowUpRightIcon() {
   return (
     <svg
       width="12"
@@ -1616,37 +1487,17 @@ function ExternalLinkIcon() {
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
-      <polyline points="15 3 21 3 21 9" />
-      <line x1="10" y1="14" x2="21" y2="3" />
+      <line x1="7" y1="17" x2="17" y2="7" />
+      <polyline points="7 7 17 7 17 17" />
     </svg>
   );
 }
 
-function WalletIcon() {
+function ArrowLeftIcon() {
   return (
     <svg
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="var(--text-tertiary)"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M21 12V7H5a2 2 0 010-4h14v4" />
-      <path d="M3 5v14a2 2 0 002 2h16v-5" />
-      <path d="M18 12a2 2 0 100 4h4v-4h-4z" />
-    </svg>
-  );
-}
-
-function CopyIcon() {
-  return (
-    <svg
-      width="10"
-      height="10"
+      width="14"
+      height="14"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -1654,25 +1505,8 @@ function CopyIcon() {
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg
-      width="10"
-      height="10"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <polyline points="20 6 9 17 4 12" />
+      <line x1="19" y1="12" x2="5" y2="12" />
+      <polyline points="12 19 5 12 12 5" />
     </svg>
   );
 }
@@ -1692,5 +1526,133 @@ function CodeIcon() {
       <polyline points="16 18 22 12 16 6" />
       <polyline points="8 6 2 12 8 18" />
     </svg>
+  );
+}
+
+function CopyIcon() {
+  return (
+    <svg
+      width="11"
+      height="11"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+
+function ChevronDownIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="shrink-0 transition-transform"
+      style={{
+        transform: open ? "rotate(180deg)" : "rotate(0deg)",
+        color: "var(--text-tertiary)",
+      }}
+    >
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  );
+}
+
+function SunIcon() {
+  return (
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="4" />
+      <line x1="12" y1="2" x2="12" y2="4" />
+      <line x1="12" y1="20" x2="12" y2="22" />
+      <line x1="4.93" y1="4.93" x2="6.34" y2="6.34" />
+      <line x1="17.66" y1="17.66" x2="19.07" y2="19.07" />
+      <line x1="2" y1="12" x2="4" y2="12" />
+      <line x1="20" y1="12" x2="22" y2="12" />
+      <line x1="4.93" y1="19.07" x2="6.34" y2="17.66" />
+      <line x1="17.66" y1="6.34" x2="19.07" y2="4.93" />
+    </svg>
+  );
+}
+
+function MoonIcon() {
+  return (
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+    </svg>
+  );
+}
+
+function InfoIcon({ tooltip }: { tooltip: string }) {
+  return (
+    <span className="relative inline-flex group/info">
+      <span
+        className="inline-flex items-center justify-center size-[14px] rounded-full text-[9px] font-bold"
+        style={{
+          background: "var(--well)",
+          color: "var(--text-tertiary)",
+        }}
+      >
+        i
+      </span>
+      <span
+        className="absolute left-0 top-full mt-1.5 z-10 w-52 p-2 text-[11px] leading-snug opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-opacity"
+        style={{
+          background: "var(--surface)",
+          color: "var(--text-secondary)",
+          border: "1px solid var(--border)",
+          borderRadius: 8,
+          boxShadow: "var(--shadow-md)",
+          fontWeight: 400,
+        }}
+      >
+        {tooltip}
+      </span>
+    </span>
   );
 }
