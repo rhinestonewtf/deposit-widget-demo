@@ -142,9 +142,7 @@ export default function Home() {
   const [waitForFinalTx, setWaitForFinalTx] = useState(true);
   const [enableM0, setEnableM0] = useState(false);
 
-  // Local-test default: limit session chains so the local processor (public RPC,
-  // no RPC proxy) doesn't fan out session derivation across all ~10 chains (hangs).
-  const [useCustomSessionChains, setUseCustomSessionChains] = useState(true);
+  const [useCustomSessionChains, setUseCustomSessionChains] = useState(false);
   const [customSessionChainIds, setCustomSessionChainIds] = useState<number[]>([
     8453, 42161, 10,
   ]);
