@@ -4,8 +4,11 @@ import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import {
   NATIVE_TOKEN_ADDRESS,
   SOURCE_CHAINS,
+  SOLANA_TOKENS,
   getTokenAddress,
   getSupportedTokenSymbolsForChain,
+  getSolanaTokenByMint,
+  getSolanaTokenBySymbol,
 } from "@rhinestone/deposit-modal/constants";
 import {
   DepositModal,
@@ -28,15 +31,8 @@ const M0_OUTPUT_TOKEN =
 
 const MAINNET_CHAIN_IDS = new Set([1, 8453, 42161, 10, 137, 56, 1868, 9745]);
 
-// Solana destination tokens (mint addresses; "native" = SOL).
-const SOLANA_DEST_TOKENS: Record<string, string> = {
-  USDC: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-  USDT: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
-  SOL: "So11111111111111111111111111111111111111112",
-};
-
 function getSelectableSymbolsForChain(chainId: number | "solana"): string[] {
-  if (chainId === "solana") return Object.keys(SOLANA_DEST_TOKENS);
+  if (chainId === "solana") return SOLANA_TOKENS.map((t) => t.symbol);
   return getSupportedTokenSymbolsForChain(chainId).filter((symbol) => {
     if (symbol.toUpperCase() === "ETH") return true;
     return Boolean(getTokenAddress(symbol, chainId));
@@ -80,8 +76,7 @@ function resolveTokenAddress(
   chainId: number | "solana",
   symbol: string,
 ): string {
-  if (chainId === "solana")
-    return SOLANA_DEST_TOKENS[symbol.toUpperCase()] ?? "native";
+  if (chainId === "solana") return getSolanaTokenBySymbol(symbol)?.mint ?? "native";
   if (symbol.toUpperCase() === "ETH") return NATIVE_TOKEN_ADDRESS;
   return getTokenAddress(symbol, chainId) ?? NATIVE_TOKEN_ADDRESS;
 }
@@ -92,12 +87,7 @@ function tokenForChain(chainId: number): string {
 }
 
 function symbolForToken(chainId: number | "solana", token: string): string {
-  if (chainId === "solana") {
-    const match = Object.entries(SOLANA_DEST_TOKENS).find(
-      ([, mint]) => mint === token,
-    );
-    return match?.[0] ?? "USDC";
-  }
+  if (chainId === "solana") return getSolanaTokenByMint(token)?.symbol ?? "USDC";
   if (token.toLowerCase() === NATIVE_TOKEN_ADDRESS.toLowerCase()) return "ETH";
   const symbols = getSelectableSymbolsForChain(chainId);
   const matched = symbols.find(
