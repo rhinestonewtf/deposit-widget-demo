@@ -39,12 +39,17 @@ function getSelectableSymbolsForChain(chainId: number | "solana"): string[] {
   });
 }
 
+// EVM-only chain options — for selectors that can't accept a Solana value
+// (withdraw source, session chains, etc. — sessions are always EVM).
+const EVM_CHAIN_OPTIONS: { id: number; label: string }[] = SOURCE_CHAINS.filter(
+  (chain) =>
+    MAINNET_CHAIN_IDS.has(chain.id) &&
+    getSelectableSymbolsForChain(chain.id).length > 0,
+).map((chain) => ({ id: chain.id, label: chain.name }));
+
+// Full chain options including Solana — for the destination selector only.
 const CHAIN_OPTIONS: { id: number | "solana"; label: string }[] = [
-  ...SOURCE_CHAINS.filter(
-    (chain) =>
-      MAINNET_CHAIN_IDS.has(chain.id) &&
-      getSelectableSymbolsForChain(chain.id).length > 0,
-  ).map((chain) => ({ id: chain.id as number | "solana", label: chain.name })),
+  ...EVM_CHAIN_OPTIONS,
   { id: "solana", label: "Solana" },
 ];
 
@@ -210,7 +215,7 @@ export default function Home() {
   );
 
   const availableSessionChainIds = useMemo(
-    () => CHAIN_OPTIONS.map((chain) => chain.id),
+    () => EVM_CHAIN_OPTIONS.map((chain) => chain.id),
     [],
   );
 
@@ -385,7 +390,7 @@ export default function Home() {
                   <Select
                     value={String(sourceChain)}
                     onChange={(v) => handleSourceChainChange(Number(v))}
-                    options={CHAIN_OPTIONS.map((chain) => ({
+                    options={EVM_CHAIN_OPTIONS.map((chain) => ({
                       value: String(chain.id),
                       label: chain.label,
                     }))}
@@ -526,10 +531,7 @@ export default function Home() {
               {useCustomSessionChains && (
                 <div className="p-2.5">
                   <div className="flex flex-wrap gap-1.5">
-                    {CHAIN_OPTIONS.filter(
-                      (c): c is { id: number; label: string } =>
-                        c.id !== "solana",
-                    ).map((chain) => {
+                    {EVM_CHAIN_OPTIONS.map((chain) => {
                       const selected = customSessionChainIds.includes(chain.id);
                       return (
                         <button
