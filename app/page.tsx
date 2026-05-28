@@ -12,8 +12,11 @@ import {
 import {
   NATIVE_TOKEN_ADDRESS,
   SOURCE_CHAINS,
+  SOLANA_TOKENS,
   getTokenAddress,
   getSupportedTokenSymbolsForChain,
+  getSolanaTokenByMint,
+  getSolanaTokenBySymbol,
 } from "@rhinestone/deposit-modal/constants";
 import {
   DepositModal,
@@ -29,21 +32,27 @@ const DEFAULT_OWNER_ADDRESS = "0x0197d7FaFCA118Bc91f6854B9A2ceea94E676585";
 
 const MAINNET_CHAIN_IDS = new Set([1, 8453, 42161, 10, 137, 56, 1868, 9745]);
 
-function getSelectableSymbolsForChain(chainId: number): string[] {
+function getSelectableSymbolsForChain(chainId: number | "solana"): string[] {
+  if (chainId === "solana") return SOLANA_TOKENS.map((t) => t.symbol);
   return getSupportedTokenSymbolsForChain(chainId).filter((symbol) => {
     if (symbol.toUpperCase() === "ETH") return true;
     return Boolean(getTokenAddress(symbol, chainId));
   });
 }
 
-const CHAIN_OPTIONS = SOURCE_CHAINS.filter(
+// EVM-only chain options — for selectors that can't accept a Solana value
+// (session chains are always EVM).
+const EVM_CHAIN_OPTIONS: { id: number; label: string }[] = SOURCE_CHAINS.filter(
   (chain) =>
     MAINNET_CHAIN_IDS.has(chain.id) &&
     getSelectableSymbolsForChain(chain.id).length > 0,
-).map((chain) => ({
-  id: chain.id,
-  label: chain.name,
-}));
+).map((chain) => ({ id: chain.id, label: chain.name }));
+
+// Full chain options including Solana — for the destination selector only.
+const CHAIN_OPTIONS: { id: number | "solana"; label: string }[] = [
+  ...EVM_CHAIN_OPTIONS,
+  { id: "solana", label: "Solana" },
+];
 
 const COLOR_PRESETS = [
   { label: "Zinc", value: "#18181b" },
@@ -81,12 +90,18 @@ function pxToRadius(px: number): "none" | "sm" | "md" | "lg" {
   return closest.value;
 }
 
-function resolveTokenAddress(chainId: number, symbol: string): string {
+function resolveTokenAddress(
+  chainId: number | "solana",
+  symbol: string,
+): string {
+  if (chainId === "solana")
+    return getSolanaTokenBySymbol(symbol)?.mint ?? "native";
   if (symbol.toUpperCase() === "ETH") return NATIVE_TOKEN_ADDRESS;
   return getTokenAddress(symbol, chainId) ?? NATIVE_TOKEN_ADDRESS;
 }
 
-function symbolForToken(chainId: number, token: string): string {
+function symbolForToken(chainId: number | "solana", token: string): string {
+  if (chainId === "solana") return getSolanaTokenByMint(token)?.symbol ?? "USDC";
   if (token.toLowerCase() === NATIVE_TOKEN_ADDRESS.toLowerCase()) return "ETH";
   const symbols = getSelectableSymbolsForChain(chainId);
   const matched = symbols.find(
@@ -120,7 +135,7 @@ type ThemeMode = "light" | "dark" | "system";
 
 export default function Home() {
   /* widget */
-  const [targetChain, setTargetChain] = useState(8453);
+  const [targetChain, setTargetChain] = useState<number | "solana">(8453);
   const [targetToken, setTargetToken] = useState(
     resolveTokenAddress(8453, "USDC"),
   );
@@ -173,7 +188,7 @@ export default function Home() {
   }, [previewTheme]);
 
   const handleChainChange = useCallback(
-    (chainId: number) => {
+    (chainId: number | "solana") => {
       const nextSymbols = getSelectableSymbolsForChain(chainId);
       if (nextSymbols.length === 0) return;
       const previousSymbol = symbolForToken(targetChain, targetToken);
@@ -199,7 +214,7 @@ export default function Home() {
   );
 
   const availableSessionChainIds = useMemo(
-    () => CHAIN_OPTIONS.map((chain) => chain.id),
+    () => EVM_CHAIN_OPTIONS.map((chain) => chain.id),
     [],
   );
 
@@ -209,7 +224,9 @@ export default function Home() {
     const filtered = customSessionChainIds.filter((chainId) =>
       allowed.has(chainId),
     );
-    return filtered.length > 0 ? filtered : [targetChain];
+    if (filtered.length > 0) return filtered;
+    // Sessions are EVM-only; a Solana destination has no session chain.
+    return typeof targetChain === "number" ? [targetChain] : [];
   }, [scope, availableSessionChainIds, customSessionChainIds, targetChain]);
 
   const toggleSessionChain = useCallback((chainId: number) => {
@@ -518,42 +535,68 @@ export default function Home() {
                         overflow: "hidden",
                       }}
                     >
-                      <DepositModal
-                        key={componentKey}
-                        isOpen={true}
-                        onClose={() => setWidgetState("closing")}
-                        debug={true}
-                        solanaRpcUrl={solanaRpcUrl}
-                        dappAddress={
-                          isAddress(ownerAddress, { strict: false })
-                            ? (ownerAddress as Address)
-                            : undefined
-                        }
-                        reownAppId={reownProjectId}
-                        targetChain={targetChain}
-                        targetToken={targetToken as Address}
-                        recipient={(recipient as Address) || undefined}
-                        defaultAmount={prefilledAmount || undefined}
-                        sessionChainIds={sessionChainIds}
-                        waitForFinalTx={waitForFinalTx}
-                        theme={{
-                          mode: previewTheme,
-                          radius: radiusToken,
-                          fontColor: primaryText || undefined,
-                          iconColor: secondaryText || undefined,
-                          ctaColor: effectiveAccent || undefined,
-                          backgroundColor: backgroundColor || undefined,
-                        }}
-                        uiConfig={{
-                          showHistoryButton,
-                          maxDepositUsd: maxDeposit,
-                          minDepositUsd: minDeposit,
-                        }}
-                        dappImports={{ polymarket: true }}
-                        onLifecycle={onDepositLifecycle}
-                        onError={onError}
-                        inline={true}
-                      />
+                      {targetChain === "solana" &&
+                      !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(
+                        (recipient ?? "").trim(),
+                      ) ? (
+                        <div
+                          className="flex flex-col items-center justify-center text-center gap-2 px-6"
+                          style={{
+                            background: "var(--surface)",
+                            color: "var(--text-tertiary)",
+                            height: 500,
+                          }}
+                        >
+                          <div
+                            className="text-[13px] font-medium"
+                            style={{ color: "var(--text-primary)" }}
+                          >
+                            Enter a Solana recipient to continue
+                          </div>
+                          <div className="text-[12px]">
+                            Solana destinations require a base58 recipient (32-44
+                            chars). Type one into the Recipient field, then the
+                            deposit modal will render.
+                          </div>
+                        </div>
+                      ) : (
+                        <DepositModal
+                          key={componentKey}
+                          isOpen={true}
+                          onClose={() => setWidgetState("closing")}
+                          debug={true}
+                          solanaRpcUrl={solanaRpcUrl}
+                          dappAddress={
+                            isAddress(ownerAddress, { strict: false })
+                              ? (ownerAddress as Address)
+                              : undefined
+                          }
+                          reownAppId={reownProjectId}
+                          targetChain={targetChain}
+                          targetToken={targetToken as Address}
+                          recipient={(recipient as Address) || undefined}
+                          defaultAmount={prefilledAmount || undefined}
+                          sessionChainIds={sessionChainIds}
+                          waitForFinalTx={waitForFinalTx}
+                          theme={{
+                            mode: previewTheme,
+                            radius: radiusToken,
+                            fontColor: primaryText || undefined,
+                            iconColor: secondaryText || undefined,
+                            ctaColor: effectiveAccent || undefined,
+                            backgroundColor: backgroundColor || undefined,
+                          }}
+                          uiConfig={{
+                            showHistoryButton,
+                            maxDepositUsd: maxDeposit,
+                            minDepositUsd: minDeposit,
+                          }}
+                          dappImports={{ polymarket: true }}
+                          onLifecycle={onDepositLifecycle}
+                          onError={onError}
+                          inline={true}
+                        />
+                      )}
                     </div>
                     )}
                   </div>
@@ -653,8 +696,8 @@ function LaunchWidgetCard({ onLaunch }: { onLaunch: () => void }) {
    ───────────────────────────────────────────────────────────── */
 
 function WidgetTab(props: {
-  targetChain: number;
-  onChainChange: (chainId: number) => void;
+  targetChain: number | "solana";
+  onChainChange: (chainId: number | "solana") => void;
   targetToken: string;
   onTokenChange: (symbol: string) => void;
   prefilledAmount: string;
@@ -673,7 +716,9 @@ function WidgetTab(props: {
       <Field label="Default chain">
         <SelectInput
           value={String(props.targetChain)}
-          onChange={(v) => props.onChainChange(Number(v))}
+          onChange={(v) =>
+            props.onChainChange(v === "solana" ? "solana" : Number(v))
+          }
           placeholder="Select"
           options={CHAIN_OPTIONS.map((c) => ({
             value: String(c.id),
@@ -728,7 +773,7 @@ function WidgetTab(props: {
       </Field>
       {props.scope === "custom" && (
         <div className="flex flex-wrap gap-1.5">
-          {CHAIN_OPTIONS.map((chain) => {
+          {EVM_CHAIN_OPTIONS.map((chain) => {
             const selected = props.customSessionChainIds.includes(chain.id);
             return (
               <button
@@ -1300,7 +1345,7 @@ function CodeCard({ code }: { code: string }) {
    ───────────────────────────────────────────────────────────── */
 
 function buildModalCodeString(cfg: {
-  targetChain: number;
+  targetChain: number | "solana";
   targetToken: string;
   recipient: string;
   ownerAddress: string;
@@ -1325,7 +1370,9 @@ function buildModalCodeString(cfg: {
     `<DepositModal`,
     `  isOpen={isOpen}`,
     `  onClose={() => setIsOpen(false)}`,
-    `  targetChain={${cfg.targetChain}}`,
+    cfg.targetChain === "solana"
+      ? `  targetChain="solana"`
+      : `  targetChain={${cfg.targetChain}}`,
     `  targetToken="${cfg.targetToken}"`,
   ];
   if (cfg.ownerAddress) lines.push(`  dappAddress="${cfg.ownerAddress}"`);
