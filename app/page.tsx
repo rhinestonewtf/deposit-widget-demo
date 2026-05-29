@@ -142,7 +142,6 @@ export default function Home() {
   const [prefilledAmount, setPrefilledAmount] = useState("");
   const [recipient, setRecipient] = useState("");
   const [recipientManuallyEdited, setRecipientManuallyEdited] = useState(false);
-  const [waitForFinalTx, setWaitForFinalTx] = useState(true);
   const [scope, setScope] = useState<"auto" | "custom">("auto");
   const [ownerAddress, setOwnerAddress] = useState(DEFAULT_OWNER_ADDRESS);
   const [customSessionChainIds, setCustomSessionChainIds] = useState<number[]>([
@@ -248,7 +247,6 @@ export default function Home() {
     targetChain,
     targetToken,
     prefilledAmount,
-    waitForFinalTx,
     scope,
     customSessionChainIds.join(","),
     showHistoryButton,
@@ -267,7 +265,6 @@ export default function Home() {
         themeMode: previewTheme,
         radiusToken,
         prefilledAmount,
-        waitForFinalTx,
         sessionChainIds,
         ctaColor: effectiveAccent,
         fontColor: primaryText,
@@ -286,7 +283,6 @@ export default function Home() {
       previewTheme,
       radiusToken,
       prefilledAmount,
-      waitForFinalTx,
       sessionChainIds,
       effectiveAccent,
       primaryText,
@@ -414,8 +410,6 @@ export default function Home() {
                     setRecipient(v);
                     setRecipientManuallyEdited(true);
                   }}
-                  waitForFinalTx={waitForFinalTx}
-                  setWaitForFinalTx={setWaitForFinalTx}
                   scope={scope}
                   setScope={setScope}
                   customSessionChainIds={customSessionChainIds}
@@ -577,7 +571,6 @@ export default function Home() {
                           recipient={(recipient as Address) || undefined}
                           defaultAmount={prefilledAmount || undefined}
                           sessionChainIds={sessionChainIds}
-                          waitForFinalTx={waitForFinalTx}
                           theme={{
                             mode: previewTheme,
                             radius: radiusToken,
@@ -704,8 +697,6 @@ function WidgetTab(props: {
   setPrefilledAmount: (v: string) => void;
   recipient: string;
   setRecipient: (v: string) => void;
-  waitForFinalTx: boolean;
-  setWaitForFinalTx: (v: boolean) => void;
   scope: "auto" | "custom";
   setScope: (v: "auto" | "custom") => void;
   customSessionChainIds: number[];
@@ -753,13 +744,6 @@ function WidgetTab(props: {
           mono
         />
       </Field>
-      <ToggleRow
-        label="Wait for final tx"
-        tooltip="For faster confirmation, Rhinestone marks intents complete on solver pre-confirmation."
-        checked={props.waitForFinalTx}
-        onChange={props.setWaitForFinalTx}
-      />
-
       <SectionLabel>SESSION SIGNING</SectionLabel>
       <Field label="Scope">
         <SelectInput
@@ -1353,7 +1337,6 @@ function buildModalCodeString(cfg: {
   themeMode: "light" | "dark";
   radiusToken: "none" | "sm" | "md" | "lg";
   prefilledAmount: string;
-  waitForFinalTx: boolean;
   sessionChainIds?: number[];
   ctaColor: string;
   fontColor: string;
@@ -1379,7 +1362,6 @@ function buildModalCodeString(cfg: {
   if (cfg.recipient) lines.push(`  recipient="${cfg.recipient}"`);
   if (cfg.prefilledAmount)
     lines.push(`  defaultAmount="${cfg.prefilledAmount}"`);
-  if (!cfg.waitForFinalTx) lines.push(`  waitForFinalTx={false}`);
   if (cfg.sessionChainIds?.length)
     lines.push(`  sessionChainIds={[${cfg.sessionChainIds.join(", ")}]}`);
   if (cfg.rhinestoneApiKey)

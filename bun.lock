@@ -1,6 +1,5 @@
 {
   "lockfileVersion": 1,
-  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "deposit-widget-demo",
@@ -8,7 +7,7 @@
         "@reown/appkit": "^1.8.19",
         "@reown/appkit-adapter-solana": "^1.8.19",
         "@reown/appkit-adapter-wagmi": "^1.8.19",
-        "@rhinestone/deposit-modal": "0.3.0-alpha.9",
+        "@rhinestone/deposit-modal": "0.3.0-alpha.10",
         "@rhinestone/sdk": "^1.2.14",
         "@solana/spl-token": "^0.4.14",
         "@solana/web3.js": "^1.98.4",
@@ -278,7 +277,7 @@
 
     "@reown/appkit-wallet": ["@reown/appkit-wallet@1.8.19", "", { "dependencies": { "@reown/appkit-common": "1.8.19", "@reown/appkit-polyfills": "1.8.19", "@walletconnect/logger": "3.0.2", "zod": "3.22.4" } }, "sha512-NVdIKceUhkXYtsG32925ctmVn0QJFNyDlr+mWheMLCEZ/IUPn+6aA53vTVaSUquhyeFxUXtrCOh3ln6v1tup5w=="],
 
-    "@rhinestone/deposit-modal": ["@rhinestone/deposit-modal@0.3.0-alpha.9", "", { "dependencies": { "lucide-react": "^1.14.0", "react-qrcode-logo": "^4.0.0", "zustand": "^5" }, "peerDependencies": { "@reown/appkit": ">=1.6.0", "@reown/appkit-adapter-solana": ">=1.6.0", "@reown/appkit-adapter-wagmi": ">=1.6.0", "@solana/spl-token": ">=0.4", "@solana/web3.js": ">=1", "@tanstack/react-query": ">=5", "react": ">=18", "react-dom": ">=18", "viem": ">=2", "wagmi": ">=3" }, "optionalPeers": ["@reown/appkit-adapter-solana", "@solana/spl-token", "@solana/web3.js"] }, "sha512-Zhk6J7Bwy6u/j/rpJ4Mcgr3mJ9os+74XUqkIhXTPBylQItukAHCBbWesfBBg2/SLfz8Txu09A034lds7fI3ONw=="],
+    "@rhinestone/deposit-modal": ["@rhinestone/deposit-modal@0.3.0-alpha.10", "", { "dependencies": { "lucide-react": "^1.14.0", "react-qrcode-logo": "^4.0.0", "zustand": "^5" }, "peerDependencies": { "@reown/appkit": ">=1.6.0", "@reown/appkit-adapter-solana": ">=1.6.0", "@reown/appkit-adapter-wagmi": ">=1.6.0", "@solana/spl-token": ">=0.4", "@solana/web3.js": ">=1", "@tanstack/react-query": ">=5", "react": ">=18", "react-dom": ">=18", "viem": ">=2", "wagmi": ">=3" }, "optionalPeers": ["@reown/appkit-adapter-solana", "@solana/spl-token", "@solana/web3.js"] }, "sha512-ULM2ReqPu3PYZXHTJBTa3SuDsuJ3brq8uMuHkp+MKJjbLLE+/jB0P/awu2ze1M4jVzQAXmIb/U1uwYpUW3KcWg=="],
 
     "@rhinestone/sdk": ["@rhinestone/sdk@1.2.14", "", { "dependencies": { "@rhinestone/shared-configs": "1.4.97", "ox": "^0.11.3", "solady": "^0.1.26" }, "peerDependencies": { "viem": "^2.38.0" } }, "sha512-sEuiwc2MDKKylaJysuG7fzFe9k48HQt2wHfqf0P30A9JNDjrgQ6InFFzb+12ZJPFIISTg5R8ejG7dEjpVhnOug=="],
 
