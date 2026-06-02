@@ -90,6 +90,18 @@ function pxToRadius(px: number): "none" | "sm" | "md" | "lg" {
   return closest.value;
 }
 
+// The radius the modal applies to its outer container per theme token — mirror
+// of RADIUS_SCALE[*].lg in @rhinestone/deposit-modal's theme. The preview
+// wrapper rounds to the same value so its drop shadow hugs the modal instead of
+// detaching at the corners (the wrapper used to hardcode 16px, which never
+// matched the modal's actual radius).
+const MODAL_OUTER_RADIUS_PX: Record<"none" | "sm" | "md" | "lg", number> = {
+  none: 0,
+  sm: 8,
+  md: 14,
+  lg: 18,
+};
+
 function resolveTokenAddress(
   chainId: number | "solana",
   symbol: string,
@@ -317,15 +329,16 @@ export default function Home() {
           href="https://docs.rhinestone.dev/deposits/overview"
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 px-3 h-8 text-[12px] font-medium rounded-[8px] transition-colors"
+          className="inline-flex items-center gap-2 px-3.5 h-9 text-[13px] font-medium rounded-[8px] transition-colors"
           style={{
-            color: "var(--text-primary)",
-            border: "1px solid var(--border)",
-            background: "var(--surface)",
+            background: "var(--cta-bg)",
+            color: "var(--cta-fg)",
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = "var(--well)")}
+          onMouseEnter={(e) =>
+            (e.currentTarget.style.background = "var(--cta-bg-hover)")
+          }
           onMouseLeave={(e) =>
-            (e.currentTarget.style.background = "var(--surface)")
+            (e.currentTarget.style.background = "var(--cta-bg)")
           }
         >
           Read the docs
@@ -350,21 +363,20 @@ export default function Home() {
             isConfigOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
           }`}
           style={{
-            borderRight: "1px solid var(--border)",
             background: "var(--page-bg)",
           }}
         >
-          <div className="px-6 pt-7 pb-10 flex flex-col">
+          <div className="flex flex-col">
             <h1
-              className="text-[20px] font-semibold tracking-[-0.01em]"
+              className="px-6 py-4 text-[20px] font-semibold tracking-[-0.01em]"
               style={{ color: "var(--text-primary)" }}
             >
               Deposit demo
             </h1>
 
-            {/* Tabs */}
+            {/* Tabs — span the full width of the panel */}
             <div
-              className="mt-6 grid grid-cols-3 relative"
+              className="grid grid-cols-3"
               style={{ borderBottom: "1px solid var(--border)" }}
             >
               {(["widget", "appearance", "behaviour"] as Tab[]).map((t) => {
@@ -374,27 +386,26 @@ export default function Home() {
                     key={t}
                     type="button"
                     onClick={() => setTab(t)}
-                    className="relative h-10 text-[13px] font-medium capitalize transition-colors"
+                    className="flex items-center justify-center py-3 text-[14px] font-medium capitalize transition-colors"
                     style={{
                       color: active
                         ? "var(--text-primary)"
                         : "var(--text-tertiary)",
+                      background: active ? "var(--well)" : "transparent",
+                      borderBottom: active
+                        ? "2px solid var(--tab-indicator)"
+                        : "2px solid transparent",
+                      marginBottom: "-1px",
                     }}
                   >
                     {t}
-                    {active && (
-                      <span
-                        className="absolute left-0 right-0 -bottom-px h-[2px] rounded-full"
-                        style={{ background: "var(--tab-indicator)" }}
-                      />
-                    )}
                   </button>
                 );
               })}
             </div>
 
             {/* Tab content */}
-            <div className="mt-6 flex flex-col gap-5">
+            <div className="px-6 pt-4 pb-10 flex flex-col gap-4">
               {tab === "widget" && (
                 <WidgetTab
                   targetChain={targetChain}
@@ -458,23 +469,21 @@ export default function Home() {
 
         {/* Right column — preview */}
         <main
-          className="flex-1 flex flex-col p-3 md:p-3 min-h-0 overflow-hidden"
+          className="flex-1 flex flex-col p-2 md:p-2 min-h-0 overflow-hidden"
           style={{ background: "var(--page-bg)" }}
         >
           <div
-            className="flex-1 rounded-[16px] relative overflow-y-auto"
+            className="flex-1 rounded-[24px] relative overflow-y-auto"
             style={{
               background: "var(--preview-bg)",
-              border: "1px solid var(--preview-border)",
             }}
           >
           <div className="min-h-full flex flex-col items-center gap-6 py-6 px-3 md:px-4">
             {/* Light / Dark toggle */}
             <div
-              className="inline-flex items-center gap-0.5 p-[3px] rounded-[8px] shrink-0"
+              className="inline-flex items-center gap-1 p-1 rounded-[8px] shrink-0"
               style={{
-                background: "var(--surface)",
-                border: "1px solid var(--border)",
+                background: "var(--toggle-track)",
               }}
             >
               {(["light", "dark"] as const).map((m) => {
@@ -484,12 +493,15 @@ export default function Home() {
                     key={m}
                     type="button"
                     onClick={() => setPreviewTheme(m)}
-                    className="inline-flex items-center gap-1.5 px-2.5 h-6 text-[12px] font-medium rounded-[6px] transition-colors capitalize"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-[14px] font-medium rounded-[4px] transition-colors capitalize"
                     style={{
-                      background: active ? "var(--well)" : "transparent",
+                      background: active
+                        ? "var(--toggle-active)"
+                        : "transparent",
+                      boxShadow: active ? "var(--toggle-active-shadow)" : "none",
                       color: active
                         ? "var(--text-primary)"
-                        : "var(--text-tertiary)",
+                        : "var(--text-secondary)",
                     }}
                   >
                     {m === "light" ? <SunIcon /> : <MoonIcon />}
@@ -525,8 +537,10 @@ export default function Home() {
                       style={{
                         width: "100%",
                         boxShadow: "var(--shadow-widget)",
-                        borderRadius: 16,
-                        overflow: "hidden",
+                        // Match the modal's own outer radius so the shadow hugs
+                        // it; the modal already clips its content, so no
+                        // wrapper overflow:hidden (which clipped the corners).
+                        borderRadius: MODAL_OUTER_RADIUS_PX[radiusToken],
                       }}
                     >
                       {targetChain === "solana" &&
@@ -585,6 +599,9 @@ export default function Home() {
                             minDepositUsd: minDeposit,
                           }}
                           dappImports={{ polymarket: true }}
+                          submerchant="rhinestone-demo"
+                          enableFiatOnramp={true}
+                          enableExchangeConnect={true}
                           onLifecycle={onDepositLifecycle}
                           onError={onError}
                           inline={true}
@@ -993,19 +1010,19 @@ function TextInput({
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       inputMode={inputMode}
-      className={`h-10 w-full px-3 text-[13px] outline-none rounded-[10px] transition-colors ${
+      className={`h-12 w-full px-3 text-[14px] outline-none rounded-[8px] transition-colors ${
         mono ? "font-mono" : ""
       }`}
       style={{
-        background: "var(--surface)",
-        border: "1px solid var(--border)",
+        background: "var(--field-bg)",
+        border: "1px solid var(--field-bg)",
         color: "var(--text-primary)",
       }}
       onFocus={(e) => {
-        e.currentTarget.style.borderColor = "var(--text-tertiary)";
+        e.currentTarget.style.borderColor = "var(--border-strong)";
       }}
       onBlur={(e) => {
-        e.currentTarget.style.borderColor = "var(--border)";
+        e.currentTarget.style.borderColor = "var(--field-bg)";
       }}
     />
   );
@@ -1022,10 +1039,10 @@ function UnitInput({
 }) {
   return (
     <div
-      className="h-10 w-full flex items-center px-3 rounded-[10px]"
+      className="h-12 w-full flex items-center px-3 rounded-[8px]"
       style={{
-        background: "var(--surface)",
-        border: "1px solid var(--border)",
+        background: "var(--field-bg)",
+        border: "1px solid var(--field-bg)",
       }}
     >
       <input
@@ -1061,10 +1078,10 @@ function HexColorInput({
 }) {
   return (
     <div
-      className="h-10 w-full flex items-center px-3 rounded-[10px] transition-colors"
+      className="h-12 w-full flex items-center px-3 rounded-[8px] transition-colors"
       style={{
-        background: "var(--surface)",
-        border: "1px solid var(--border)",
+        background: "var(--field-bg)",
+        border: "1px solid var(--field-bg)",
       }}
     >
       <input
@@ -1072,7 +1089,7 @@ function HexColorInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="flex-1 bg-transparent outline-none text-[13px] font-mono"
+        className="flex-1 bg-transparent outline-none text-[14px] font-mono"
         style={{ color: "var(--text-primary)" }}
       />
       <label
@@ -1126,10 +1143,10 @@ function SelectInput({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="h-10 w-full flex items-center justify-between px-3 text-[13px] rounded-[10px] transition-colors"
+        className="h-12 w-full flex items-center justify-between px-3 text-[14px] rounded-[8px] transition-colors"
         style={{
-          background: "var(--surface)",
-          border: "1px solid var(--border)",
+          background: "var(--field-bg)",
+          border: "1px solid var(--field-bg)",
           color: selected ? "var(--text-primary)" : "var(--text-placeholder)",
         }}
       >
@@ -1549,8 +1566,8 @@ function CheckIcon() {
 function ChevronDownIcon({ open }: { open: boolean }) {
   return (
     <svg
-      width="14"
-      height="14"
+      width="20"
+      height="20"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -1560,7 +1577,7 @@ function ChevronDownIcon({ open }: { open: boolean }) {
       className="shrink-0 transition-transform"
       style={{
         transform: open ? "rotate(180deg)" : "rotate(0deg)",
-        color: "var(--text-tertiary)",
+        color: "#9f9fa9",
       }}
     >
       <polyline points="6 9 12 15 18 9" />
