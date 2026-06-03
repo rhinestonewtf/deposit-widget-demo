@@ -1286,56 +1286,50 @@ function CodeCard({ code }: { code: string }) {
   }, [code]);
 
   return (
+    // The dark-mode modal container with the snippet inside — always dark
+    // regardless of the page theme, per the Figma code-view design
+    // (modal/background #0a0a0a, modal/border #18181b, rounded-4 = 16px).
     <div
-      className="w-full flex flex-col rounded-[16px] overflow-hidden"
+      className="w-full h-full flex flex-col gap-2 rounded-[16px] p-4"
       style={{
-        background: "var(--surface)",
-        border: "1px solid var(--border)",
+        background: "#0a0a0a",
+        border: "1px solid #18181b",
         boxShadow: "var(--shadow-widget)",
         minHeight: 520,
       }}
     >
-      <div
-        className="h-11 flex items-center justify-between px-4"
-        style={{ borderBottom: "1px solid var(--border)" }}
-      >
-        <span
-          className="text-[12px] font-mono"
-          style={{ color: "var(--text-tertiary)" }}
-        >
-          DepositModal.tsx
-        </span>
-        <button
-          type="button"
-          onClick={copy}
-          className="inline-flex items-center gap-1.5 px-2.5 h-7 text-[11px] font-medium rounded-[6px] transition-colors"
-          style={{
-            background: "var(--well)",
-            color: "var(--text-secondary)",
-          }}
-        >
-          {copied ? (
-            <>
-              <CheckIcon />
-              Copied
-            </>
-          ) : (
-            <>
-              <CopyIcon />
-              Copy
-            </>
-          )}
-        </button>
-      </div>
       <pre
-        className="flex-1 m-0 px-4 py-4 font-mono text-[11.5px] leading-[1.7] overflow-auto"
+        className="flex-1 m-0 rounded-[8px] px-6 py-4 font-mono font-medium text-[12px] leading-[normal] overflow-auto whitespace-pre-wrap break-words"
         style={{
-          background: "var(--surface)",
-          color: "var(--text-secondary)",
+          background: "#18181b",
+          color: "#9f9fa9",
         }}
       >
         <code>{code}</code>
       </pre>
+      <button
+        type="button"
+        onClick={copy}
+        className="w-full h-11 shrink-0 inline-flex items-center justify-center gap-3 text-[14px] font-medium rounded-[8px] transition-colors"
+        style={{
+          background: "#e4e4e7",
+          color: "#09090b",
+        }}
+        onMouseEnter={(e) => (e.currentTarget.style.background = "#d4d4d8")}
+        onMouseLeave={(e) => (e.currentTarget.style.background = "#e4e4e7")}
+      >
+        {copied ? (
+          <>
+            <CheckIcon size={16} />
+            Copied
+          </>
+        ) : (
+          <>
+            <CopyIcon size={16} />
+            Copy code
+          </>
+        )}
+      </button>
     </div>
   );
 }
@@ -1527,11 +1521,11 @@ function CodeIcon() {
   );
 }
 
-function CopyIcon() {
+function CopyIcon({ size = 11 }: { size?: number }) {
   return (
     <svg
-      width="11"
-      height="11"
+      width={size}
+      height={size}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -1545,11 +1539,11 @@ function CopyIcon() {
   );
 }
 
-function CheckIcon() {
+function CheckIcon({ size = 12 }: { size?: number }) {
   return (
     <svg
-      width="12"
-      height="12"
+      width={size}
+      height={size}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
