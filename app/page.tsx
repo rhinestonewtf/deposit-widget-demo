@@ -13,6 +13,7 @@ import {
   NATIVE_TOKEN_ADDRESS,
   SOURCE_CHAINS,
   SOLANA_TOKENS,
+  DEFAULT_BACKEND_URL,
   getTokenAddress,
   getSupportedTokenSymbolsForChain,
   getSolanaTokenByMint,
@@ -23,6 +24,11 @@ import {
   type DepositLifecycleEvent,
 } from "@rhinestone/deposit-modal";
 import { isAddress, type Address } from "viem";
+import { OnrampSimulatorPanel } from "./components/OnrampSimulatorPanel";
+import {
+  installOnrampMockFetch,
+  setSimTarget,
+} from "./simulation/onramp-simulator";
 
 /* ─────────────────────────────────────────────────────────────
    Constants
@@ -197,6 +203,19 @@ export default function Home() {
   useEffect(() => {
     document.documentElement.dataset.theme = previewTheme;
   }, [previewTheme]);
+
+  /* ── on-ramp simulator: intercept the modal's on-ramp polls in the
+        browser so the simulate buttons can drive the state transitions
+        without a backend (and without moving real funds). ──────────── */
+  useEffect(() => installOnrampMockFetch(DEFAULT_BACKEND_URL), []);
+
+  // Keep simulated deposit rows pointed at the configured destination.
+  // On-ramp is EVM-only, so ignore Solana targets.
+  useEffect(() => {
+    if (typeof targetChain === "number" && isAddress(targetToken, { strict: false })) {
+      setSimTarget(targetChain, targetToken);
+    }
+  }, [targetChain, targetToken]);
 
   const handleChainChange = useCallback(
     (chainId: number | "solana") => {
@@ -573,6 +592,7 @@ export default function Home() {
                           isOpen={true}
                           onClose={() => setWidgetState("closing")}
                           debug={true}
+                          backendUrl={DEFAULT_BACKEND_URL}
                           solanaRpcUrl={solanaRpcUrl}
                           dappAddress={
                             isAddress(ownerAddress, { strict: false })
@@ -646,6 +666,9 @@ export default function Home() {
                 </>
               )}
             </button>
+
+            {/* On-ramp state simulator (client-side mock — no funds move) */}
+            <OnrampSimulatorPanel />
           </div>
           </div>
         </main>
