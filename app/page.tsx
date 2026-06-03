@@ -599,7 +599,6 @@ export default function Home() {
                             minDepositUsd: minDeposit,
                           }}
                           dappImports={{ polymarket: true }}
-                          submerchant="rhinestone-demo"
                           enableFiatOnramp={true}
                           enableExchangeConnect={true}
                           onLifecycle={onDepositLifecycle}
