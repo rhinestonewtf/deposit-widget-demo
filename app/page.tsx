@@ -599,8 +599,8 @@ export default function Home() {
                             minDepositUsd: minDeposit,
                           }}
                           dappImports={{ polymarket: true }}
-                          enableFiatOnramp={true}
-                          enableExchangeConnect={true}
+                          enableFiatOnramp={false}
+                          enableExchangeConnect={false}
                           onLifecycle={onDepositLifecycle}
                           onError={onError}
                           inline={true}
