@@ -145,6 +145,16 @@ export function fireSwappedEvent(status: SwappedSimStatus): void {
   setState({ swappedStatus: status });
 }
 
+function startSimulatedOrder(activeOrderUuid: string): void {
+  setState({
+    activeOrderUuid,
+    swappedStatus: null,
+    depositRow: null,
+    lastProcessorEvent: null,
+    simulatedTxHash: null,
+  });
+}
+
 export function fireProcessorEvent(type: ProcessorSimEvent): void {
   const txHash = state.simulatedTxHash ?? randomTxHash();
   // DepositRow.status drives the modal's event-type derivation in
@@ -273,7 +283,7 @@ export function installOnrampMockFetch(backendUrl: string): () => void {
           const smartAccount =
             typeof body?.smartAccount === "string" ? body.smartAccount : "0x0";
           const uuid = mintUuid();
-          setState({ activeOrderUuid: uuid });
+          startSimulatedOrder(uuid);
           return jsonResponse({
             ok: true,
             url: "/simulated-onramp.html",
