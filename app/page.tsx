@@ -600,7 +600,7 @@ export default function Home() {
                           }}
                           dappImports={{ polymarket: true }}
                           enableFiatOnramp={true}
-                          enableExchangeConnect={true}
+                          enableExchangeConnect={false}
                           onLifecycle={onDepositLifecycle}
                           onError={onError}
                           inline={true}
