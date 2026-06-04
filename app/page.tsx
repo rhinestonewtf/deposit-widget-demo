@@ -129,6 +129,20 @@ function preventScrollJump(e: ReactFocusEvent) {
 type Tab = "widget" | "appearance" | "behaviour";
 type ThemeMode = "light" | "dark" | "system";
 
+/**
+ * Swapped fiat payment methods surfaced as configurator toggles. Internal-only —
+ * the rows only render when NEXT_PUBLIC_ENABLE_FIAT_ONRAMP === "true".
+ */
+// `method` MUST equal Swapped's `payment_group` (GET
+// /api/v1/merchant/get_payment_methods) — that's the only value the widget URL's
+// `method` param prepopulates from. Apple Pay's group is `apple-pay`, NOT
+// `applepay`; passing the latter silently falls back to the default (Card).
+const FIAT_METHOD_DEFS = [
+  { method: "creditcard", label: "Pay with Card", icon: "card" },
+  { method: "apple-pay", label: "Apple Pay", icon: "apple" },
+  { method: "bank-transfer", label: "Bank Transfer", icon: "bank" },
+] as const;
+
 /* ─────────────────────────────────────────────────────────────
    Page
    ───────────────────────────────────────────────────────────── */
@@ -164,6 +178,15 @@ export default function Home() {
   const [minDeposit, setMinDeposit] = useState<number | undefined>(undefined);
   const [maxDeposit, setMaxDeposit] = useState<number | undefined>(100);
 
+  /* payment methods (internal-only — gated by NEXT_PUBLIC_ENABLE_FIAT_ONRAMP) */
+  const [fiatMethods, setFiatMethods] = useState<Record<string, boolean>>({
+    creditcard: true,
+    "apple-pay": false,
+    "bank-transfer": false,
+  });
+  const [enableExchangeConnect, setEnableExchangeConnect] = useState(false);
+  const [enableQrTransfer, setEnableQrTransfer] = useState(true);
+
   /* ui state */
   const [tab, setTab] = useState<Tab>("widget");
   const [showCode, setShowCode] = useState(false);
@@ -174,6 +197,10 @@ export default function Home() {
 
   const reownProjectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID;
   const rhinestoneApiKey = process.env.NEXT_PUBLIC_RHINESTONE_API_KEY;
+  // Internal-only gate: keeps the Swapped fiat on-ramp controls out of the
+  // public demo. An internal preview deploy is built with this flag set.
+  const fiatOnrampEnabled =
+    process.env.NEXT_PUBLIC_ENABLE_FIAT_ONRAMP === "true";
 
   const [solanaRpcUrl] = useState(() =>
     typeof window === "undefined"
@@ -239,6 +266,15 @@ export default function Home() {
   const effectiveAccent = customColor || accentColor;
   const radiusToken = pxToRadius(cornerRadius);
 
+  // Derived Swapped props: one row per selected method; on-ramp is enabled
+  // whenever at least one method is active. Only forwarded to the modal when
+  // fiatOnrampEnabled (see the <DepositModal> render below).
+  const fiatOnrampMethods = useMemo(
+    () => FIAT_METHOD_DEFS.filter((m) => fiatMethods[m.method]),
+    [fiatMethods],
+  );
+  const enableFiatOnramp = fiatOnrampMethods.length > 0;
+
   // Appearance props (theme mode, colors, radius) are applied reactively by
   // DepositModal via applyTheme, so they must NOT remount the widget — that
   // would replay the load + open animation on every change. Only props the
@@ -252,6 +288,9 @@ export default function Home() {
     showHistoryButton,
     maxDeposit,
     minDeposit,
+    fiatOnrampEnabled ? fiatOnrampMethods.map((m) => m.method).join(",") : "",
+    fiatOnrampEnabled ? String(enableExchangeConnect) : "",
+    fiatOnrampEnabled ? String(enableQrTransfer) : "",
   ].join("|");
 
   const codeString = useMemo(
@@ -273,6 +312,12 @@ export default function Home() {
         showHistoryButton,
         maxDeposit,
         minDeposit,
+        enableFiatOnramp: fiatOnrampEnabled ? enableFiatOnramp : undefined,
+        fiatOnrampMethods: fiatOnrampEnabled ? fiatOnrampMethods : undefined,
+        enableExchangeConnect: fiatOnrampEnabled
+          ? enableExchangeConnect
+          : undefined,
+        enableQrTransfer: fiatOnrampEnabled ? enableQrTransfer : undefined,
       }),
     [
       targetChain,
@@ -291,6 +336,11 @@ export default function Home() {
       showHistoryButton,
       maxDeposit,
       minDeposit,
+      fiatOnrampEnabled,
+      enableFiatOnramp,
+      fiatOnrampMethods,
+      enableExchangeConnect,
+      enableQrTransfer,
     ],
   );
 
@@ -450,6 +500,13 @@ export default function Home() {
                   setMinDeposit={setMinDeposit}
                   maxDeposit={maxDeposit}
                   setMaxDeposit={setMaxDeposit}
+                  fiatOnrampEnabled={fiatOnrampEnabled}
+                  fiatMethods={fiatMethods}
+                  setFiatMethods={setFiatMethods}
+                  enableExchangeConnect={enableExchangeConnect}
+                  setEnableExchangeConnect={setEnableExchangeConnect}
+                  enableQrTransfer={enableQrTransfer}
+                  setEnableQrTransfer={setEnableQrTransfer}
                 />
               )}
             </div>
@@ -585,6 +642,18 @@ export default function Home() {
                             minDepositUsd: minDeposit,
                           }}
                           dappImports={{ polymarket: true }}
+                          enableFiatOnramp={
+                            fiatOnrampEnabled ? enableFiatOnramp : undefined
+                          }
+                          fiatOnrampMethods={
+                            fiatOnrampEnabled ? fiatOnrampMethods : undefined
+                          }
+                          enableExchangeConnect={
+                            fiatOnrampEnabled ? enableExchangeConnect : undefined
+                          }
+                          enableQrTransfer={
+                            fiatOnrampEnabled ? enableQrTransfer : undefined
+                          }
                           onLifecycle={onDepositLifecycle}
                           onError={onError}
                           inline={true}
@@ -900,6 +969,13 @@ function BehaviourTab(props: {
   setMinDeposit: (v: number | undefined) => void;
   maxDeposit: number | undefined;
   setMaxDeposit: (v: number | undefined) => void;
+  fiatOnrampEnabled: boolean;
+  fiatMethods: Record<string, boolean>;
+  setFiatMethods: (v: Record<string, boolean>) => void;
+  enableExchangeConnect: boolean;
+  setEnableExchangeConnect: (v: boolean) => void;
+  enableQrTransfer: boolean;
+  setEnableQrTransfer: (v: boolean) => void;
 }) {
   return (
     <>
@@ -928,6 +1004,33 @@ function BehaviourTab(props: {
           inputMode="decimal"
         />
       </Field>
+
+      {/* Swapped fiat on-ramp — internal-only (NEXT_PUBLIC_ENABLE_FIAT_ONRAMP) */}
+      {props.fiatOnrampEnabled && (
+        <>
+          <SectionLabel>Payment methods</SectionLabel>
+          {FIAT_METHOD_DEFS.map((m) => (
+            <ToggleRow
+              key={m.method}
+              label={m.label}
+              checked={props.fiatMethods[m.method] ?? false}
+              onChange={(v) =>
+                props.setFiatMethods({ ...props.fiatMethods, [m.method]: v })
+              }
+            />
+          ))}
+          <ToggleRow
+            label="Fund from Exchange"
+            checked={props.enableExchangeConnect}
+            onChange={props.setEnableExchangeConnect}
+          />
+          <ToggleRow
+            label="Transfer Crypto (QR)"
+            checked={props.enableQrTransfer}
+            onChange={props.setEnableQrTransfer}
+          />
+        </>
+      )}
     </>
   );
 }
@@ -1345,6 +1448,14 @@ function buildModalCodeString(cfg: {
   showHistoryButton: boolean;
   maxDeposit?: number;
   minDeposit?: number;
+  enableFiatOnramp?: boolean;
+  fiatOnrampMethods?: ReadonlyArray<{
+    method: string;
+    label: string;
+    icon?: string;
+  }>;
+  enableExchangeConnect?: boolean;
+  enableQrTransfer?: boolean;
 }): string {
   const lines: string[] = [
     `import { DepositModal } from "@rhinestone/deposit-modal";`,
@@ -1388,6 +1499,20 @@ function buildModalCodeString(cfg: {
       lines.push(`    minDepositUsd: ${cfg.minDeposit},`);
     lines.push(`  }}`);
   }
+  if (cfg.enableFiatOnramp) {
+    lines.push(`  enableFiatOnramp`);
+    if (cfg.fiatOnrampMethods?.length) {
+      lines.push(`  fiatOnrampMethods={[`);
+      for (const m of cfg.fiatOnrampMethods) {
+        lines.push(
+          `    { method: "${m.method}", label: "${m.label}", icon: "${m.icon}" },`,
+        );
+      }
+      lines.push(`  ]}`);
+    }
+  }
+  if (cfg.enableExchangeConnect) lines.push(`  enableExchangeConnect`);
+  if (cfg.enableQrTransfer === false) lines.push(`  enableQrTransfer={false}`);
   lines.push(`  onLifecycle={(event) => console.log(event.type, event)}`);
   lines.push(`/>`);
   return lines.join("\n");
