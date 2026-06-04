@@ -17,8 +17,10 @@
  * synthetic responses while letting every other request pass through to prod.
  *
  * This mirrors the deposit-modal repo's playground (`fireSwappedEvent` /
- * `fireProcessorEvent`) but with no backend — no real funds can ever move,
- * because the Swapped iframe is also replaced with a local placeholder.
+ * `fireProcessorEvent`) but with no backend. The Swapped iframe uses a signed
+ * sandbox URL when server-side sandbox credentials are configured; otherwise it
+ * falls back to a local placeholder. No real funds can ever move because the
+ * bridge/deposit polls are always synthetic.
  */
 
 import { useSyncExternalStore } from "react";
@@ -39,7 +41,8 @@ export type ProcessorSimEvent =
 // processor bridges to the modal's target chain/token.
 const SIMULATED_SOURCE_CHAIN_ID = 8453;
 const SIMULATED_SOURCE_TOKEN = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"; // USDC on Base
-const SIMULATED_AMOUNT = "1000000"; // 1 USDC, 6 decimals
+const SIMULATED_AMOUNT = "121500000"; // 121.50 USDC, 6 decimals
+const SIMULATED_DISPLAY_AMOUNT = "121.5";
 
 // Minimal subset of the processor's DepositRow that the modal consumes — see
 // deposit-modal `core/deposit-service.ts` (DepositRow + depositRowToEvent).
@@ -250,6 +253,30 @@ function requestMethod(
   return "GET";
 }
 
+async function getSandboxUrl(
+  uuid: string,
+  smartAccount: string,
+  body: Record<string, unknown> | null,
+  kind: "widget" | "connect",
+): Promise<Record<string, unknown> | null> {
+  try {
+    const response = await originalFetch?.("/api/swapped-sandbox", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...(body ?? {}),
+        uuid,
+        smartAccount,
+        kind,
+      }),
+    });
+    if (!response?.ok) return null;
+    return (await response.json()) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Wrap `window.fetch` so the modal's on-ramp polls resolve against the
  * in-browser simulation state. Idempotent; returns a restore function.
@@ -271,9 +298,10 @@ export function installOnrampMockFetch(backendUrl: string): () => void {
         const path = url.slice(base.length);
         const method = requestMethod(input, init);
 
-        // Swapped widget / connect URL → always mock: mint our own order uuid
-        // and point the iframe at a harmless local placeholder so no real
-        // payment surface ever loads.
+        // Swapped widget / connect URL → mint our own order uuid so our status
+        // mock can echo it back. Prefer a real Swapped sandbox URL signed by
+        // the local Next API route; fall back to a harmless placeholder when
+        // sandbox credentials are not configured.
         if (
           method === "POST" &&
           (path.startsWith("/onramp/swapped/widget-url") ||
@@ -284,6 +312,13 @@ export function installOnrampMockFetch(backendUrl: string): () => void {
             typeof body?.smartAccount === "string" ? body.smartAccount : "0x0";
           const uuid = mintUuid();
           startSimulatedOrder(uuid);
+          const sandbox = await getSandboxUrl(
+            uuid,
+            smartAccount,
+            body,
+            path.startsWith("/onramp/swapped/connect-url") ? "connect" : "widget",
+          );
+          if (sandbox) return jsonResponse(sandbox);
           return jsonResponse({
             ok: true,
             url: "/simulated-onramp.html",
@@ -304,10 +339,10 @@ export function installOnrampMockFetch(backendUrl: string): () => void {
                 orderId: state.activeOrderUuid,
                 status: state.swappedStatus,
                 orderCrypto: "USDC",
-                orderCryptoAmount: "100",
+                orderCryptoAmount: SIMULATED_DISPLAY_AMOUNT,
                 transactionId:
                   state.swappedStatus === "order_broadcasted"
-                    ? (state.depositRow?.destinationTxHash ?? null)
+                    ? (state.depositRow?.sourceTxHash ?? null)
                     : null,
                 receivedAt: new Date().toISOString(),
                 paidAmountUsd: 121.5,
