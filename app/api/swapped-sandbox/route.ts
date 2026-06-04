@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 const SMART_ACCOUNT_RE = /^0x[a-fA-F0-9]{40}$/;
 const SANDBOX_WIDGET_BASE_URL = "https://sandbox.swapped.com";
 const CONNECT_BASE_URL = "https://connect.swapped.com";
-const DEFAULT_CURRENCY_CODE = "USDC_BASE";
+const DEFAULT_CURRENCY_CODE = "ETH";
 
 function readEnv(name: string): string | undefined {
   const value = process.env[name]?.trim();
@@ -27,6 +27,9 @@ function parseCurrencyCode(
   currencyCode: string,
 ): { asset: string; network: string } | null {
   const idx = currencyCode.indexOf("_");
+  if (idx < 0 && currencyCode === "ETH") {
+    return { asset: "ETH", network: "sepolia" };
+  }
   if (idx <= 0 || idx === currencyCode.length - 1) return null;
   const asset = currencyCode.slice(0, idx);
   const networkRaw = currencyCode.slice(idx + 1).toLowerCase();

@@ -322,7 +322,7 @@ export function installOnrampMockFetch(backendUrl: string): () => void {
           return jsonResponse({
             ok: true,
             url: "/simulated-onramp.html",
-            currencyCode: "USDC_BASE",
+            currencyCode: "ETH",
             sandbox: true,
             externalCustomerId: `${smartAccount}:${uuid}`,
             expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
