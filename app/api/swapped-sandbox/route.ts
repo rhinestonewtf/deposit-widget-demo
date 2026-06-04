@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 const SMART_ACCOUNT_RE = /^0x[a-fA-F0-9]{40}$/;
 const SANDBOX_WIDGET_BASE_URL = "https://sandbox.swapped.com";
 const CONNECT_BASE_URL = "https://connect.swapped.com";
-const DEFAULT_CURRENCY_CODE = "ETH";
+const DEFAULT_CURRENCY_CODE = "ETH_ETHEREUM";
 
 function readEnv(name: string): string | undefined {
   const value = process.env[name]?.trim();
