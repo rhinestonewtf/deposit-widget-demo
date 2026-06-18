@@ -573,7 +573,7 @@ export default function Home() {
                           isOpen={true}
                           onClose={() => setWidgetState("closing")}
                           debug={true}
-                          solanaRpcUrl={solanaRpcUrl}
+                          rpcUrls={{ solana: solanaRpcUrl }}
                           dappAddress={
                             isAddress(ownerAddress, { strict: false })
                               ? (ownerAddress as Address)
