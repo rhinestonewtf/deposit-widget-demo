@@ -71,6 +71,8 @@ export interface SimState {
    *  status mock echoes it so the modal's `orderId === expectedOrderUuid` check
    *  passes and the tracker mounts. */
   activeOrderUuid: string | null;
+  activeOrderKind: "widget" | "connect" | null;
+  paymentMethod: string | null;
   swappedStatus: SwappedSimStatus | null;
   depositRow: SimDepositRow | null;
   lastProcessorEvent: ProcessorSimEvent | null;
@@ -82,6 +84,8 @@ export interface SimState {
 
 const INITIAL_STATE: SimState = {
   activeOrderUuid: null,
+  activeOrderKind: null,
+  paymentMethod: null,
   swappedStatus: null,
   depositRow: null,
   lastProcessorEvent: null,
@@ -148,9 +152,15 @@ export function fireSwappedEvent(status: SwappedSimStatus): void {
   setState({ swappedStatus: status });
 }
 
-function startSimulatedOrder(activeOrderUuid: string): void {
+function startSimulatedOrder(
+  activeOrderUuid: string,
+  activeOrderKind: "widget" | "connect",
+  paymentMethod: string,
+): void {
   setState({
     activeOrderUuid,
+    activeOrderKind,
+    paymentMethod,
     swappedStatus: null,
     depositRow: null,
     lastProcessorEvent: null,
@@ -203,6 +213,8 @@ export function fireProcessorEvent(type: ProcessorSimEvent): void {
 export function resetSimulation(): void {
   setState({
     activeOrderUuid: null,
+    activeOrderKind: null,
+    paymentMethod: null,
     swappedStatus: null,
     depositRow: null,
     lastProcessorEvent: null,
@@ -277,6 +289,16 @@ async function getSandboxUrl(
   }
 }
 
+function simulatedPaymentMethod(
+  kind: "widget" | "connect",
+  body: Record<string, unknown> | null,
+): string {
+  if (kind === "connect") {
+    return typeof body?.connection === "string" ? body.connection : "coinbase";
+  }
+  return typeof body?.method === "string" ? body.method : "creditcard";
+}
+
 /**
  * Wrap `window.fetch` so the modal's on-ramp polls resolve against the
  * in-browser simulation state. Idempotent; returns a restore function.
@@ -311,12 +333,15 @@ export function installOnrampMockFetch(backendUrl: string): () => void {
           const smartAccount =
             typeof body?.smartAccount === "string" ? body.smartAccount : "0x0";
           const uuid = mintUuid();
-          startSimulatedOrder(uuid);
+          const kind = path.startsWith("/onramp/swapped/connect-url")
+            ? "connect"
+            : "widget";
+          startSimulatedOrder(uuid, kind, simulatedPaymentMethod(kind, body));
           const sandbox = await getSandboxUrl(
             uuid,
             smartAccount,
             body,
-            path.startsWith("/onramp/swapped/connect-url") ? "connect" : "widget",
+            kind,
           );
           if (sandbox) return jsonResponse(sandbox);
           return jsonResponse({
@@ -347,8 +372,8 @@ export function installOnrampMockFetch(backendUrl: string): () => void {
                 receivedAt: new Date().toISOString(),
                 paidAmountUsd: 121.5,
                 paidAmountEur: null,
-                onrampFeeUsd: 1.75,
-                paymentMethod: "creditcard",
+                onrampFeeUsd: state.activeOrderKind === "connect" ? null : 1.75,
+                paymentMethod: state.paymentMethod,
               });
             }
             // In a sim order but no status fired yet → "no order" so the modal

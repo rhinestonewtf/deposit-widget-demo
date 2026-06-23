@@ -96,7 +96,14 @@ export function OnrampSimulatorPanel() {
         className="text-[10px] leading-relaxed rounded-[8px] px-2.5 py-2 font-mono break-all"
         style={{ background: "var(--well)", color: "var(--text-secondary)" }}
       >
-        <div>order: {hasOrder ? "active" : "— (pick Pay with Card)"}</div>
+        <div>
+          order:{" "}
+          {hasOrder
+            ? `${state.activeOrderKind ?? "active"}${
+                state.paymentMethod ? `/${state.paymentMethod}` : ""
+              }`
+            : "— (pick Pay with Card or Fund from Exchange)"}
+        </div>
         <div>swapped: {state.swappedStatus ?? "—"}</div>
         <div>deposit: {state.lastProcessorEvent ?? "—"}</div>
       </div>
