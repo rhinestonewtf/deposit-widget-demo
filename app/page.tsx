@@ -198,6 +198,7 @@ export default function Home() {
       ? "https://demo.rhinestone.dev/api/solana-rpc"
       : `${window.location.origin}/api/solana-rpc`,
   );
+  const rpcUrls = useMemo(() => ({ solana: solanaRpcUrl }), [solanaRpcUrl]);
 
   /* ── sync page theme with preview theme ───────────────────── */
   useEffect(() => {
@@ -593,7 +594,7 @@ export default function Home() {
                           onClose={() => setWidgetState("closing")}
                           debug={true}
                           backendUrl={DEFAULT_BACKEND_URL}
-                          solanaRpcUrl={solanaRpcUrl}
+                          rpcUrls={rpcUrls}
                           dappAddress={
                             isAddress(ownerAddress, { strict: false })
                               ? (ownerAddress as Address)
