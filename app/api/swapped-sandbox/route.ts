@@ -3,12 +3,50 @@ import { NextRequest, NextResponse } from "next/server";
 
 const SMART_ACCOUNT_RE = /^0x[a-fA-F0-9]{40}$/;
 const SANDBOX_WIDGET_BASE_URL = "https://sandbox.swapped.com";
-const CONNECT_BASE_URL = "https://connect.swapped.com";
+const PRODUCTION_WIDGET_BASE_URL = "https://widget.swapped.com";
+const DEFAULT_CONNECT_BASE_URL = "https://connect.swapped.com";
 const DEFAULT_CURRENCY_CODE = "ETH_ETHEREUM";
+type SwappedEnvironment = "sandbox" | "production";
 
 function readEnv(name: string): string | undefined {
   const value = process.env[name]?.trim();
   return value ? value : undefined;
+}
+
+function readSwappedEnvironment(): SwappedEnvironment | null {
+  const raw = readEnv("SWAPPED_ENVIRONMENT")?.toLowerCase();
+  if (!raw) return "sandbox";
+  if (raw === "sandbox") return "sandbox";
+  if (raw === "production" || raw === "prod") return "production";
+  return null;
+}
+
+function readSwappedConfig():
+  | {
+      environment: SwappedEnvironment;
+      widgetBaseUrl: string;
+      connectBaseUrl: string;
+      sandbox: boolean;
+    }
+  | { error: string } {
+  const environment = readSwappedEnvironment();
+  if (!environment) {
+    return {
+      error:
+        'Invalid SWAPPED_ENVIRONMENT. Expected "sandbox", "production", or unset.',
+    };
+  }
+  return {
+    environment,
+    widgetBaseUrl:
+      readEnv("SWAPPED_WIDGET_BASE_URL") ??
+      (environment === "production"
+        ? PRODUCTION_WIDGET_BASE_URL
+        : SANDBOX_WIDGET_BASE_URL),
+    connectBaseUrl:
+      readEnv("SWAPPED_CONNECT_BASE_URL") ?? DEFAULT_CONNECT_BASE_URL,
+    sandbox: environment === "sandbox",
+  };
 }
 
 function signUrl(
@@ -16,11 +54,12 @@ function signUrl(
   params: URLSearchParams,
   secretKey: string,
 ): string {
+  const normalizedBaseUrl = baseUrl.replace(/\/+$/, "");
   const search = `?${params.toString()}`;
   const signature = createHmac("sha256", secretKey)
     .update(search)
     .digest("base64");
-  return `${baseUrl}/${search}&signature=${encodeURIComponent(signature)}`;
+  return `${normalizedBaseUrl}/${search}&signature=${encodeURIComponent(signature)}`;
 }
 
 function parseCurrencyCode(
@@ -55,6 +94,10 @@ export async function POST(request: NextRequest) {
   }
 
   const externalCustomerId = `${smartAccount.toLowerCase()}:${uuid}`;
+  const config = readSwappedConfig();
+  if ("error" in config) {
+    return NextResponse.json({ error: config.error }, { status: 500 });
+  }
 
   if (kind === "connect") {
     const apiKey = readEnv("SWAPPED_CONNECT_PUB_KEY") ?? readEnv("SWAPPED_API_KEY");
@@ -62,7 +105,9 @@ export async function POST(request: NextRequest) {
       readEnv("SWAPPED_CONNECT_SECRET") ?? readEnv("SWAPPED_SECRET_KEY");
     if (!apiKey || !secretKey) {
       return NextResponse.json(
-        { error: "Swapped sandbox Connect credentials are not configured" },
+        {
+          error: `Swapped Connect credentials are not configured for ${config.environment}`,
+        },
         { status: 503 },
       );
     }
@@ -92,9 +137,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      url: signUrl(CONNECT_BASE_URL, params, secretKey),
+      url: signUrl(config.connectBaseUrl, params, secretKey),
       currencyCode,
-      sandbox: true,
+      sandbox: config.sandbox,
+      environment: config.environment,
       externalCustomerId,
       expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
     });
@@ -104,7 +150,9 @@ export async function POST(request: NextRequest) {
   const secretKey = readEnv("SWAPPED_SECRET_KEY");
   if (!apiKey || !secretKey) {
     return NextResponse.json(
-      { error: "Swapped sandbox widget credentials are not configured" },
+      {
+        error: `Swapped widget credentials are not configured for ${config.environment}`,
+      },
       { status: 503 },
     );
   }
@@ -123,9 +171,10 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     ok: true,
-    url: signUrl(SANDBOX_WIDGET_BASE_URL, params, secretKey),
+    url: signUrl(config.widgetBaseUrl, params, secretKey),
     currencyCode,
-    sandbox: true,
+    sandbox: config.sandbox,
+    environment: config.environment,
     externalCustomerId,
     expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
   });

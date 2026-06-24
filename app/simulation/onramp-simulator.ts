@@ -17,10 +17,11 @@
  * synthetic responses while letting every other request pass through to prod.
  *
  * This mirrors the deposit-modal repo's playground (`fireSwappedEvent` /
- * `fireProcessorEvent`) but with no backend. The Swapped iframe uses a signed
- * sandbox URL when server-side sandbox credentials are configured; otherwise it
- * falls back to a local placeholder. No real funds can ever move because the
- * bridge/deposit polls are always synthetic.
+ * `fireProcessorEvent`) but with no backend webhook injection. The Swapped
+ * iframe uses a server-signed Swapped URL when credentials are configured;
+ * otherwise it falls back to a local placeholder. The tracker/bridge lifecycle
+ * is always synthetic, but a production Swapped iframe can still initiate a real
+ * on-ramp.
  */
 
 import { useSyncExternalStore } from "react";
@@ -265,7 +266,7 @@ function requestMethod(
   return "GET";
 }
 
-async function getSandboxUrl(
+async function getSignedOnrampUrl(
   uuid: string,
   smartAccount: string,
   body: Record<string, unknown> | null,
@@ -321,9 +322,9 @@ export function installOnrampMockFetch(backendUrl: string): () => void {
         const method = requestMethod(input, init);
 
         // Swapped widget / connect URL → mint our own order uuid so our status
-        // mock can echo it back. Prefer a real Swapped sandbox URL signed by
-        // the local Next API route; fall back to a harmless placeholder when
-        // sandbox credentials are not configured.
+        // mock can echo it back. Prefer a server-signed Swapped URL from the
+        // local Next API route; fall back to a harmless placeholder when
+        // credentials are not configured for the current Vercel environment.
         if (
           method === "POST" &&
           (path.startsWith("/onramp/swapped/widget-url") ||
@@ -337,13 +338,13 @@ export function installOnrampMockFetch(backendUrl: string): () => void {
             ? "connect"
             : "widget";
           startSimulatedOrder(uuid, kind, simulatedPaymentMethod(kind, body));
-          const sandbox = await getSandboxUrl(
+          const signedOnramp = await getSignedOnrampUrl(
             uuid,
             smartAccount,
             body,
             kind,
           );
-          if (sandbox) return jsonResponse(sandbox);
+          if (signedOnramp) return jsonResponse(signedOnramp);
           return jsonResponse({
             ok: true,
             url: "/simulated-onramp.html",
