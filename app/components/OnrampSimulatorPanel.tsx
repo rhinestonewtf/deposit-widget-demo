@@ -52,9 +52,11 @@ export function OnrampSimulatorPanel() {
           Simulate on-ramp
         </span>
         <span className="text-[11px] leading-relaxed" style={{ color: "var(--text-tertiary)" }}>
-          Mocks the on-ramp webhooks in your browser — no funds move. Open the
-          widget → <strong>Pay with Card</strong> (or Fund from Exchange), then
-          fire <strong>A</strong> → the bridge buttons in order.
+          Mocks the backend webhook status in your browser. The Swapped iframe
+          uses the configured Vercel environment; the tracker and bridge state
+          are simulated. Open <strong>Pay with Card</strong> or{" "}
+          <strong>Fund from Exchange</strong>, then fire <strong>A</strong> →
+          the bridge buttons in order.
         </span>
       </div>
 
