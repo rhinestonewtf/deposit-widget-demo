@@ -187,6 +187,12 @@ export default function Home() {
 
   const reownProjectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID;
   const rhinestoneApiKey = process.env.NEXT_PUBLIC_RHINESTONE_API_KEY;
+  // Point the widget at a deployment-specific backend (e.g. the deposit-widget
+  // proxy that fronts the deposit-processor) via env, falling back to the SDK
+  // default. Lets the fiat/Swapped deployment target the processor without a
+  // code change.
+  const backendUrl =
+    process.env.NEXT_PUBLIC_DEPOSIT_WIDGET_BACKEND_URL ?? DEFAULT_BACKEND_URL;
 
   const [solanaRpcUrl] = useState(() =>
     typeof window === "undefined"
@@ -575,7 +581,7 @@ export default function Home() {
                           isOpen={true}
                           onClose={() => setWidgetState("closing")}
                           debug={true}
-                          backendUrl={DEFAULT_BACKEND_URL}
+                          backendUrl={backendUrl}
                           rpcUrls={rpcUrls}
                           dappAddress={
                             isAddress(ownerAddress, { strict: false })
