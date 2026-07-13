@@ -597,10 +597,13 @@ export default function Home() {
                             showHistoryButton,
                             maxDepositUsd: maxDeposit,
                             minDepositUsd: minDeposit,
+                            // Rhinestone sponsors the bridge/network fees on the
+                            // on-ramp flow, so the receipt strikes them through.
+                            feeSponsored: true,
                           }}
                           dappImports={{ polymarket: true }}
-                          enableFiatOnramp={false}
-                          enableExchangeConnect={false}
+                          enableFiatOnramp={true}
+                          enableExchangeConnect={true}
                           onLifecycle={onDepositLifecycle}
                           onError={onError}
                           inline={true}
@@ -1385,19 +1388,16 @@ function buildModalCodeString(cfg: {
   if (cfg.backgroundColor)
     lines.push(`    backgroundColor: "${cfg.backgroundColor}",`);
   lines.push(`  }}`);
-  if (
-    cfg.showHistoryButton ||
-    cfg.maxDeposit !== undefined ||
-    cfg.minDeposit !== undefined
-  ) {
-    lines.push(`  uiConfig={{`);
-    if (cfg.showHistoryButton) lines.push(`    showHistoryButton: true,`);
-    if (cfg.maxDeposit !== undefined)
-      lines.push(`    maxDepositUsd: ${cfg.maxDeposit},`);
-    if (cfg.minDeposit !== undefined)
-      lines.push(`    minDepositUsd: ${cfg.minDeposit},`);
-    lines.push(`  }}`);
-  }
+  lines.push(`  uiConfig={{`);
+  if (cfg.showHistoryButton) lines.push(`    showHistoryButton: true,`);
+  if (cfg.maxDeposit !== undefined)
+    lines.push(`    maxDepositUsd: ${cfg.maxDeposit},`);
+  if (cfg.minDeposit !== undefined)
+    lines.push(`    minDepositUsd: ${cfg.minDeposit},`);
+  lines.push(`    feeSponsored: true,`);
+  lines.push(`  }}`);
+  lines.push(`  enableFiatOnramp={true}`);
+  lines.push(`  enableExchangeConnect={true}`);
   lines.push(`  onLifecycle={(event) => console.log(event.type, event)}`);
   lines.push(`/>`);
   return lines.join("\n");
