@@ -19,6 +19,8 @@ import {
   getSolanaTokenBySymbol,
 } from "@rhinestone/deposit-modal/constants";
 import {
+  ClaimModal,
+  type ClaimLifecycleEvent,
   DepositModal,
   type DepositLifecycleEvent,
 } from "@rhinestone/deposit-modal";
@@ -183,6 +185,11 @@ export default function Home() {
   const [widgetState, setWidgetState] = useState<"open" | "closing" | "closed">(
     "open",
   );
+  // Which modal the preview renders. Deposit is the configurator's focus; Claim
+  // is the signed self-service recovery modal, previewed with the same theme.
+  const [previewKind, setPreviewKind] = useState<"deposit" | "claim">(
+    "deposit",
+  );
 
   const reownProjectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID;
   const rhinestoneApiKey = process.env.NEXT_PUBLIC_RHINESTONE_API_KEY;
@@ -223,6 +230,10 @@ export default function Home() {
     },
     [recipientManuallyEdited],
   );
+
+  const onClaimLifecycle = useCallback((event: ClaimLifecycleEvent) => {
+    console.log("claim", event);
+  }, []);
 
   const availableSessionChainIds = useMemo(
     () => EVM_CHAIN_OPTIONS.map((chain) => chain.id),
@@ -511,6 +522,28 @@ export default function Home() {
               })}
             </div>
 
+            {/* Deposit / Claim preview toggle */}
+            <div className="flex items-center gap-1 mb-3">
+              {(["deposit", "claim"] as const).map((kind) => (
+                <button
+                  key={kind}
+                  type="button"
+                  onClick={() => setPreviewKind(kind)}
+                  className="px-3 h-8 text-[13px] font-medium rounded-[8px] capitalize transition-colors"
+                  style={{
+                    background:
+                      previewKind === kind ? "var(--cta-bg)" : "var(--surface)",
+                    color:
+                      previewKind === kind
+                        ? "var(--cta-fg)"
+                        : "var(--text-secondary)",
+                  }}
+                >
+                  {kind}
+                </button>
+              ))}
+            </div>
+
             {/* Flip card */}
             <div className="w-full flex-1 flex items-center justify-center">
               <div className="flip-scene">
@@ -543,7 +576,27 @@ export default function Home() {
                         borderRadius: MODAL_OUTER_RADIUS_PX[radiusToken],
                       }}
                     >
-                      {targetChain === "solana" &&
+                      {previewKind === "claim" ? (
+                        <ClaimModal
+                          key={componentKey}
+                          isOpen={true}
+                          onClose={() => setWidgetState("closing")}
+                          debug={true}
+                          inline={true}
+                          rpcUrls={{ solana: solanaRpcUrl }}
+                          reownAppId={reownProjectId}
+                          theme={{
+                            mode: previewTheme,
+                            radius: radiusToken,
+                            fontColor: primaryText || undefined,
+                            iconColor: secondaryText || undefined,
+                            ctaColor: effectiveAccent || undefined,
+                            backgroundColor: backgroundColor || undefined,
+                          }}
+                          onLifecycle={onClaimLifecycle}
+                          onError={onError}
+                        />
+                      ) : targetChain === "solana" &&
                       !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(
                         (recipient ?? "").trim(),
                       ) ? (
