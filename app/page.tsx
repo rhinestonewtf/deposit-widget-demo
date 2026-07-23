@@ -143,6 +143,22 @@ function preventScrollJump(e: ReactFocusEvent) {
 type Tab = "widget" | "appearance" | "behaviour";
 type ThemeMode = "light" | "dark" | "system";
 
+// Track the modal's own mobile breakpoint (639px). Below it the modal only
+// docks/slides up from the bottom when rendered as a portal overlay (inline
+// mode strips that behaviour), so the preview must drop inline on phones to
+// show the real bottom-sheet experience a client gets.
+function useIsMobile(): boolean {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+  return isMobile;
+}
+
 /* ─────────────────────────────────────────────────────────────
    Page
    ───────────────────────────────────────────────────────────── */
@@ -190,6 +206,10 @@ export default function Home() {
   const [previewKind, setPreviewKind] = useState<"deposit" | "claim">(
     "deposit",
   );
+
+  // On phones the modal renders as a portal bottom sheet (not inline) so the
+  // preview shows the real slide-up-from-bottom animation.
+  const isMobile = useIsMobile();
 
   const reownProjectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID;
   const rhinestoneApiKey = process.env.NEXT_PUBLIC_RHINESTONE_API_KEY;
@@ -569,7 +589,10 @@ export default function Home() {
                       }}
                       style={{
                         width: "100%",
-                        boxShadow: "var(--shadow-widget)",
+                        // In mobile (portal) mode the modal escapes this wrapper
+                        // to document.body, leaving it empty — drop the shadow so
+                        // it doesn't paint a stray bar in the preview area.
+                        boxShadow: isMobile ? "none" : "var(--shadow-widget)",
                         // Match the modal's own outer radius so the shadow hugs
                         // it; the modal already clips its content, so no
                         // wrapper overflow:hidden (which clipped the corners).
@@ -582,7 +605,7 @@ export default function Home() {
                           isOpen={true}
                           onClose={() => setWidgetState("closing")}
                           debug={true}
-                          inline={true}
+                          inline={!isMobile}
                           rpcUrls={{ solana: solanaRpcUrl }}
                           reownAppId={reownProjectId}
                           theme={{
@@ -659,7 +682,7 @@ export default function Home() {
                           enableExchangeConnect={true}
                           onLifecycle={onDepositLifecycle}
                           onError={onError}
-                          inline={true}
+                          inline={!isMobile}
                         />
                       )}
                     </div>
